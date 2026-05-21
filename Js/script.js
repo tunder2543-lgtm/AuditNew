@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let supabaseClient = null;
     let skuMasterList  = []; // Cache SKU list { SKU_NAME, NAME_PRO }
     let allRecords     = []; // Cache inventory_counts records for audit log context
+    let supabaseDataLoaded = false;
 
     function initSupabase() {
         if (!window.apiService) {
@@ -26,7 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (supabaseClient) {
             console.log('[Supabase] Client initialized ✓');
             updateBadge(true);
-            loadAllData(); // โหลดข้อมูล SKU และบันทึกการนับทั้งหมด
+            if (!supabaseDataLoaded) {
+                supabaseDataLoaded = true;
+                loadAllData();
+            }
             return true;
         } else {
             console.error('[Supabase] Init failed or not configured');
@@ -456,6 +460,8 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentMode = 'group';
     let groupItems = [];
     let isGroupSubmitting = false;
+    let groupSubmitPromise = null;
+    let isSingleSubmitting = false;
     const maxGroupItems = 25;
 
     window.setMode = function(mode) {
@@ -472,12 +478,14 @@ document.addEventListener('DOMContentLoaded', () => {
             singleAction.style.display = 'block';
             groupAction.style.display = 'none';
             groupContainer.style.display = 'none';
+            if (submitBtn) submitBtn.type = 'submit';
         } else {
             btnGroup.classList.add('active');
             btnSingle.classList.remove('active');
             singleAction.style.display = 'none';
             groupAction.style.display = 'block';
             groupContainer.style.display = 'block';
+            if (submitBtn) submitBtn.type = 'button';
         }
     };
 
@@ -556,7 +564,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.submitGroup = async function() {
-        if (isGroupSubmitting) return;
+        if (groupSubmitPromise) return groupSubmitPromise;
 
         if (!supabaseClient) { initSupabase(); }
         if (!supabaseClient) {
@@ -574,93 +582,99 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (groupItems.length === 0) {
+        const snapshot = [...groupItems];
+        if (snapshot.length === 0) {
             showToast('ไม่มีรายการสินค้าให้ส่งออก', 'error');
             return;
         }
 
         const submitGroupBtn = document.getElementById('submitGroupBtn');
-        isGroupSubmitting = true;
-        submitGroupBtn.disabled = true;
-        const orig = submitGroupBtn.innerHTML;
-        submitGroupBtn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> กำลังส่งข้อมูล...`;
-        lucide.createIcons();
+        const itemCount = snapshot.length;
 
-        try {
-            // เรียงลำดับจากเก่าไปใหม่สำหรับ insert (เพราะเรา unshift ตอนรับ)
-            const reversedItems = [...groupItems].reverse();
-            
-            const payloads = reversedItems.map(item => ({
-                warehouse, 
-                location, 
-                sku_id: item.sku, 
-                counted_qty: item.quantity, 
-                counter_name
-            }));
+        groupItems = [];
+        renderGroupList();
 
-            const { data, error } = await supabaseClient
-                .from('inventory_counts')
-                .insert(payloads)
-                .select();
-            
-            if (error) throw error;
-
-            let totalQtyInGroup = 0;
-            const insertedRows = (data && data.length > 0) ? data : reversedItems.map((_, i) => ({ id: Date.now() + i }));
-            
-            // รวบรวมข้อมูลเพื่อเขียนลง Log เดียว
-            const groupSkuDetails = reversedItems.map(item => `${item.sku} (x${item.quantity})`).join(', ');
-            
-            insertedRows.forEach((row, idx) => {
-                const insertedId = row.id;
-                const originalItem = reversedItems[idx];
-
-                const rowData = data && data[idx] ? data[idx] : {};
-                allRecords.unshift({
-                    id: insertedId,
-                    sku_id: originalItem.sku,
-                    counted_qty: originalItem.quantity,
-                    warehouse: warehouse,
-                    location: location,
-                    counter_name: counter_name,
-                    created_at: rowData.created_at || new Date().toISOString()
-                });
-                
-                addRecord(insertedId, originalItem.sku, originalItem.name, originalItem.quantity, location, warehouse);
-                totalQtyInGroup += originalItem.quantity;
-            });
-            
-            // บันทึก Log เดียวแบบกลุ่ม
-            logAudit('GROUP_INSERT', 'multiple', groupSkuDetails, null, totalQtyInGroup, warehouse, location, counter_name);
-
-            localStorage.setItem('saved_counter_name', counter_name);
-            localStorage.setItem('saved_warehouse', warehouse);
-            localStorage.setItem('saved_location', location);
-
-            updateStats();
-            
-            showToast(`✓ บันทึกกลุ่มสำเร็จ ${groupItems.length} รายการ`, 'success');
-
-            groupItems = [];
-            renderGroupList();
-            
-            // เคลียร์ตำแหน่งหลังจากกดส่งกลุ่ม
-            locationInput.value = '';
-            localStorage.removeItem('saved_location');
-            locationInput.focus();
-
-        } catch (err) {
-            console.error('[Insert Group Error]', err);
-            showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
-            submitGroupBtn.disabled = groupItems.length === 0;
-        } finally {
-            isGroupSubmitting = false;
-            submitGroupBtn.innerHTML = orig;
-            if (groupItems.length === 0) {
-                submitGroupBtn.disabled = true;
-            }
+        groupSubmitPromise = (async () => {
+            isGroupSubmitting = true;
+            submitGroupBtn.disabled = true;
+            const orig = submitGroupBtn.innerHTML;
+            submitGroupBtn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> กำลังส่งข้อมูล...`;
             lucide.createIcons();
-        }
+
+            try {
+                const reversedItems = [...snapshot].reverse();
+
+                const payloads = reversedItems.map(item => ({
+                    warehouse,
+                    location,
+                    sku_id: item.sku,
+                    counted_qty: item.quantity,
+                    counter_name
+                }));
+
+                const { data, error } = await supabaseClient
+                    .from('inventory_counts')
+                    .insert(payloads)
+                    .select();
+
+                if (error) throw error;
+
+                let totalQtyInGroup = 0;
+                const insertedRows = (data && data.length > 0) ? data : reversedItems.map((_, i) => ({ id: Date.now() + i }));
+
+                const groupSkuDetails = reversedItems.map(item => `${item.sku} (x${item.quantity})`).join(', ');
+
+                insertedRows.forEach((row, idx) => {
+                    const insertedId = row.id;
+                    const originalItem = reversedItems[idx];
+
+                    const rowData = data && data[idx] ? data[idx] : {};
+                    allRecords.unshift({
+                        id: insertedId,
+                        sku_id: originalItem.sku,
+                        counted_qty: originalItem.quantity,
+                        warehouse: warehouse,
+                        location: location,
+                        counter_name: counter_name,
+                        created_at: rowData.created_at || new Date().toISOString()
+                    });
+
+                    addRecord(insertedId, originalItem.sku, originalItem.name, originalItem.quantity, location, warehouse);
+                    totalQtyInGroup += originalItem.quantity;
+                });
+
+                logAudit('GROUP_INSERT', 'multiple', groupSkuDetails, null, totalQtyInGroup, warehouse, location, counter_name);
+
+                localStorage.setItem('saved_counter_name', counter_name);
+                localStorage.setItem('saved_warehouse', warehouse);
+                localStorage.setItem('saved_location', location);
+
+                updateStats();
+
+                showToast(`✓ บันทึกกลุ่มสำเร็จ ${itemCount} รายการ`, 'success');
+
+                locationInput.value = '';
+                localStorage.removeItem('saved_location');
+                locationInput.focus();
+
+            } catch (err) {
+                console.error('[Insert Group Error]', err);
+                groupItems = snapshot;
+                renderGroupList();
+                showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
+                submitGroupBtn.disabled = false;
+            } finally {
+                isGroupSubmitting = false;
+                groupSubmitPromise = null;
+                submitGroupBtn.innerHTML = orig;
+                if (groupItems.length === 0) {
+                    submitGroupBtn.disabled = true;
+                }
+                lucide.createIcons();
+            }
+        })();
+
+        return groupSubmitPromise;
     };
 
     // =============================================
@@ -695,6 +709,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (isSingleSubmitting) return;
+
+        isSingleSubmitting = true;
         submitBtn.disabled = true;
         const orig = submitBtn.innerHTML;
         submitBtn.innerHTML = `<i data-lucide="loader-2"></i><span>กำลังบันทึก...</span>`;
@@ -742,11 +759,21 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
             updateBadge(false);
         } finally {
+            isSingleSubmitting = false;
             submitBtn.disabled  = false;
             submitBtn.innerHTML = orig;
             lucide.createIcons();
         }
     });
+
+    const submitGroupBtnEl = document.getElementById('submitGroupBtn');
+    if (submitGroupBtnEl) {
+        submitGroupBtnEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            window.submitGroup();
+        });
+    }
 
     // =============================================
     //  ADD RECORD TO LIST (with Edit/Delete Actions)

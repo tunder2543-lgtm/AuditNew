@@ -339,6 +339,59 @@
             50% { opacity: 0.4; }
         }
 
+        .audit-loading-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(15, 23, 42, 0.72);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+        }
+
+        .audit-loading-overlay.active {
+            display: flex;
+        }
+
+        .audit-loading-box {
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 2rem 2.5rem;
+            min-width: 280px;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+        }
+
+        .audit-loading-spin {
+            width: 48px;
+            height: 48px;
+            color: #1a73e8;
+            margin: 0 auto 1rem;
+            animation: audit-spin 0.9s linear infinite;
+        }
+
+        @keyframes audit-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .audit-loading-box h3 {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin: 0 0 0.35rem;
+            color: var(--text);
+        }
+
+        .audit-loading-box p {
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            margin: 0;
+        }
+
         input[type="file"] { display: none; }
 
         .audit-filter {
@@ -543,6 +596,14 @@
 
     <div class="toast-container" id="toastContainer"></div>
 
+    <div class="audit-loading-overlay" id="loadingOverlay" aria-hidden="true" role="alertdialog" aria-busy="true" aria-labelledby="loadingText">
+        <div class="audit-loading-box">
+            <i data-lucide="loader-2" class="audit-loading-spin"></i>
+            <h3 id="loadingText">กำลังประมวลผล...</h3>
+            <p id="loadingSubtext"></p>
+        </div>
+    </div>
+
     <script src="../Js/api.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script>
@@ -560,6 +621,8 @@
 
         const sheetBody = document.getElementById('sheetBody');
         const loadingBar = document.getElementById('loadingBar');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        let loadingDepth = 0;
 
         function norm(s) {
             return (s || '').toString().trim().toUpperCase();
@@ -966,8 +1029,61 @@
             document.getElementById('filterHint').textContent = hint;
         }
 
-        function setLoading(on) {
+        function setLoadingMessage(message, subtext = '') {
+            const text = document.getElementById('loadingText');
+            const sub = document.getElementById('loadingSubtext');
+            if (text) text.textContent = message;
+            if (sub) sub.textContent = subtext;
+        }
+
+        function setLoading(on, message = 'กำลังประมวลผล...', subtext = '') {
             loadingBar.classList.toggle('active', on);
+            if (!loadingOverlay) return;
+
+            if (on) {
+                loadingDepth += 1;
+                loadingOverlay.classList.add('active');
+                loadingOverlay.setAttribute('aria-hidden', 'false');
+                setLoadingMessage(message, subtext);
+                document.body.style.overflow = 'hidden';
+                lucide.createIcons();
+            } else {
+                loadingDepth = Math.max(0, loadingDepth - 1);
+                if (loadingDepth === 0) {
+                    loadingOverlay.classList.remove('active');
+                    loadingOverlay.setAttribute('aria-hidden', 'true');
+                    document.body.style.overflow = '';
+                }
+            }
+        }
+
+        function setLoadingProgress(done, total, message = 'กำลังประมวลผล...') {
+            const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+            setLoadingMessage(
+                message,
+                `${done.toLocaleString()} / ${total.toLocaleString()} แถว (${pct}%)`
+            );
+        }
+
+        async function yieldToBrowser() {
+            await new Promise(resolve => setTimeout(resolve, 0));
+        }
+
+        const VERIFY_BATCH_SIZE = 40;
+
+        async function verifyRowsInBatches(rows) {
+            for (let i = 0; i < rows.length; i += VERIFY_BATCH_SIZE) {
+                const chunk = rows.slice(i, i + VERIFY_BATCH_SIZE);
+                chunk.forEach(tr => {
+                    const sku = tr.querySelector('[data-field="sku"]').value.trim();
+                    const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                    const qty = tr.querySelector('[data-field="qty"]').value.trim();
+                    const result = verifyRow(sku, loc, qty);
+                    applyResult(tr, result);
+                });
+                setLoadingProgress(Math.min(i + VERIFY_BATCH_SIZE, rows.length), rows.length, 'กำลังตรวจสอบทั้งหมด...');
+                await yieldToBrowser();
+            }
         }
 
         function mergeRefEntry(map, sku, loc, row) {
@@ -1002,7 +1118,7 @@
 
         async function loadReferenceData() {
             if (!supabaseClient) return;
-            setLoading(true);
+            setLoading(true, 'กำลังโหลดข้อมูลอ้างอิง...', 'ดึงจาก Supabase');
             refBySkuLoc.clear();
             refBySku.clear();
 
@@ -1010,6 +1126,8 @@
                 const { rows: allRows, rounds } = await fetchAllInventoryCounts(
                     'sku_id, location, counted_qty, warehouse, counter_name'
                 );
+
+                setLoadingMessage('กำลังประมวลผลข้อมูลอ้างอิง...', `${allRows.length.toLocaleString()} แถว (${rounds} รอบ)`);
 
                 for (const row of allRows) {
                     const sku = norm(row.sku_id);
@@ -1215,20 +1333,31 @@
             document.getElementById('statPending').textContent = pending;
         }
 
-        function verifyAll() {
+        async function verifyAll() {
             if (!refBySkuLoc.size) {
                 showToast('ยังไม่มีข้อมูลอ้างอิง — ตรวจสอบการเชื่อมต่อ Supabase', 'error');
                 return;
             }
-            sheetBody.querySelectorAll('tr').forEach(tr => {
-                const sku = tr.querySelector('[data-field="sku"]').value.trim();
-                const loc = tr.querySelector('[data-field="loc"]').value.trim();
-                const qty = tr.querySelector('[data-field="qty"]').value.trim();
-                if (sku || loc || qty) verifyRowElement(tr);
-            });
-            updateStats();
-            applyTableView();
-            showToast('ตรวจสอบครบทุกแถวแล้ว');
+
+            const rows = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
+            if (!rows.length) {
+                showToast('ไม่มีแถวที่ต้องตรวจสอบ', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnVerifyAll');
+            if (btn) btn.disabled = true;
+            setLoading(true, 'กำลังตรวจสอบทั้งหมด...', `0 / ${rows.length.toLocaleString()} แถว`);
+
+            try {
+                await verifyRowsInBatches(rows);
+                updateStats();
+                applyTableView();
+                showToast(`ตรวจสอบครบ ${rows.length.toLocaleString()} แถวแล้ว`);
+            } finally {
+                setLoading(false);
+                if (btn) btn.disabled = false;
+            }
         }
 
         function getVisibleRows() {
@@ -1265,41 +1394,93 @@
             }
         }
 
-        function deleteSelectedRows() {
+        async function deleteRecordsFromSupabase(ids) {
+            const CHUNK = 100;
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const chunk = ids.slice(i, i + CHUNK);
+                const { error } = await supabaseClient
+                    .from('inventory_counts')
+                    .delete()
+                    .in('id', chunk);
+                if (error) throw error;
+            }
+        }
+
+        async function deleteSelectedRows() {
             const checked = getCheckedRows();
             if (!checked.length) {
                 showToast('กรุณาเลือกรายการที่ต้องการลบ', 'error');
                 return;
             }
 
+            const withDb = checked.filter(tr => tr.dataset.recordId);
+            const localOnly = checked.filter(tr => !tr.dataset.recordId);
+
             const lines = checked.slice(0, 8).map(tr => {
                 const sku = tr.querySelector('[data-field="sku"]').value.trim() || '-';
                 const loc = tr.querySelector('[data-field="loc"]').value.trim() || '-';
                 const qty = tr.querySelector('[data-field="qty"]').value.trim() || '-';
-                return `• ${sku} | ${loc} | ${qty}`;
+                const idHint = tr.dataset.recordId ? ` [ID: ${tr.dataset.recordId.slice(0, 8)}…]` : ' [ไม่มีใน DB]';
+                return `• ${sku} | ${loc} | ${qty}${idHint}`;
             });
             const more = checked.length > 8 ? `\n... และอีก ${checked.length - 8} รายการ` : '';
             const listText = lines.join('\n') + more;
 
-            const msg1 = `ยืนยันครั้งที่ 1\n\nต้องการลบ ${checked.length} รายการที่เลือกจากตาราง?\n\n${listText}`;
+            let dbNote = '';
+            if (withDb.length) dbNote += `\n\n🗄️ ลบจาก Supabase: ${withDb.length} รายการ (ตาม ID)`;
+            if (localOnly.length) dbNote += `\n📋 ลบเฉพาะในตาราง: ${localOnly.length} รายการ (นำเข้า/พิมพ์เอง ไม่มี ID)`;
+
+            const msg1 = `ยืนยันครั้งที่ 1\n\nลบ ${checked.length} รายการที่เลือก?${dbNote}\n\n${listText}`;
             if (!confirm(msg1)) return;
 
-            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nลบ ${checked.length} รายการถาวร\n\nการดำเนินการนี้ไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
+            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nลบถาวร ${checked.length} รายการ` +
+                (withDb.length ? `\nรวม ${withDb.length} แถวใน inventory_counts (Supabase)` : '') +
+                `\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
             if (!confirm(msg2)) return;
 
-            const deleted = checked.length;
-            checked.forEach(tr => tr.remove());
-
-            while (sheetBody.children.length < INITIAL_ROWS) {
-                addRows(1);
+            if (withDb.length && !supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase — ลบในฐานข้อมูลไม่ได้', 'error');
+                return;
             }
 
-            renumberRows();
-            refreshLocationFilterOptions();
-            updateStats();
-            applyTableView();
-            updateSelectionUI();
-            showToast(`ลบ ${deleted} รายการแล้ว`);
+            const btn = document.getElementById('btnDeleteSelected');
+            if (btn) btn.disabled = true;
+            setLoading(true, 'กำลังลบรายการ...', `Supabase ${withDb.length} · ตาราง ${checked.length}`);
+
+            try {
+                if (withDb.length) {
+                    const ids = withDb.map(tr => tr.dataset.recordId);
+                    await deleteRecordsFromSupabase(ids);
+                    await loadReferenceData();
+                }
+
+                const deleted = checked.length;
+                checked.forEach(tr => tr.remove());
+
+                while (sheetBody.children.length < INITIAL_ROWS) {
+                    addRows(1);
+                }
+
+                renumberRows();
+                refreshLocationFilterOptions();
+                updateStats();
+                applyTableView();
+                updateSelectionUI();
+
+                if (withDb.length && localOnly.length) {
+                    showToast(`ลบแล้ว ${deleted} รายการ (Supabase ${withDb.length} · ตาราง ${localOnly.length})`);
+                } else if (withDb.length) {
+                    showToast(`ลบจาก Supabase และตารางแล้ว ${withDb.length} รายการ`);
+                } else {
+                    showToast(`ลบจากตารางแล้ว ${localOnly.length} รายการ`);
+                }
+            } catch (err) {
+                console.error('[Delete Error]', err);
+                showToast(`ลบล้มเหลว: ${err.message}`, 'error');
+            } finally {
+                setLoading(false);
+                updateSelectionUI();
+            }
         }
 
         function createRow(rowNum) {
@@ -1372,29 +1553,34 @@
             initSheet(INITIAL_ROWS);
         }
 
-        function fillRows(items) {
+        async function fillRows(items) {
             if (!items.length) return;
-            while (sheetBody.children.length < items.length) addRows(items.length - sheetBody.children.length);
 
+            while (sheetBody.children.length < items.length) {
+                addRows(items.length - sheetBody.children.length);
+            }
+
+            const trList = [];
             items.forEach((item, i) => {
                 const tr = sheetBody.children[i];
                 if (!tr) return;
+                if (item.id) tr.dataset.recordId = String(item.id);
+                else tr.removeAttribute('data-record-id');
                 tr.querySelector('[data-field="sku"]').value = item.sku || '';
                 tr.querySelector('[data-field="loc"]').value = item.loc || '';
                 tr.querySelector('[data-field="qty"]').value = item.qty ?? '';
-                verifyRowElement(tr);
+                trList.push(tr);
             });
+
             renumberRows();
+            setLoadingMessage('กำลังตรวจสอบรายการ...', `0 / ${trList.length.toLocaleString()} แถว`);
+            await verifyRowsInBatches(trList);
             refreshLocationFilterOptions();
             applyTableView();
             updateStats();
         }
 
-        document.getElementById('btnVerifyAll').addEventListener('click', () => {
-            verifyAll();
-            refreshLocationFilterOptions();
-            applyTableView();
-        });
+        document.getElementById('btnVerifyAll').addEventListener('click', () => verifyAll());
         document.getElementById('btnAddRows').addEventListener('click', () => {
             addRows();
             renumberRows();
@@ -1419,7 +1605,7 @@
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = (ev) => {
+            reader.onload = async (ev) => {
                 try {
                     const wb = XLSX.read(ev.target.result, { type: 'binary' });
                     const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -1433,12 +1619,15 @@
                         if (/^(sku|รหัส|#)/i.test(sku)) continue;
                         items.push({ sku, loc, qty });
                     }
-                    fillRows(items);
+                    setLoading(true, 'กำลังนำเข้า Excel...', `${items.length.toLocaleString()} แถว`);
+                    await fillRows(items);
                     document.getElementById('sortLocation').value = 'num-asc';
                     applyTableView();
                     showToast(`นำเข้า ${items.length} แถว · เรียง 1→10 แล้ว`);
                 } catch (err) {
                     showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error');
+                } finally {
+                    setLoading(false);
                 }
                 e.target.value = '';
             };
@@ -1452,10 +1641,18 @@
                 showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
                 return;
             }
-            setLoading(true);
+
+            const btn = document.getElementById('btnLoadCounts');
+            if (btn) btn.disabled = true;
+            setLoading(true, 'กำลังดึงข้อมูลจาก Supabase...', 'รอสักครู่');
+
             try {
-                const { rows, rounds } = await fetchAllInventoryCounts('sku_id, location, counted_qty');
+                const { rows, rounds } = await fetchAllInventoryCounts('id, sku_id, location, counted_qty');
+                setLoadingMessage('กำลังใส่รายการลงตาราง...', `${rows.length.toLocaleString()} แถว (${rounds} รอบ)`);
+                await yieldToBrowser();
+
                 const items = rows.map(r => ({
+                    id: r.id,
                     sku: r.sku_id,
                     loc: r.location,
                     qty: r.counted_qty
@@ -1466,7 +1663,8 @@
                     if (za !== zb) return za.localeCompare(zb, 'en');
                     return getLocationRowNumber(a.loc, za) - getLocationRowNumber(b.loc, zb);
                 });
-                fillRows(items);
+
+                await fillRows(items);
                 document.getElementById('sortLocation').value = 'num-asc';
                 applyTableView();
                 showToast(`ดึงข้อมูล ${items.length.toLocaleString()} แถว (${rounds} รอบ) · เรียง 1→10`);
@@ -1474,6 +1672,7 @@
                 showToast(err.message, 'error');
             } finally {
                 setLoading(false);
+                if (btn) btn.disabled = false;
             }
         });
 

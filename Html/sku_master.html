@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKU Master Management</title>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- SheetJS for Excel -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .management-container {
+            width: 100%;
+            max-width: 1100px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .action-card {
+            background: rgba(255,255,255,0.02);
+            border: 1px dashed var(--card-border);
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .action-card:hover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .table-wrapper {
+            background: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-top: 1.5rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .search-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            width: 300px;
+            padding: 0.6rem 1rem;
+            padding-left: 2.5rem;
+            border-radius: 8px;
+            background: var(--input-bg);
+            border: 1px solid var(--input-border);
+            color: var(--text);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: var(--card-border);
+            border-radius: 4px;
+            margin-top: 1rem;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        .loading-overlay-local {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 16px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="management-container">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1>SKU Master</h1>
+                <p>จัดการฐานข้อมูลสินค้า (Import/Export)</p>
+            </div>
+            <div class="header-stats">
+                <div class="stat-box">
+                    <span class="stat-label">สินค้าทั้งหมด (SKU)</span>
+                    <span class="stat-value" id="totalSku">0</span>
+                </div>
+                <a href="../index.html" class="settings-btn-cs" title="กลับไปหน้าหลัก" style="text-decoration: none;">
+                    <i data-lucide="home"></i>
+                </a>
+            </div>
+        </header>
+
+        <div class="card" style="position: relative;">
+            <div class="loading-overlay-local" id="loadingOverlay">
+                <i data-lucide="loader-2" class="spin" style="width: 48px; height: 48px; color: var(--primary); margin-bottom: 1rem;"></i>
+                <h3 id="loadingText">กำลังประมวลผล...</h3>
+                <div class="progress-bar" id="progressBar" style="display: block; width: 60%; max-width: 300px;">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <div class="action-card" style="flex: 1;" onclick="document.getElementById('fileInput').click()">
+                    <i data-lucide="upload-cloud" style="width: 32px; height: 32px; color: var(--primary); margin-bottom: 0.5rem;"></i>
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Import Excel</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">อัปเดตหรือเพิ่ม SKU ใหม่เข้าสู่ระบบ (คอลัมน์: SKU_NAME, NAME_PRO)</p>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleFileUpload(event)">
+                </div>
+                
+                <div class="action-card" style="flex: 1;" onclick="exportToExcel()">
+                    <i data-lucide="download-cloud" style="width: 32px; height: 32px; color: var(--success); margin-bottom: 0.5rem;"></i>
+                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Export Excel</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">ดาวน์โหลดข้อมูล SKU ทั้งหมดในระบบ</p>
+                </div>
+            </div>
+
+            <!-- Download Template Bar -->
+            <div style="margin-top: 1rem; background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: 12px; padding: 0.75rem 1.25rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <i data-lucide="file-spreadsheet" style="color: #f59e0b; width: 24px; height: 24px; flex-shrink: 0;"></i>
+                    <div>
+                        <div style="font-size: 0.95rem; font-weight: 500; color: var(--text);">ต้องการไฟล์ต้นแบบสำหรับนำเข้าข้อมูล?</div>
+                        <div style="font-size: 0.8rem; color: var(--text-muted);">ดาวน์โหลดไฟล์ Excel โครงสร้างมาตรฐาน (SKU_NAME, NAME_PRO) สำหรับอัปโหลด</div>
+                    </div>
+                </div>
+                <button class="submit-btn" style="height: 38px; padding: 0 1.25rem; font-size: 0.85rem; background: #f59e0b; color: #fff; font-weight: 500; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2);" onclick="window.open('https://nfhfuybqhskzlllkgmyi.supabase.co/storage/v1/object/public/Template_AuditNew/Template.xlsx', '_blank')">
+                    <i data-lucide="download" style="width: 16px; height: 16px;"></i> Download Template
+                </button>
+            </div>
+
+            <div class="search-wrapper" style="margin-top: 2rem;">
+                <div style="position: relative;">
+                    <i data-lucide="search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
+                    <input type="text" id="searchInput" class="search-input" placeholder="ค้นหา SKU หรือ ชื่อสินค้า..." onkeyup="filterTable()">
+                </div>
+                <div>
+                    <button class="submit-btn" style="height: auto; padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="loadData()">
+                        <i data-lucide="refresh-cw" style="width: 14px;"></i> โหลดข้อมูลใหม่
+                    </button>
+                </div>
+            </div>
+
+            <div class="table-wrapper">
+                <table id="skuTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">#</th>
+                            <th style="width: 250px;">รหัสสินค้า (SKU_NAME)</th>
+                            <th>ชื่อสินค้า (NAME_PRO)</th>
+                            <th style="width: 200px;">อัปเดตล่าสุด</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">กำลังโหลดข้อมูล...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem;">
+                <div style="font-size: 0.85rem; color: var(--text-muted);" id="pageInfo">แสดงหน้า 1 จาก 1</div>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button class="settings-btn-cs" onclick="changePage(-1)" id="prevBtn" disabled>
+                        <i data-lucide="chevron-left"></i>
+                    </button>
+                    <button class="settings-btn-cs" onclick="changePage(1)" id="nextBtn" disabled>
+                        <i data-lucide="chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+        </div>
+    </div>
+
+    <!-- Import Preview Modal -->
+    <div class="cs-modal" id="importPreviewModal">
+        <div class="cs-modal-content" style="max-width: 600px;">
+            <div class="cs-modal-header">
+                <h2><i data-lucide="file-spreadsheet"></i> ยืนยันการนำเข้าข้อมูล SKU</h2>
+                <button class="settings-btn-cs" onclick="closeImportModal()" style="border: none; background: transparent;">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <p class="cs-modal-desc" id="importModalDesc">พบข้อมูลตัวอย่างพร้อมนำเข้า กรุณาตรวจสอบความถูกต้องก่อนยืนยัน</p>
+
+            <div class="table-wrapper" style="margin-top: 0; margin-bottom: 1.5rem; max-height: 250px; overflow-y: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">#</th>
+                            <th style="width: 200px;">รหัสสินค้า (SKU)</th>
+                            <th>ชื่อสินค้า (NAME)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewTableBody">
+                        <!-- Preview rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); padding: 0.75rem 1rem; border-radius: 10px; display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem;">
+                <i data-lucide="alert-triangle" style="color: #fcd34d; width: 20px; height: 20px; flex-shrink: 0;"></i>
+                <span style="font-size: 0.85rem; color: #fcd34d;">ระบบจะทำการ Upsert อัตโนมัติ (หากรหัส SKU ซ้ำ จะอัปเดตชื่อสินค้าเป็นค่าใหม่)</span>
+            </div>
+
+            <div style="display: flex; gap: 1rem;">
+                <button class="cs-btn-test" onclick="closeImportModal()">ยกเลิก</button>
+                <button class="cs-btn-save" onclick="confirmImport()"><i data-lucide="check"></i> ยืนยันนำเข้าข้อมูล</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <style>
+        .spin {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+
+    <script src="../Js/api.js"></script>
+    <script>
+        lucide.createIcons();
+
+        let supabaseClient = null;
+        let allSkuData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        const rowsPerPage = 50;
+
+        // Initialize Supabase
+        supabaseClient = window.apiService ? window.apiService.getClient() : null;
+        
+        if (supabaseClient) {
+            loadData();
+        } else {
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ในหน้าหลักก่อนใช้งาน หรือตรวจสอบไฟล์ api.js</td></tr>';
+        }
+
+        async function loadData() {
+            if (!supabaseClient) return;
+            
+            showLoading('กำลังโหลดข้อมูล...');
+            
+            try {
+                let allRows = [];
+                let from = 0;
+                const PAGE = 1000;
+                
+                while (true) {
+                    const { data, error } = await supabaseClient
+                        .from('sku_master')
+                        .select('*')
+                        .order('sku_name', { ascending: true })
+                        .range(from, from + PAGE - 1);
+                        
+                    if (error) throw error;
+                    allRows = allRows.concat(data || []);
+                    if (!data || data.length < PAGE) break;
+                    from += PAGE;
+                }
+                
+                allSkuData = allRows;
+                document.getElementById('totalSku').textContent = allSkuData.length.toLocaleString();
+                
+                // Reset filter and page
+                document.getElementById('searchInput').value = '';
+                filteredData = [...allSkuData];
+                currentPage = 1;
+                
+                renderTable();
+                showToast(`โหลดข้อมูลสำเร็จ ${allSkuData.length} รายการ`);
+                
+            } catch (err) {
+                console.error(err);
+                showToast(`โหลดข้อมูลล้มเหลว: ${err.message}`, 'error');
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 2rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function filterTable() {
+            const query = document.getElementById('searchInput').value.toLowerCase().trim();
+            
+            if (!query) {
+                filteredData = [...allSkuData];
+            } else {
+                filteredData = allSkuData.filter(item => 
+                    (item.sku_name && item.sku_name.toLowerCase().includes(query)) ||
+                    (item.name_pro && item.name_pro.toLowerCase().includes(query))
+                );
+            }
+            
+            currentPage = 1;
+            renderTable();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">ไม่พบข้อมูล</td></tr>';
+                updatePagination();
+                return;
+            }
+            
+            const start = (currentPage - 1) * rowsPerPage;
+            const end = start + rowsPerPage;
+            const paginatedData = filteredData.slice(start, end);
+            
+            tbody.innerHTML = paginatedData.map((item, index) => {
+                const date = item.created_at ? new Date(item.created_at).toLocaleString('th-TH') : '-';
+                return `
+                    <tr>
+                        <td style="color: var(--text-muted);">${start + index + 1}</td>
+                        <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${item.sku_name}</td>
+                        <td>${item.name_pro || '-'}</td>
+                        <td style="font-size: 0.85rem; color: var(--text-muted);">${date}</td>
+                    </tr>
+                `;
+            }).join('');
+            
+            updatePagination();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+            document.getElementById('pageInfo').textContent = `แสดงหน้า ${currentPage} จาก ${totalPages} (รวม ${filteredData.length} รายการ)`;
+            
+            document.getElementById('prevBtn').disabled = currentPage <= 1;
+            document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+        }
+
+        function changePage(delta) {
+            const totalPages = Math.ceil(filteredData.length / rowsPerPage) || 1;
+            const newPage = currentPage + delta;
+            
+            if (newPage >= 1 && newPage <= totalPages) {
+                currentPage = newPage;
+                renderTable();
+            }
+        }
+
+        // --- Import Logic ---
+        async function handleFileUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            showLoading('กำลังอ่านไฟล์...');
+            
+            try {
+                const data = await file.arrayBuffer();
+                const workbook = XLSX.read(data);
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                
+                // อ่านข้อมูลเป็น JSON โดยให้แถวแรกเป็น Header
+                const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: "" });
+                
+                if (rows.length === 0) {
+                    throw new Error('ไม่พบข้อมูลในไฟล์');
+                }
+                
+                // หาคอลัมน์ SKU_NAME และ NAME_PRO (ไม่สนตัวพิมพ์เล็กใหญ่)
+                const headers = Object.keys(rows[0]);
+                const skuKey = headers.find(h => h.toUpperCase().includes('SKU') || h.toUpperCase() === 'รหัสสินค้า');
+                
+                if (!skuKey) {
+                    throw new Error('ไม่พบคอลัมน์ SKU ในไฟล์ Excel');
+                }
+
+                // หาคอลัมน์ชื่อ โดยต้องไม่ซ้ำกับ skuKey
+                const nameKey = headers.find(h => h !== skuKey && (
+                    h.toUpperCase().includes('NAME_PRO') || 
+                    h.toUpperCase().includes('NAME') || 
+                    h.toUpperCase().includes('ชื่อ') || 
+                    h.toUpperCase().includes('PRO') ||
+                    h.toUpperCase().includes('DESC')
+                ));
+                
+                const formattedData = rows.map(row => ({
+                    sku_name: String(row[skuKey] || '').trim(),
+                    name_pro: String(nameKey ? (row[nameKey] || '') : '').trim()
+                })).filter(item => item.sku_name); // กรองแถวที่ไม่มี SKU ออก
+                
+                if (formattedData.length === 0) {
+                    throw new Error('ไม่พบข้อมูล SKU ที่ถูกต้อง');
+                }
+                
+                // แสดง Modal สรุปข้อมูลแทน confirm()
+                pendingImportData = formattedData;
+                showImportPreview(formattedData);
+                
+            } catch (err) {
+                console.error(err);
+                showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
+                hideLoading();
+            }
+            
+            e.target.value = ''; // Reset input
+        }
+
+        let pendingImportData = [];
+
+        function showImportPreview(data) {
+            hideLoading();
+            const modal = document.getElementById('importPreviewModal');
+            const desc = document.getElementById('importModalDesc');
+            const tbody = document.getElementById('previewTableBody');
+
+            desc.innerHTML = `พบข้อมูลทั้งหมด <strong>${data.length.toLocaleString()}</strong> รายการ (แสดงตัวอย่าง 5 รายการแรก)`;
+
+            const previewSlice = data.slice(0, 5);
+            tbody.innerHTML = previewSlice.map((item, idx) => `
+                <tr>
+                    <td style="color: var(--text-muted);">${idx + 1}</td>
+                    <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${item.sku_name}</td>
+                    <td>${item.name_pro || '-'}</td>
+                </tr>
+            `).join('');
+
+            modal.classList.add('open');
+            lucide.createIcons();
+        }
+
+        function closeImportModal() {
+            const modal = document.getElementById('importPreviewModal');
+            modal.classList.remove('open');
+            pendingImportData = [];
+            document.getElementById('fileInput').value = '';
+        }
+
+        async function confirmImport() {
+            const modal = document.getElementById('importPreviewModal');
+            modal.classList.remove('open');
+            if (pendingImportData.length > 0) {
+                await uploadToSupabase(pendingImportData);
+                pendingImportData = [];
+            }
+        }
+
+        async function uploadToSupabase(data) {
+            if (!supabaseClient) return;
+            
+            showLoading(`กำลังบันทึกข้อมูล 0 / ${data.length}`);
+            const progressFill = document.getElementById('progressFill');
+            
+            const CHUNK_SIZE = 500; // อัปโหลดทีละ 500 รายการ
+            let successCount = 0;
+            let errorCount = 0;
+            
+            try {
+                for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+                    const chunk = data.slice(i, i + CHUNK_SIZE);
+                    
+                    // ใช้ upsert เพื่ออัปเดตกรณีมี SKU อยู่แล้ว
+                    const { error } = await supabaseClient
+                        .from('sku_master')
+                        .upsert(chunk, { onConflict: 'sku_name' });
+                        
+                    if (error) {
+                        console.error('Upload chunk error:', error);
+                        errorCount += chunk.length;
+                    } else {
+                        successCount += chunk.length;
+                    }
+                    
+                    const progress = Math.round(((i + chunk.length) / data.length) * 100);
+                    progressFill.style.width = `${progress}%`;
+                    document.getElementById('loadingText').textContent = `กำลังบันทึกข้อมูล ${successCount + errorCount} / ${data.length}`;
+                }
+                
+                showToast(`นำเข้าสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` (ผิดพลาด ${errorCount})` : ''}`, errorCount > 0 ? 'error' : 'success');
+                
+                // โหลดข้อมูลใหม่มาแสดง
+                await loadData();
+                
+            } catch (err) {
+                console.error(err);
+                showToast(`ล้มเหลว: ${err.message}`, 'error');
+            } finally {
+                hideLoading();
+                progressFill.style.width = '0%';
+            }
+        }
+
+        // --- Export Logic ---
+        function exportToExcel() {
+            if (allSkuData.length === 0) {
+                showToast('ไม่มีข้อมูลสำหรับส่งออก', 'error');
+                return;
+            }
+            
+            const exportData = allSkuData.map(item => ({
+                'sku_name': item.sku_name,
+                'name_pro': item.name_pro,
+                'Created/Updated': item.created_at ? new Date(item.created_at).toLocaleString('th-TH') : ''
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "SKU_Master");
+            
+            ws['!cols'] = [
+                { wch: 20 }, // SKU
+                { wch: 50 }, // Name
+                { wch: 20 }  // Date
+            ];
+            
+            XLSX.writeFile(wb, `SKU_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
+            showToast('ดาวน์โหลดไฟล์ Excel สำเร็จ');
+        }
+
+        // --- UI Helpers ---
+        function showLoading(text) {
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            document.getElementById('loadingText').textContent = text;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').style.display = 'none';
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const iconName = type === 'success' ? 'check-circle-2' : 'alert-circle';
+            toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+            toastContainer.appendChild(toast);
+            lucide.createIcons();
+            
+            setTimeout(() => {
+                toast.classList.add('toast-closing');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 4000);
+        }
+    </script>
+</body>
+</html>

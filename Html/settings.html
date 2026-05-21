@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งค่าระบบ — Stock Control</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        .settings-page {
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        .settings-card {
+            padding: 1.75rem;
+        }
+        .settings-status-box {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--card-border);
+            margin-bottom: 1.25rem;
+        }
+        .settings-status-box p {
+            margin: 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+        .settings-status-box strong {
+            color: var(--text);
+            display: block;
+            margin-bottom: 0.2rem;
+        }
+    </style>
+</head>
+<body class="has-sidebar">
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="เมนูหลัก">
+            <div class="sidebar-brand">เมนู</div>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>นับสต็อก</span>
+                </a>
+                <a href="audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
+                    <i data-lucide="shield-check"></i>
+                    <span>ตรวจสอบ</span>
+                </a>
+                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
+                    <i data-lucide="database"></i>
+                    <span>SKU Master</span>
+                </a>
+                <a href="dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item active" title="ตั้งค่าและเชื่อมต่อ">
+                    <i data-lucide="settings"></i>
+                    <span>ตั้งค่า</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-area">
+    <div class="settings-page dashboard-container">
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1 style="font-family: 'Kanit', sans-serif;">ตั้งค่าระบบ</h1>
+                <p>เชื่อมต่อ Supabase และทางลัดไปหน้าอื่น</p>
+            </div>
+            <div class="header-stats">
+                <div class="header-stats-actions">
+                    <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status" title="สถานะการเชื่อมต่อ">
+                        <i data-lucide="wifi-off" data-badge-icon></i>
+                        <span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="card settings-card full-width-card">
+            <div class="settings-status-box">
+                <div id="connectionBadgeLarge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                    <i data-lucide="wifi-off" data-badge-icon></i>
+                    <span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                </div>
+                <div>
+                    <strong>สถานะการเชื่อมต่อ</strong>
+                    <p id="statusDetail">กรุณากรอก Supabase URL และ API Key ด้านล่าง แล้วกดทดสอบหรือบันทึก</p>
+                </div>
+            </div>
+
+            <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="key" style="width: 20px; height: 20px; color: var(--primary);"></i>
+                Supabase Config
+            </h2>
+            <p class="cs-modal-desc" style="margin-bottom: 1.25rem;">กรอก URL และ API Key จาก Supabase Project ของคุณ<br>ข้อมูลจะถูกบันทึกในเครื่องนี้เท่านั้น (localStorage)</p>
+
+            <div class="cs-form-group">
+                <label for="sbUrl">Supabase Project URL</label>
+                <input type="text" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off">
+            </div>
+            <div class="cs-form-group">
+                <label for="sbKey">Supabase API Key (anon/public)</label>
+                <div style="position:relative;">
+                    <input type="password" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" style="padding-right:3rem;">
+                    <button type="button" id="toggleKeyBtn" onclick="toggleKeyVisibility()" style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;">
+                        <i data-lucide="eye" id="eyeIcon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="testStatus" style="display:none; padding:0.75rem 1rem; border-radius:10px; font-size:0.85rem; margin-bottom:1rem;"></div>
+
+            <div style="display:flex; gap:0.75rem; flex-wrap: wrap;">
+                <button type="button" class="cs-btn-test" onclick="runTestConnection()">
+                    <i data-lucide="plug"></i> ทดสอบการเชื่อมต่อ
+                </button>
+                <button type="button" class="cs-btn-save" onclick="runSaveSettings()">
+                    <i data-lucide="save"></i> บันทึก
+                </button>
+            </div>
+        </div>
+    </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="../Js/api.js"></script>
+    <script src="../Js/settings-shared.js"></script>
+    <script>
+        lucide.createIcons();
+
+        document.getElementById('sbUrl').value = localStorage.getItem('SB_URL') || '';
+        document.getElementById('sbKey').value = localStorage.getItem('SB_KEY') || '';
+
+        function showToast(msg, type) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type || 'info'}`;
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        function setTestStatus(bg, color, border, msg) {
+            const el = document.getElementById('testStatus');
+            el.style.cssText = `display:block;padding:0.75rem 1rem;border-radius:10px;font-size:0.85rem;margin-bottom:1rem;background:${bg};color:${color};border:1px solid ${border};`;
+            el.textContent = msg;
+        }
+
+        function updateStatusDetail(connected) {
+            const detail = document.getElementById('statusDetail');
+            if (connected) {
+                detail.textContent = 'ระบบเชื่อมต่อ Supabase ได้แล้ว — สามารถใช้งานหน้านับสต็อก, SKU Master และ Dashboard ได้';
+            } else {
+                detail.textContent = 'ยังไม่ได้เชื่อมต่อ — กรอก URL/KEY ด้านล่าง แล้วกดทดสอบหรือบันทึก';
+            }
+        }
+
+        async function refreshStatus() {
+            const ok = await window.checkSupabaseConnection();
+            updateStatusDetail(ok);
+            return ok;
+        }
+
+        window.toggleKeyVisibility = function () {
+            const input = document.getElementById('sbKey');
+            const icon = document.getElementById('eyeIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.setAttribute('data-lucide', 'eye-off');
+            } else {
+                input.type = 'password';
+                icon.setAttribute('data-lucide', 'eye');
+            }
+            lucide.createIcons();
+        };
+
+        window.runTestConnection = async function () {
+            const url = document.getElementById('sbUrl').value.trim();
+            const key = document.getElementById('sbKey').value.trim();
+            setTestStatus('rgba(99,102,241,0.1)', '#a5b4fc', 'rgba(99,102,241,0.3)', '🔄 กำลังทดสอบ...');
+            const result = await window.testSupabaseConnection(url, key);
+            if (result.ok) {
+                setTestStatus('rgba(16,185,129,0.1)', '#6ee7b7', 'rgba(16,185,129,0.3)', result.message);
+                window.updateConnectionBadge(true);
+                updateStatusDetail(true);
+            } else {
+                setTestStatus('rgba(239,68,68,0.1)', '#fca5a5', 'rgba(239,68,68,0.3)', result.message);
+                window.updateConnectionBadge(false);
+                updateStatusDetail(false);
+            }
+        };
+
+        window.runSaveSettings = async function () {
+            const url = document.getElementById('sbUrl').value.trim();
+            const key = document.getElementById('sbKey').value.trim();
+            if (!window.saveSupabaseSettings(url, key)) {
+                showToast('กรุณากรอก URL และ API Key ให้ครบ', 'error');
+                return;
+            }
+            showToast('✓ บันทึกการตั้งค่าสำเร็จ!', 'success');
+            await refreshStatus();
+        };
+
+        refreshStatus();
+    </script>
+</body>
+</html>

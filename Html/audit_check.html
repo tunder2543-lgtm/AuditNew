@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตรวจสอบความถูกต้อง — Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .audit-page {
+            width: 100%;
+            max-width: 1280px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .audit-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .audit-toolbar-left {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .audit-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.6rem;
+        }
+
+        .audit-stat {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.85rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            background: var(--card);
+            border: 1px solid var(--card-border);
+        }
+
+        .audit-stat strong { font-family: 'Roboto', sans-serif; }
+
+        .gs-wrap {
+            background: #fff;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
+        }
+
+        .gs-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #dadce0;
+            font-size: 0.8rem;
+            color: #5f6368;
+        }
+
+        .gs-toolbar .sheet-name {
+            font-weight: 500;
+            color: #202124;
+            padding: 0.2rem 0.5rem;
+            border-bottom: 3px solid #1a73e8;
+        }
+
+        .gs-scroll {
+            overflow: auto;
+            max-height: calc(100vh - 280px);
+        }
+
+        .gs-table {
+            border-collapse: collapse;
+            min-width: 100%;
+            font-family: 'Roboto', 'Kanit', sans-serif;
+            font-size: 13px;
+            table-layout: fixed;
+        }
+
+        .gs-table th,
+        .gs-table td {
+            border: 1px solid #e0e0e0;
+            padding: 0;
+            height: 28px;
+            vertical-align: middle;
+        }
+
+        .gs-table thead th {
+            background: #f3f3f3;
+            color: #444;
+            font-weight: 500;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            user-select: none;
+        }
+
+        .gs-table .col-row-num {
+            width: 42px;
+            min-width: 42px;
+            background: #f8f9fa;
+            color: #80868b;
+            text-align: center;
+            font-size: 11px;
+        }
+
+        .gs-table .col-letter {
+            width: 36px;
+            min-width: 36px;
+        }
+
+        .gs-table .col-sku { width: 140px; }
+        .gs-table .col-loc { width: 110px; }
+        .gs-table .col-qty { width: 80px; }
+        .gs-table .col-status { width: 200px; }
+        .gs-table .col-note { width: auto; min-width: 220px; }
+
+        .gs-table tbody tr:hover td:not(.col-row-num):not(.col-status):not(.col-note) {
+            background: #f1f3f4;
+        }
+
+        .gs-cell {
+            width: 100%;
+            height: 28px;
+            border: none;
+            outline: none;
+            padding: 0 6px;
+            font: inherit;
+            background: transparent;
+            color: #202124;
+        }
+
+        .gs-cell:focus {
+            box-shadow: inset 0 0 0 2px #1a73e8;
+            background: #fff;
+            z-index: 1;
+            position: relative;
+        }
+
+        .gs-cell[readonly] {
+            cursor: default;
+        }
+
+        .status-cell {
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .status-ok {
+            background: #e6f4ea !important;
+            color: #137333;
+        }
+
+        .status-error {
+            background: #fce8e6 !important;
+            color: #c5221f;
+        }
+
+        .status-warn {
+            background: #fef7e0 !important;
+            color: #b06000;
+        }
+
+        .status-empty {
+            background: #fff !important;
+            color: #9aa0a6;
+        }
+
+        .note-cell {
+            padding: 2px 8px;
+            font-size: 11px;
+            color: #5f6368;
+            line-height: 1.35;
+            white-space: normal;
+            word-break: break-word;
+        }
+
+        .note-cell .suggest-item {
+            display: block;
+            margin-top: 2px;
+        }
+
+        .note-cell .prob {
+            color: #1a73e8;
+            font-weight: 600;
+        }
+
+        tr.row-ok td.col-sku,
+        tr.row-ok td.col-loc,
+        tr.row-ok td.col-qty {
+            background: #e6f4ea;
+        }
+
+        tr.row-error td.col-sku,
+        tr.row-error td.col-loc,
+        tr.row-error td.col-qty {
+            background: #fce8e6;
+        }
+
+        tr.row-warn td.col-sku,
+        tr.row-warn td.col-loc,
+        tr.row-warn td.col-qty {
+            background: #fef7e0;
+        }
+
+        .btn-gs {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.45rem 0.9rem;
+            border-radius: 6px;
+            border: 1px solid var(--card-border);
+            background: var(--card);
+            color: var(--text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-gs:hover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .btn-gs.primary {
+            background: #1a73e8;
+            border-color: #1a73e8;
+            color: #fff;
+        }
+
+        .btn-gs.primary:hover {
+            background: #1557b0;
+        }
+
+        .ref-badge {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .ref-badge strong { color: #34d399; }
+
+        .loading-bar {
+            height: 3px;
+            background: #1a73e8;
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .loading-bar.active {
+            width: 100%;
+            animation: pulse-bar 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-bar {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        input[type="file"] { display: none; }
+
+        .audit-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+        }
+
+        .audit-filter label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .audit-filter select {
+            padding: 0.45rem 0.75rem;
+            border-radius: 6px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text);
+            font-size: 0.85rem;
+            min-width: 140px;
+        }
+
+        .audit-filter .filter-hint {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        tr.row-filtered-out {
+            display: none;
+        }
+    </style>
+</head>
+<body class="has-sidebar">
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="เมนูหลัก">
+            <div class="sidebar-brand">เมนู</div>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>นับสต็อก</span>
+                </a>
+                <a href="audit_check.html" class="sidebar-nav-item active" title="ตรวจสอบความถูกต้อง">
+                    <i data-lucide="shield-check"></i>
+                    <span>ตรวจสอบ</span>
+                </a>
+                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
+                    <i data-lucide="database"></i>
+                    <span>SKU Master</span>
+                </a>
+                <a href="dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
+                    <i data-lucide="settings"></i>
+                    <span>ตั้งค่า</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-area">
+            <div class="audit-page dashboard-container">
+                <header class="dashboard-header">
+                    <div class="header-content">
+                        <h1 style="font-family: 'Kanit', sans-serif;">ตรวจสอบความถูกต้อง</h1>
+                        <p>เปรียบเทียบรหัสสินค้า + ตำแหน่ง + จำนวน กับข้อมูลใน inventory_counts</p>
+                    </div>
+                    <div class="header-stats">
+                        <div class="header-stats-actions">
+                            <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                                <i data-lucide="wifi-off" data-badge-icon></i>
+                                <span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                            </div>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="loading-bar" id="loadingBar"></div>
+
+                <div class="audit-toolbar">
+                    <div class="audit-toolbar-left">
+                        <button type="button" class="btn-gs primary" id="btnVerifyAll">
+                            <i data-lucide="check-circle" style="width:16px;height:16px"></i>
+                            ตรวจสอบทั้งหมด
+                        </button>
+                        <button type="button" class="btn-gs" id="btnAddRows">
+                            <i data-lucide="plus" style="width:16px;height:16px"></i>
+                            เพิ่มแถว
+                        </button>
+                        <button type="button" class="btn-gs" id="btnClear">
+                            <i data-lucide="eraser" style="width:16px;height:16px"></i>
+                            ล้างตาราง
+                        </button>
+                        <button type="button" class="btn-gs" id="btnImport">
+                            <i data-lucide="upload" style="width:16px;height:16px"></i>
+                            นำเข้า Excel
+                        </button>
+                        <button type="button" class="btn-gs" id="btnExport">
+                            <i data-lucide="file-spreadsheet" style="width:16px;height:16px"></i>
+                            Export Excel
+                        </button>
+                        <button type="button" class="btn-gs" id="btnReloadRef">
+                            <i data-lucide="refresh-cw" style="width:16px;height:16px"></i>
+                            โหลดข้อมูลอ้างอิงใหม่
+                        </button>
+                        <button type="button" class="btn-gs" id="btnLoadCounts">
+                            <i data-lucide="download" style="width:16px;height:16px"></i>
+                            ใส่รายการลงตาราง
+                        </button>
+                        <input type="file" id="fileImport" accept=".xlsx,.xls,.csv">
+                    </div>
+                    <span class="ref-badge" id="refBadge">ข้อมูลอ้างอิง: <strong>0</strong> รายการ</span>
+                </div>
+
+                <div class="audit-stats">
+                    <div class="audit-stat" style="border-color: rgba(16,185,129,0.4)">
+                        <span style="color:#34d399">●</span> ถูกต้อง: <strong id="statOk">0</strong>
+                    </div>
+                    <div class="audit-stat" style="border-color: rgba(239,68,68,0.4)">
+                        <span style="color:#f87171">●</span> ผิดพลาด: <strong id="statErr">0</strong>
+                    </div>
+                    <div class="audit-stat" style="border-color: rgba(234,179,8,0.4)">
+                        <span style="color:#fbbf24">●</span> ตำแหน่งน่าจะผิด: <strong id="statWarn">0</strong>
+                    </div>
+                    <div class="audit-stat">
+                        รอตรวจ: <strong id="statPending">0</strong>
+                    </div>
+                    <div class="audit-stat">
+                        แสดง: <strong id="statVisible">0</strong> / <strong id="statTotal">0</strong> แถว
+                    </div>
+                </div>
+
+                <div class="audit-filter">
+                    <label>
+                        <i data-lucide="filter" style="width:14px;height:14px"></i>
+                        กรองโซน
+                        <select id="filterLocation">
+                            <option value="">ทุกโซน (A–Z)</option>
+                        </select>
+                    </label>
+                    <label>
+                        <i data-lucide="arrow-down-a-z" style="width:14px;height:14px"></i>
+                        เรียงตำแหน่ง
+                        <select id="sortLocation">
+                            <option value="num-asc">1 → 10</option>
+                            <option value="num-desc">10 → 1</option>
+                            <option value="none">ไม่เรียง</option>
+                        </select>
+                    </label>
+                    <span class="filter-hint" id="filterHint">กรอกข้อมูลได้ตามปกติ · เลือกโซน/เรียงแล้วทำงานทันที</span>
+                </div>
+
+                <div class="gs-wrap">
+                    <div class="gs-toolbar">
+                        <span class="sheet-name">ตรวจสอบการนับ</span>
+                        <span>· กรอกรหัสสินค้า | ตำแหน่ง | จำนวน แล้วกด Tab หรือปุ่มตรวจสอบ</span>
+                    </div>
+                    <div class="gs-scroll">
+                        <table class="gs-table" id="auditSheet">
+                            <thead>
+                                <tr>
+                                    <th class="col-row-num"></th>
+                                    <th class="col-letter">A</th>
+                                    <th class="col-letter">B</th>
+                                    <th class="col-letter">C</th>
+                                    <th class="col-letter">D</th>
+                                    <th class="col-letter">E</th>
+                                </tr>
+                                <tr>
+                                    <th class="col-row-num">#</th>
+                                    <th class="col-sku">รหัสสินค้า (SKU)</th>
+                                    <th class="col-loc">ตำแหน่ง</th>
+                                    <th class="col-qty">จำนวน</th>
+                                    <th class="col-status">สถานะ</th>
+                                    <th class="col-note">หมายเหตุ / อ้างอิง</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sheetBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="../Js/api.js"></script>
+    <script src="../Js/settings-shared.js"></script>
+    <script>
+        lucide.createIcons();
+
+        const INITIAL_ROWS = 25;
+        const ROW_ADD_BATCH = 10;
+
+        let supabaseClient = null;
+        /** @type {Map<string, { sku_id, location, counted_qty, warehouse, counter_name, record_count }>} */
+        let refBySkuLoc = new Map();
+        /** @type {Map<string, Array>} key = normalized sku */
+        let refBySku = new Map();
+
+        const sheetBody = document.getElementById('sheetBody');
+        const loadingBar = document.getElementById('loadingBar');
+
+        function norm(s) {
+            return (s || '').toString().trim().toUpperCase();
+        }
+
+        function skuLocKey(sku, loc) {
+            return norm(sku) + '|' + norm(loc);
+        }
+
+        /** แยกตำแหน่งเป็นส่วน ตัวอักษร/ตัวเลข สำหรับเรียง A1, A2, A10 */
+        function tokenizeLocation(loc) {
+            const s = norm(loc);
+            if (!s) return [];
+            const tokens = [];
+            const re = /(\d+)|([A-Z]+)|([^A-Z0-9]+)/g;
+            let m;
+            while ((m = re.exec(s)) !== null) {
+                if (m[1] != null) tokens.push({ type: 'n', v: parseInt(m[1], 10) });
+                else if (m[2] != null) tokens.push({ type: 's', v: m[2] });
+                else tokens.push({ type: 'x', v: m[3] });
+            }
+            return tokens;
+        }
+
+        function compareLocation(a, b) {
+            const ta = tokenizeLocation(a);
+            const tb = tokenizeLocation(b);
+            const len = Math.max(ta.length, tb.length);
+            for (let i = 0; i < len; i++) {
+                const xa = ta[i];
+                const xb = tb[i];
+                if (!xa) return -1;
+                if (!xb) return 1;
+                if (xa.type === 'n' && xb.type === 'n') {
+                    if (xa.v !== xb.v) return xa.v - xb.v;
+                } else {
+                    const sa = String(xa.v);
+                    const sb = String(xb.v);
+                    const c = sa.localeCompare(sb, 'en', { sensitivity: 'base' });
+                    if (c !== 0) return c;
+                }
+            }
+            return norm(a).localeCompare(norm(b), 'en', { sensitivity: 'base' });
+        }
+
+        function rowHasData(tr) {
+            const sku = tr.querySelector('[data-field="sku"]')?.value.trim() || '';
+            const loc = tr.querySelector('[data-field="loc"]')?.value.trim() || '';
+            const qty = tr.querySelector('[data-field="qty"]')?.value.trim() || '';
+            return !!(sku || loc || qty);
+        }
+
+        function showToast(message, type = 'success') {
+            const toastContainer = document.getElementById('toastContainer');
+            if (!toastContainer) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const iconName = type === 'success' ? 'check-circle-2' : 'alert-circle';
+            toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+            toastContainer.appendChild(toast);
+            lucide.createIcons();
+            setTimeout(() => {
+                toast.classList.add('toast-closing');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 4000);
+        }
+
+        function collectTableRowsForExport() {
+            const rows = [];
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (tr.classList.contains('row-filtered-out')) return;
+                if (!rowHasData(tr)) return;
+                rows.push({
+                    sku: tr.querySelector('[data-field="sku"]').value.trim(),
+                    loc: tr.querySelector('[data-field="loc"]').value.trim(),
+                    qty: tr.querySelector('[data-field="qty"]').value.trim(),
+                    status: tr.querySelector('.col-status')?.textContent.trim() || '',
+                    note: tr.querySelector('.col-note')?.textContent.trim() || ''
+                });
+            });
+            return rows;
+        }
+
+        function exportTableToExcel() {
+            const data = collectTableRowsForExport();
+            if (!data.length) {
+                showToast('ไม่มีข้อมูลในตารางสำหรับส่งออก', 'error');
+                return;
+            }
+
+            const exportRows = data.map((row, i) => ({
+                '#': i + 1,
+                'รหัสสินค้า (SKU)': row.sku,
+                'ตำแหน่ง': row.loc,
+                'จำนวน': row.qty,
+                'สถานะ': row.status,
+                'หมายเหตุ': row.note
+            }));
+
+            try {
+                const ws = XLSX.utils.json_to_sheet(exportRows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'ตรวจสอบการนับ');
+                ws['!cols'] = [
+                    { wch: 6 },
+                    { wch: 22 },
+                    { wch: 16 },
+                    { wch: 10 },
+                    { wch: 22 },
+                    { wch: 48 }
+                ];
+                const dateStr = new Date().toISOString().split('T')[0];
+                const zone = document.getElementById('filterLocation').value.trim();
+                const suffix = zone ? `_โซน${zone}` : '';
+                XLSX.writeFile(wb, `audit_check_${dateStr}${suffix}.xlsx`);
+                showToast(`ส่งออก Excel สำเร็จ (${data.length} แถว)`);
+            } catch (err) {
+                console.error(err);
+                showToast(`ส่งออกล้มเหลว: ${err.message}`, 'error');
+            }
+        }
+
+        /** ตัวอักษรโซนตัวแรกของตำแหน่ง เช่น A1-01 → A, B4-02 → B */
+        function getLocationZone(loc) {
+            const m = norm(loc).match(/[A-Z]/);
+            return m ? m[0] : '';
+        }
+
+        /** เลขช่องหลังโซน เช่น A1 → 1, A10-02 → 10 */
+        function getPositionSlotNumber(loc, zone) {
+            const s = norm(loc);
+            if (!s) return 0;
+            const z = zone || getLocationZone(s);
+            if (!z) return 0;
+            const m = s.match(new RegExp(`^${z}(\\d+)`));
+            return m ? parseInt(m[1], 10) : 999999;
+        }
+
+        function countDataRowsInZone(zone) {
+            let n = 0;
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (!rowHasData(tr)) return;
+                const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                if (getLocationZone(loc) === zone) n++;
+            });
+            return n;
+        }
+
+        function maxSlotInZone(zone) {
+            let max = 0;
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (!rowHasData(tr)) return;
+                const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                if (getLocationZone(loc) !== zone) return;
+                max = Math.max(max, getPositionSlotNumber(loc, zone));
+            });
+            return max;
+        }
+
+        /** โซนมีข้อมูลเกินช่อง 10 → เรียง 10→1 ไม่งั้น 1→10 */
+        function autoSortDirectionForZone(zone) {
+            if (!zone) return 'num-asc';
+            return maxSlotInZone(zone) > 10 ? 'num-desc' : 'num-asc';
+        }
+
+        function updateSortForSelectedZone() {
+            const zone = document.getElementById('filterLocation').value.trim();
+            if (!zone) return;
+            document.getElementById('sortLocation').value = autoSortDirectionForZone(zone);
+        }
+
+        /** เลขแถวหลังโซน: A1-01 → 1, A5-03 → 5, A10 → 10 */
+        function getLocationRowNumber(loc, zone) {
+            const s = norm(loc);
+            const z = zone || getLocationZone(loc);
+            if (!z || !s) return 999999;
+            const m = s.match(new RegExp('^' + z + '(\\d+)', 'i'));
+            return m ? parseInt(m[1], 10) : 999999;
+        }
+
+        function getRowNumbersInZone(zone) {
+            const nums = [];
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (!rowHasData(tr)) return;
+                const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                if (zone && getLocationZone(loc) !== zone) return;
+                const n = getLocationRowNumber(loc, zone || getLocationZone(loc));
+                if (n < 999999) nums.push(n);
+            });
+            return nums;
+        }
+
+        function updateSortOptionLabels() {
+            const zone = document.getElementById('filterLocation').value.trim();
+            const ascOpt = document.querySelector('#sortLocation option[value="num-asc"]');
+            const descOpt = document.querySelector('#sortLocation option[value="num-desc"]');
+            if (!ascOpt || !descOpt) return;
+
+            if (zone) {
+                const nums = getRowNumbersInZone(zone);
+                if (nums.length) {
+                    const min = Math.min(...nums);
+                    const max = Math.max(...nums);
+                    ascOpt.textContent = `${min} → ${max} (โซน ${zone})`;
+                    descOpt.textContent = `${max} → ${min} (โซน ${zone})`;
+                } else {
+                    ascOpt.textContent = `1 → 10 (โซน ${zone})`;
+                    descOpt.textContent = `10 → 1 (โซน ${zone})`;
+                }
+            } else {
+                ascOpt.textContent = 'โซน A→Z · แถว 1→10';
+                descOpt.textContent = 'โซน Z→A · แถว 10→1';
+            }
+        }
+
+        /** ดึง inventory_counts ทุกแถว (หลายรอบ ละ 1000) */
+        async function fetchAllInventoryCounts(selectCols) {
+            let allRows = [];
+            let from = 0;
+            const PAGE = 1000;
+            let rounds = 0;
+
+            while (true) {
+                rounds += 1;
+                const { data, error } = await supabaseClient
+                    .from('inventory_counts')
+                    .select(selectCols)
+                    .order('created_at', { ascending: false })
+                    .range(from, from + PAGE - 1);
+                if (error) throw error;
+                const batch = data || [];
+                allRows = allRows.concat(batch);
+                if (batch.length < PAGE) break;
+                from += PAGE;
+            }
+
+            return { rows: allRows, rounds };
+        }
+
+        function collectZonesFromTable() {
+            const zones = new Set();
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (!rowHasData(tr)) return;
+                const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                const zone = getLocationZone(loc);
+                if (zone) zones.add(zone);
+            });
+            return Array.from(zones).sort((a, b) => a.localeCompare(b, 'en'));
+        }
+
+        function refreshLocationFilterOptions() {
+            const select = document.getElementById('filterLocation');
+            const current = select.value;
+            const zones = collectZonesFromTable();
+
+            select.innerHTML = '<option value="">ทุกโซน (A–Z)</option>';
+            zones.forEach(zone => {
+                const opt = document.createElement('option');
+                opt.value = zone;
+                opt.textContent = `โซน ${zone}`;
+                select.appendChild(opt);
+            });
+
+            if (current && zones.includes(current)) {
+                select.value = current;
+            }
+        }
+
+        function sortTableByLocation(sortMode, activeZone) {
+            const filled = [];
+            const empty = [];
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                (rowHasData(tr) ? filled : empty).push(tr);
+            });
+
+            if (sortMode && sortMode !== 'none') {
+                const desc = sortMode === 'num-desc';
+                filled.sort((a, b) => {
+                    const la = a.querySelector('[data-field="loc"]').value.trim();
+                    const lb = b.querySelector('[data-field="loc"]').value.trim();
+
+                    if (activeZone) {
+                        const na = getLocationRowNumber(la, activeZone);
+                        const nb = getLocationRowNumber(lb, activeZone);
+                        if (na !== nb) return desc ? nb - na : na - nb;
+                    } else {
+                        const za = getLocationZone(la);
+                        const zb = getLocationZone(lb);
+                        if (za !== zb) {
+                            const zc = za.localeCompare(zb, 'en');
+                            if (zc !== 0) return desc ? -zc : zc;
+                        }
+                        const na = getLocationRowNumber(la, za);
+                        const nb = getLocationRowNumber(lb, zb);
+                        if (na !== nb) return desc ? nb - na : na - nb;
+                    }
+
+                    const c = compareLocation(la, lb);
+                    if (c !== 0) return desc ? -c : c;
+                    const sa = a.querySelector('[data-field="sku"]').value.trim();
+                    const sb = b.querySelector('[data-field="sku"]').value.trim();
+                    return sa.localeCompare(sb, 'en', { sensitivity: 'base' });
+                });
+            }
+
+            [...filled, ...empty].forEach(tr => sheetBody.appendChild(tr));
+            renumberRows();
+        }
+
+        function applyTableView() {
+            const filterVal = document.getElementById('filterLocation').value.trim();
+
+            if (filterVal) updateSortForSelectedZone();
+
+            const sortMode = document.getElementById('sortLocation').value;
+
+            updateSortOptionLabels();
+
+            if (sortMode !== 'none') sortTableByLocation(sortMode, filterVal);
+
+            let visible = 0;
+            let totalData = 0;
+
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                const hasData = rowHasData(tr);
+                if (hasData) totalData++;
+
+                let show = true;
+                if (filterVal) {
+                    if (!hasData) {
+                        show = false;
+                    } else {
+                        const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                        show = getLocationZone(loc) === filterVal;
+                    }
+                }
+
+                tr.classList.toggle('row-filtered-out', !show);
+                if (show && hasData) visible++;
+            });
+
+            document.getElementById('statVisible').textContent = visible;
+            document.getElementById('statTotal').textContent = totalData;
+
+            let hint;
+            if (filterVal) {
+                const nums = getRowNumbersInZone(filterVal);
+                let sortLabel = sortMode === 'num-desc' ? '10→1' : '1→10';
+                if (nums.length) {
+                    const min = Math.min(...nums);
+                    const max = Math.max(...nums);
+                    sortLabel = sortMode === 'num-desc' ? `${max}→${min}` : `${min}→${max}`;
+                }
+                hint = `โซน ${filterVal} · เรียงแถว ${sortLabel} (${filterVal}1, ${filterVal}5…) · ${visible} แถว · ซ่อนแถวว่าง`;
+            } else {
+                hint = `ทุกโซน A–Z · เรียง 1→10 ภายในโซน · กรอกข้อมูลได้ตามปกติ`;
+            }
+            document.getElementById('filterHint').textContent = hint;
+        }
+
+        function setLoading(on) {
+            loadingBar.classList.toggle('active', on);
+        }
+
+        function mergeRefEntry(map, sku, loc, row) {
+            const key = skuLocKey(sku, loc);
+            const qty = Number(row.counted_qty) || 0;
+            const existing = map.get(key);
+
+            if (existing) {
+                existing.counted_qty += qty;
+                existing.record_count += 1;
+                return;
+            }
+
+            map.set(key, {
+                sku_id: row.sku_id,
+                location: row.location,
+                counted_qty: qty,
+                warehouse: row.warehouse || '',
+                counter_name: row.counter_name || '',
+                record_count: 1
+            });
+        }
+
+        function rebuildRefBySku() {
+            refBySku.clear();
+            for (const entry of refBySkuLoc.values()) {
+                const sku = norm(entry.sku_id);
+                if (!refBySku.has(sku)) refBySku.set(sku, []);
+                refBySku.get(sku).push(entry);
+            }
+        }
+
+        async function loadReferenceData() {
+            if (!supabaseClient) return;
+            setLoading(true);
+            refBySkuLoc.clear();
+            refBySku.clear();
+
+            try {
+                const { rows: allRows, rounds } = await fetchAllInventoryCounts(
+                    'sku_id, location, counted_qty, warehouse, counter_name'
+                );
+
+                for (const row of allRows) {
+                    const sku = norm(row.sku_id);
+                    const loc = norm(row.location);
+                    if (!sku || !loc) continue;
+                    mergeRefEntry(refBySkuLoc, sku, loc, row);
+                }
+
+                rebuildRefBySku();
+
+                const totalRows = allRows.length;
+                document.getElementById('refBadge').innerHTML =
+                    `ข้อมูลอ้างอิง: <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ SKU+ตำแหน่ง จาก <strong>${totalRows.toLocaleString()}</strong> แถว (${rounds} รอบ)`;
+                showToast(`โหลดอ้างอิง ${totalRows.toLocaleString()} แถว (${rounds} รอบ)`);
+            } catch (err) {
+                console.error(err);
+                showToast(`โหลดข้อมูลอ้างอิงล้มเหลว: ${err.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function formatRefNote(entry) {
+            const parts = [
+                `${entry.sku_id} @ ${entry.location} = ${entry.counted_qty} ชิ้น`
+            ];
+            if (entry.warehouse) parts.push(entry.warehouse);
+            if (entry.counter_name) parts.push(`ผู้นับ: ${entry.counter_name}`);
+            if (entry.record_count > 1) parts.push(`รวม ${entry.record_count} บันทึก`);
+            return parts.join(' · ');
+        }
+
+        /** คะแนนความใกล้เคียงตำแหน่ง 0–1 */
+        function locationSimilarity(a, b) {
+            const x = norm(a);
+            const y = norm(b);
+            if (x === y) return 1;
+            if (!x || !y) return 0;
+
+            let matches = 0;
+            const len = Math.min(x.length, y.length);
+            for (let i = 0; i < len; i++) {
+                if (x[i] === y[i]) matches++;
+            }
+            const base = matches / Math.max(x.length, y.length);
+
+            const strip = s => s.replace(/[^A-Z0-9]/g, '');
+            const sx = strip(x);
+            const sy = strip(y);
+            if (sx && sy && (sx.includes(sy) || sy.includes(sx))) return Math.max(base, 0.65);
+
+            return base;
+        }
+
+        function buildSuggestions(sku, inputLoc, inputQty) {
+            const list = refBySku.get(norm(sku)) || [];
+            if (!list.length) return [];
+
+            const scored = list.map(entry => {
+                let score = 0;
+                const qtyMatch = (Number(entry.counted_qty) === Number(inputQty));
+                const locSim = locationSimilarity(entry.location, inputLoc);
+
+                if (qtyMatch) score += 45;
+                score += locSim * 35;
+                if (norm(entry.location) !== norm(inputLoc)) score += 5;
+
+                return { entry, score, qtyMatch, locSim };
+            });
+
+            scored.sort((a, b) => b.score - a.score);
+            const top = scored.slice(0, 3);
+            const maxScore = top[0]?.score || 1;
+
+            return top.map((item, i) => ({
+                ...item,
+                probability: Math.round((item.score / maxScore) * (i === 0 ? 100 : 85 - i * 15))
+            }));
+        }
+
+        function verifyRow(sku, loc, qtyStr) {
+            const skuN = norm(sku);
+            const locN = norm(loc);
+            const qty = qtyStr === '' ? NaN : Number(qtyStr);
+
+            if (!skuN && !locN && (qtyStr === '' || isNaN(qty))) {
+                return { status: 'empty', message: '', note: '', rowClass: '' };
+            }
+
+            if (!skuN || !locN || isNaN(qty)) {
+                return {
+                    status: 'error',
+                    message: 'กรอกข้อมูลไม่ครบ',
+                    note: 'ระบุรหัสสินค้า ตำแหน่ง และจำนวนให้ครบ',
+                    rowClass: 'row-error'
+                };
+            }
+
+            const exact = refBySkuLoc.get(skuLocKey(skuN, locN));
+
+            if (exact) {
+                const expected = Number(exact.counted_qty);
+                if (expected === qty) {
+                    return {
+                        status: 'ok',
+                        message: 'ข้อมูลถูกต้อง',
+                        note: `inventory_counts: ${formatRefNote(exact)}`,
+                        rowClass: 'row-ok'
+                    };
+                }
+                return {
+                    status: 'error',
+                    message: 'จำนวนผิดพลาด',
+                    note: `inventory_counts มี ${expected} ชิ้น (คุณกรอก ${qty}) · ${formatRefNote(exact)}`,
+                    rowClass: 'row-error'
+                };
+            }
+
+            const skuEntries = refBySku.get(skuN);
+            if (!skuEntries || !skuEntries.length) {
+                return {
+                    status: 'error',
+                    message: 'ไม่พบในระบบ',
+                    note: 'ไม่พบรหัสสินค้านี้ใน inventory_counts',
+                    rowClass: 'row-error'
+                };
+            }
+
+            const qtyMatchElsewhere = skuEntries.find(e => Number(e.counted_qty) === qty);
+
+            if (qtyMatchElsewhere) {
+                const suggestions = buildSuggestions(sku, loc, qty);
+                const top = suggestions[0];
+                let noteHtml = `ตำแหน่ง <strong>${loc}</strong> ไม่ตรงกับระบบ แต่จำนวน ${qty} ตรงกับรายการอื่น<br>`;
+                noteHtml += suggestions.map(s =>
+                    `<span class="suggest-item">→ อาจเป็น <strong>${s.entry.location}</strong> (${s.entry.warehouse || '-'}) จำนวน ${s.entry.counted_qty}${s.entry.counter_name ? ` · ${s.entry.counter_name}` : ''} · <span class="prob">~${s.probability}%</span></span>`
+                ).join('');
+                return {
+                    status: 'warn',
+                    message: 'ตำแหน่งผิด (จำนวนตรง)',
+                    note: noteHtml,
+                    rowClass: 'row-warn',
+                    suggestions
+                };
+            }
+
+            const suggestions = buildSuggestions(sku, loc, qty);
+            const sugText = suggestions.length
+                ? suggestions.map(s =>
+                    `${s.entry.location} (qty ${s.entry.counted_qty}, ~${s.probability}%)`
+                ).join(' · ')
+                : skuEntries.slice(0, 3).map(e => `${e.location} (${e.counted_qty})`).join(' · ');
+
+            return {
+                status: 'error',
+                message: 'ตำแหน่ง/จำนวนไม่ตรง',
+                note: `มี SKU นี้ในตำแหน่งอื่น: ${sugText}`,
+                rowClass: 'row-error',
+                suggestions
+            };
+        }
+
+        function applyResult(tr, result) {
+            tr.className = result.rowClass || '';
+            const statusTd = tr.querySelector('.col-status');
+            const noteTd = tr.querySelector('.col-note');
+            statusTd.className = 'col-status status-cell ' + (
+                result.status === 'ok' ? 'status-ok' :
+                result.status === 'warn' ? 'status-warn' :
+                result.status === 'error' ? 'status-error' : 'status-empty'
+            );
+            statusTd.textContent = result.message;
+            noteTd.className = 'col-note note-cell';
+            noteTd.innerHTML = result.note || '';
+        }
+
+        function verifyRowElement(tr) {
+            const sku = tr.querySelector('[data-field="sku"]').value;
+            const loc = tr.querySelector('[data-field="loc"]').value;
+            const qty = tr.querySelector('[data-field="qty"]').value;
+            const result = verifyRow(sku, loc, qty);
+            applyResult(tr, result);
+            return result;
+        }
+
+        function updateStats() {
+            let ok = 0, err = 0, warn = 0, pending = 0;
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim();
+                const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                const qty = tr.querySelector('[data-field="qty"]').value.trim();
+                if (!sku && !loc && !qty) return;
+
+                if (tr.classList.contains('row-ok')) ok++;
+                else if (tr.classList.contains('row-warn')) warn++;
+                else if (tr.classList.contains('row-error')) err++;
+                else pending++;
+            });
+            document.getElementById('statOk').textContent = ok;
+            document.getElementById('statErr').textContent = err;
+            document.getElementById('statWarn').textContent = warn;
+            document.getElementById('statPending').textContent = pending;
+        }
+
+        function verifyAll() {
+            if (!refBySkuLoc.size) {
+                showToast('ยังไม่มีข้อมูลอ้างอิง — ตรวจสอบการเชื่อมต่อ Supabase', 'error');
+                return;
+            }
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim();
+                const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                const qty = tr.querySelector('[data-field="qty"]').value.trim();
+                if (sku || loc || qty) verifyRowElement(tr);
+            });
+            updateStats();
+            showToast('ตรวจสอบครบทุกแถวแล้ว');
+        }
+
+        function createRow(rowNum) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td class="col-row-num">${rowNum}</td>
+                <td class="col-sku"><input type="text" class="gs-cell" data-field="sku" autocomplete="off" spellcheck="false"></td>
+                <td class="col-loc"><input type="text" class="gs-cell" data-field="loc" autocomplete="off" spellcheck="false"></td>
+                <td class="col-qty"><input type="number" class="gs-cell" data-field="qty" min="0" step="1" autocomplete="off"></td>
+                <td class="col-status status-cell status-empty"></td>
+                <td class="col-note note-cell"></td>
+            `;
+
+            const inputs = tr.querySelectorAll('.gs-cell');
+            inputs.forEach((input, idx) => {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey && idx < inputs.length - 1)) {
+                        if (e.key === 'Enter') e.preventDefault();
+                    }
+                    if (e.key === 'Enter') {
+                        const next = inputs[idx + 1] || tr.nextElementSibling?.querySelector('[data-field="sku"]');
+                        if (next) { next.focus(); next.select?.(); }
+                        else if (idx === inputs.length - 1) verifyRowElement(tr);
+                    }
+                });
+                input.addEventListener('blur', () => {
+                    const sku = tr.querySelector('[data-field="sku"]').value.trim();
+                    const loc = tr.querySelector('[data-field="loc"]').value.trim();
+                    const qty = tr.querySelector('[data-field="qty"]').value.trim();
+                    if (sku || loc || qty) {
+                        verifyRowElement(tr);
+                        updateStats();
+                    }
+                });
+            });
+
+            return tr;
+        }
+
+        function initSheet(rows = INITIAL_ROWS) {
+            sheetBody.innerHTML = '';
+            for (let i = 1; i <= rows; i++) {
+                sheetBody.appendChild(createRow(i));
+            }
+            document.getElementById('filterLocation').innerHTML = '<option value="">ทุกโซน (A–Z)</option>';
+            updateStats();
+            refreshLocationFilterOptions();
+            applyTableView();
+        }
+
+        function renumberRows() {
+            sheetBody.querySelectorAll('tr').forEach((tr, i) => {
+                tr.querySelector('.col-row-num').textContent = i + 1;
+            });
+        }
+
+        function addRows(n = ROW_ADD_BATCH) {
+            const start = sheetBody.children.length + 1;
+            for (let i = 0; i < n; i++) {
+                sheetBody.appendChild(createRow(start + i));
+            }
+        }
+
+        function clearSheet() {
+            if (!confirm('ล้างข้อมูลทั้งหมดในตาราง?')) return;
+            initSheet(INITIAL_ROWS);
+        }
+
+        function fillRows(items) {
+            if (!items.length) return;
+            while (sheetBody.children.length < items.length) addRows(items.length - sheetBody.children.length);
+
+            items.forEach((item, i) => {
+                const tr = sheetBody.children[i];
+                if (!tr) return;
+                tr.querySelector('[data-field="sku"]').value = item.sku || '';
+                tr.querySelector('[data-field="loc"]').value = item.loc || '';
+                tr.querySelector('[data-field="qty"]').value = item.qty ?? '';
+                verifyRowElement(tr);
+            });
+            renumberRows();
+            refreshLocationFilterOptions();
+            applyTableView();
+            updateStats();
+        }
+
+        document.getElementById('btnVerifyAll').addEventListener('click', () => {
+            verifyAll();
+            refreshLocationFilterOptions();
+            applyTableView();
+        });
+        document.getElementById('btnAddRows').addEventListener('click', () => {
+            addRows();
+            renumberRows();
+            refreshLocationFilterOptions();
+            applyTableView();
+        });
+        document.getElementById('btnClear').addEventListener('click', clearSheet);
+
+        document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
+        document.getElementById('btnExport').addEventListener('click', exportTableToExcel);
+        document.getElementById('fileImport').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const wb = XLSX.read(ev.target.result, { type: 'binary' });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    const items = [];
+                    for (const row of rows) {
+                        const sku = (row[0] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
+                        const loc = (row[1] ?? row['location'] ?? row['ตำแหน่ง'] ?? '').toString().trim();
+                        const qty = row[2] ?? row['qty'] ?? row['จำนวน'] ?? '';
+                        if (!sku && !loc) continue;
+                        if (/^(sku|รหัส|#)/i.test(sku)) continue;
+                        items.push({ sku, loc, qty });
+                    }
+                    fillRows(items);
+                    document.getElementById('sortLocation').value = 'num-asc';
+                    applyTableView();
+                    showToast(`นำเข้า ${items.length} แถว · เรียง 1→10 แล้ว`);
+                } catch (err) {
+                    showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error');
+                }
+                e.target.value = '';
+            };
+            reader.readAsBinaryString(file);
+        });
+
+        document.getElementById('btnReloadRef').addEventListener('click', () => loadReferenceData());
+
+        document.getElementById('btnLoadCounts').addEventListener('click', async () => {
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+            setLoading(true);
+            try {
+                const { rows, rounds } = await fetchAllInventoryCounts('sku_id, location, counted_qty');
+                const items = rows.map(r => ({
+                    sku: r.sku_id,
+                    loc: r.location,
+                    qty: r.counted_qty
+                }));
+                items.sort((a, b) => {
+                    const za = getLocationZone(a.loc);
+                    const zb = getLocationZone(b.loc);
+                    if (za !== zb) return za.localeCompare(zb, 'en');
+                    return getLocationRowNumber(a.loc, za) - getLocationRowNumber(b.loc, zb);
+                });
+                fillRows(items);
+                document.getElementById('sortLocation').value = 'num-asc';
+                applyTableView();
+                showToast(`ดึงข้อมูล ${items.length.toLocaleString()} แถว (${rounds} รอบ) · เรียง 1→10`);
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // Paste จาก Excel (TSV)
+        sheetBody.addEventListener('paste', (e) => {
+            const text = (e.clipboardData || window.clipboardData).getData('text');
+            if (!text || !text.includes('\t')) return;
+            e.preventDefault();
+            const active = document.activeElement;
+            const startTr = active?.closest('tr');
+            const startIdx = startTr ? Array.from(sheetBody.children).indexOf(startTr) : 0;
+
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
+            const items = lines.map(line => {
+                const [sku, loc, qty] = line.split('\t');
+                return { sku: (sku || '').trim(), loc: (loc || '').trim(), qty: (qty || '').trim() };
+            });
+
+            while (sheetBody.children.length < startIdx + items.length) addRows(10);
+
+            items.forEach((item, i) => {
+                const tr = sheetBody.children[startIdx + i];
+                if (!tr) return;
+                tr.querySelector('[data-field="sku"]').value = item.sku;
+                tr.querySelector('[data-field="loc"]').value = item.loc;
+                tr.querySelector('[data-field="qty"]').value = item.qty;
+                verifyRowElement(tr);
+            });
+            refreshLocationFilterOptions();
+            document.getElementById('sortLocation').value = 'num-asc';
+            applyTableView();
+            updateStats();
+            showToast(`วางข้อมูล ${items.length} แถว · เรียง 1→10 แล้ว`);
+        });
+
+        document.getElementById('filterLocation').addEventListener('change', applyTableView);
+        document.getElementById('sortLocation').addEventListener('change', applyTableView);
+
+        // Demo row hint
+        function seedExample() {
+            const tr = sheetBody.children[0];
+            if (!tr) return;
+            tr.querySelector('[data-field="sku"]').placeholder = 'เช่น BG328';
+            tr.querySelector('[data-field="loc"]').placeholder = 'เช่น A1-01';
+            tr.querySelector('[data-field="qty"]').placeholder = '1';
+        }
+
+        initSheet();
+        seedExample();
+        updateSortOptionLabels();
+        applyTableView();
+
+        supabaseClient = window.apiService ? window.apiService.getClient() : null;
+        if (typeof initConnectionBadge === 'function') {
+            initConnectionBadge(supabaseClient);
+        }
+        if (supabaseClient) {
+            loadReferenceData();
+        } else {
+            document.getElementById('refBadge').innerHTML =
+                'ข้อมูลอ้างอิง: <span style="color:#f87171">กรุณาตั้งค่า Supabase ใน <a href="settings.html" style="color:#93c5fd">หน้าตั้งค่า</a></span>';
+        }
+    </script>
+</body>
+</html>

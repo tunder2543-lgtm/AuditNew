@@ -118,7 +118,34 @@
         }
     </style>
 </head>
-<body>
+<body class="has-sidebar">
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="เมนูหลัก">
+            <div class="sidebar-brand">เมนู</div>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>นับสต็อก</span>
+                </a>
+                <a href="audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
+                    <i data-lucide="shield-check"></i>
+                    <span>ตรวจสอบ</span>
+                </a>
+                <a href="sku_master.html" class="sidebar-nav-item active" title="จัดการ SKU">
+                    <i data-lucide="database"></i>
+                    <span>SKU Master</span>
+                </a>
+                <a href="dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
+                    <i data-lucide="settings"></i>
+                    <span>ตั้งค่า</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-area">
     <div class="management-container">
         <!-- Header -->
         <header class="dashboard-header">
@@ -127,13 +154,18 @@
                 <p>จัดการฐานข้อมูลสินค้า (Import/Export)</p>
             </div>
             <div class="header-stats">
-                <div class="stat-box">
-                    <span class="stat-label">สินค้าทั้งหมด (SKU)</span>
-                    <span class="stat-value" id="totalSku">0</span>
+                <div class="header-stats-kpis">
+                    <div class="stat-box">
+                        <span class="stat-label">สินค้าทั้งหมด (SKU)</span>
+                        <span class="stat-value" id="totalSku">0</span>
+                    </div>
                 </div>
-                <a href="../index.html" class="settings-btn-cs" title="กลับไปหน้าหลัก" style="text-decoration: none;">
-                    <i data-lucide="home"></i>
-                </a>
+                <div class="header-stats-actions">
+                    <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status" title="สถานะการเชื่อมต่อ">
+                        <i data-lucide="wifi-off" data-badge-icon></i>
+                        <span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                    </div>
+                </div>
             </div>
         </header>
 
@@ -221,6 +253,8 @@
         </div>
         </div>
     </div>
+        </main>
+    </div>
 
     <!-- Import Preview Modal -->
     <div class="cs-modal" id="importPreviewModal">
@@ -273,6 +307,7 @@
     </style>
 
     <script src="../Js/api.js"></script>
+    <script src="../Js/settings-shared.js"></script>
     <script>
         lucide.createIcons();
 
@@ -288,7 +323,7 @@
         if (supabaseClient) {
             loadData();
         } else {
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ในหน้าหลักก่อนใช้งาน หรือตรวจสอบไฟล์ api.js</td></tr>';
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
         }
 
         async function loadData() {

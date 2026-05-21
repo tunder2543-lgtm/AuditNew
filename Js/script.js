@@ -39,23 +39,25 @@ document.addEventListener('DOMContentLoaded', () => {
     //  CONNECTION BADGE
     // =============================================
     function updateBadge(connected) {
+        if (typeof window.updateConnectionBadge === 'function') {
+            window.updateConnectionBadge(connected);
+            return;
+        }
         const badge = document.getElementById('connectionBadge');
         const icon  = document.getElementById('badgeIcon');
         const text  = document.getElementById('badgeText');
         if (!badge) return;
         if (connected) {
-            badge.className = 'connection-badge badge-connected';
-            icon.setAttribute('data-lucide', 'wifi');
-            text.textContent = 'Connected';
+            badge.className = 'connection-badge badge-connected connection-badge-status';
+            if (icon) icon.setAttribute('data-lucide', 'wifi');
+            if (text) text.textContent = 'เชื่อมต่อแล้ว';
         } else {
-            badge.className = 'connection-badge badge-disconnected';
-            icon.setAttribute('data-lucide', 'wifi-off');
-            text.textContent = 'ไม่ได้เชื่อมต่อ';
+            badge.className = 'connection-badge badge-disconnected connection-badge-status';
+            if (icon) icon.setAttribute('data-lucide', 'wifi-off');
+            if (text) text.textContent = 'ไม่ได้เชื่อมต่อ';
         }
         lucide.createIcons();
     }
-
-    initSupabase();
 
     // =============================================
     //  LIVE CLOCK
@@ -110,47 +112,84 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    async function loadExistingRecords() {
-        if (!supabaseClient) return;
-        try {
+    async function loadPagedInventoryCounts() {
+        if (!supabaseClient) return [];
+        let rows = [];
+        let from = 0;
+        const PAGE = 1000;
+        while (true) {
             const { data, error } = await supabaseClient
                 .from('inventory_counts')
                 .select('*')
-                .order('created_at', { ascending: false }); // ล่าสุดอยู่บนสุด
+                .order('created_at', { ascending: false })
+                .range(from, from + PAGE - 1);
             if (error) throw error;
+            rows = rows.concat(data || []);
+            if (!data || data.length < PAGE) break;
+            from += PAGE;
+        }
+        return rows;
+    }
 
-            if (data && data.length > 0) {
-                allRecords = data;
-                totalScanned = data.reduce((sum, row) => sum + (row.counted_qty || 0), 0);
-                updateStats();
+    function normalizeSkuKey(value) {
+        return String(value || '').toLowerCase().trim();
+    }
 
-                recordList.innerHTML = data.map(row => {
-                    const found = skuMasterList.find(s => (s.sku_name || '').toLowerCase() === (row.sku_id || '').toLowerCase());
-                    const proName = found ? found.name_pro : '';
-                    return `
-                        <li class="record-item" id="record-${row.id}">
-                            <div class="record-main">
-                                <span class="record-sku">${row.sku_id}</span>
-                                ${proName ? `<span class="record-pro-name">${proName}</span>` : ''}
-                                <span class="record-loc">
-                                    <i data-lucide="warehouse"></i> ${row.warehouse} &nbsp;|&nbsp;
-                                    <i data-lucide="map-pin"></i> ${row.location}
-                                </span>
-                            </div>
-                            <div class="record-actions" style="display: flex; gap: 0.5rem; align-items: center;">
-                                <span class="record-qty" id="qty-${row.id}">+${row.counted_qty}</span>
-                                <button class="icon-btn" onclick="openEditModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="แก้ไขจำนวน" style="padding: 0.25rem; color: var(--text-muted);">
-                                    <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
-                                </button>
-                                <button class="icon-btn" onclick="openDeleteModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
-                                    <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
-                                </button>
-                            </div>
-                        </li>`;
-                }).join('');
+    function isTodayInThailand(isoString) {
+        if (!isoString) return false;
+        const thaiDate = new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        return thaiDate === today;
+    }
 
-                lucide.createIcons();
-            }
+    function renderRecentRecordsList(records) {
+        const listEl = document.getElementById('recordList');
+        if (!listEl) return;
+        if (!records || records.length === 0) {
+            listEl.innerHTML = `
+                <li class="empty-state">
+                    <i data-lucide="package-open" style="width:48px;height:48px;stroke-width:1;"></i>
+                    <p>ยังไม่มีรายการบันทึกในเซสชันนี้</p>
+                </li>`;
+            lucide.createIcons();
+            return;
+        }
+
+        listEl.innerHTML = records.map(row => {
+            const found = skuMasterList.find(s => normalizeSkuKey(s.sku_name) === normalizeSkuKey(row.sku_id));
+            const proName = found ? found.name_pro : '';
+            return `
+                <li class="record-item" id="record-${row.id}">
+                    <div class="record-main">
+                        <span class="record-sku">${row.sku_id}</span>
+                        ${proName ? `<span class="record-pro-name">${proName}</span>` : ''}
+                        <span class="record-loc">
+                            <i data-lucide="warehouse"></i> ${row.warehouse} &nbsp;|&nbsp;
+                            <i data-lucide="map-pin"></i> ${row.location}
+                        </span>
+                    </div>
+                    <div class="record-actions" style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span class="record-qty" id="qty-${row.id}">+${row.counted_qty}</span>
+                        <button class="icon-btn" onclick="openEditModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="แก้ไขจำนวน" style="padding: 0.25rem; color: var(--text-muted);">
+                            <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
+                        </button>
+                        <button class="icon-btn" onclick="openDeleteModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
+                            <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
+                        </button>
+                    </div>
+                </li>`;
+        }).join('');
+        lucide.createIcons();
+    }
+
+    async function loadExistingRecords() {
+        if (!supabaseClient) return;
+        try {
+            const data = await loadPagedInventoryCounts();
+            allRecords = data;
+            console.log(`[Inventory Counts] Loaded ${allRecords.length} records ✓`);
+            renderRecentRecordsList(allRecords.slice(0, MAX_RECENT_RECORDS));
+            updateStats();
         } catch (err) {
             console.warn('[Existing Records] Load failed:', err.message);
         }
@@ -187,8 +226,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const skuNameText      = document.getElementById('skuNameText');
     const skuNotFound      = document.getElementById('skuNotFound');
 
-    let totalScanned  = 0;
+    const MAX_RECENT_RECORDS = 100;
     let activeDropIdx = -1; // keyboard nav index
+    let dashboardChart = null;
+    let exportMenuVisible = false;
+    let dashboardFilters = { counter: '', startDate: '', endDate: '' };
+    let dashboardRecordsCache = [];
 
     // Restore context
     if (localStorage.getItem('saved_counter_name')) counterNameInput.value = localStorage.getItem('saved_counter_name');
@@ -410,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     //  MODE SWITCH & GROUP LOGIC
     // =============================================
-    let currentMode = 'single';
+    let currentMode = 'group';
     let groupItems = [];
     const maxGroupItems = 25;
 
@@ -424,34 +467,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (mode === 'single') {
             btnSingle.classList.add('active');
-            btnSingle.style.background = 'var(--card)';
-            btnSingle.style.color = 'var(--text)';
-            btnSingle.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-            
             btnGroup.classList.remove('active');
-            btnGroup.style.background = 'transparent';
-            btnGroup.style.color = 'var(--text-muted)';
-            btnGroup.style.boxShadow = 'none';
-
             singleAction.style.display = 'block';
             groupAction.style.display = 'none';
             groupContainer.style.display = 'none';
         } else {
             btnGroup.classList.add('active');
-            btnGroup.style.background = 'var(--card)';
-            btnGroup.style.color = 'var(--text)';
-            btnGroup.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
-            
             btnSingle.classList.remove('active');
-            btnSingle.style.background = 'transparent';
-            btnSingle.style.color = 'var(--text-muted)';
-            btnSingle.style.boxShadow = 'none';
-
             singleAction.style.display = 'none';
             groupAction.style.display = 'block';
             groupContainer.style.display = 'block';
         }
     };
+
+    setMode('group');
 
     window.addGroupItem = function() {
         if (groupItems.length >= maxGroupItems) {
@@ -464,8 +493,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let proName = skuNameText.textContent || '';
         if (!proName) proName = 'ไม่พบชื่อรหัสสินค้า';
 
-        if (!sku || !quantity || quantity < 1) {
-            showToast('กรุณาระบุรหัสสินค้าและจำนวนให้ถูกต้อง', 'error');
+        if (!sku || Number.isNaN(quantity) || quantity < 0) {
+            showToast('กรุณาระบุรหัสสินค้าและจำนวน (0 ขึ้นไป)', 'error');
             return;
         }
 
@@ -529,7 +558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!supabaseClient) { initSupabase(); }
         if (!supabaseClient) {
             showToast('กรุณาตั้งค่า Supabase URL/KEY ก่อน', 'error');
-            toggleModal('settingsModal');
+            goToSettingsPage();
             return;
         }
 
@@ -582,13 +611,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 const insertedId = row.id;
                 const originalItem = reversedItems[idx];
 
+                const rowData = data && data[idx] ? data[idx] : {};
                 allRecords.unshift({
                     id: insertedId,
                     sku_id: originalItem.sku,
                     counted_qty: originalItem.quantity,
                     warehouse: warehouse,
                     location: location,
-                    counter_name: counter_name
+                    counter_name: counter_name,
+                    created_at: rowData.created_at || new Date().toISOString()
                 });
                 
                 addRecord(insertedId, originalItem.sku, originalItem.name, originalItem.quantity, location, warehouse);
@@ -602,7 +633,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('saved_warehouse', warehouse);
             localStorage.setItem('saved_location', location);
 
-            totalScanned += totalQtyInGroup;
             updateStats();
             
             showToast(`✓ บันทึกกลุ่มสำเร็จ ${groupItems.length} รายการ`, 'success');
@@ -618,9 +648,12 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) {
             console.error('[Insert Group Error]', err);
             showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
+            submitGroupBtn.disabled = groupItems.length === 0;
         } finally {
-            submitGroupBtn.disabled = false;
             submitGroupBtn.innerHTML = orig;
+            if (groupItems.length === 0) {
+                submitGroupBtn.disabled = true;
+            }
             lucide.createIcons();
         }
     };
@@ -640,7 +673,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!supabaseClient) { initSupabase(); }
         if (!supabaseClient) {
             showToast('กรุณาตั้งค่า Supabase URL/KEY ก่อน', 'error');
-            toggleModal('settingsModal');
+            goToSettingsPage();
             return;
         }
 
@@ -652,7 +685,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let proName      = skuNameText.textContent || '';
         if (!proName) proName = 'ไม่พบชื่อรหัสสินค้า';
 
-        if (!counter_name || !warehouse || !sku || !quantity || !location) {
+        if (!counter_name || !warehouse || !sku || Number.isNaN(quantity) || quantity < 0 || !location) {
             showToast('กรุณากรอกข้อมูลให้ครบทุกช่อง', 'error');
             return;
         }
@@ -671,13 +704,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const insertedId = data && data[0] ? data[0].id : Date.now();
 
+            const insertedRow = data && data[0] ? data[0] : {};
             allRecords.unshift({
                 id: insertedId,
                 sku_id: sku,
                 counted_qty: quantity,
                 warehouse: warehouse,
                 location: location,
-                counter_name: counter_name
+                counter_name: counter_name,
+                created_at: insertedRow.created_at || new Date().toISOString()
             });
 
             logAudit('INSERT', insertedId, sku, null, quantity, warehouse, location, counter_name);
@@ -687,7 +722,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('saved_location', location);
 
             addRecord(insertedId, sku, proName, quantity, location, warehouse);
-            totalScanned += quantity;
             updateStats();
             showToast(`✓ ${sku}${proName ? ' — ' + proName : ''} x${quantity} บันทึกแล้ว!`, 'success');
 
@@ -712,8 +746,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     //  ADD RECORD TO LIST (with Edit/Delete Actions)
     // =============================================
+    function trimRecentRecords() {
+        const items = recordList.querySelectorAll('.record-item');
+        while (items.length > MAX_RECENT_RECORDS) {
+            const listItems = recordList.querySelectorAll('.record-item');
+            listItems[listItems.length - 1].remove();
+        }
+    }
+
     function addRecord(id, sku, proName, quantity, location, warehouse) {
-        const emptyState = document.querySelector('.empty-state');
+        const emptyState = recordList.querySelector('.empty-state');
         if (emptyState) emptyState.remove();
         const li = document.createElement('li');
         li.className = 'record-item';
@@ -737,33 +779,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             </div>`;
         recordList.insertBefore(li, recordList.firstChild);
+        trimRecentRecords();
         lucide.createIcons();
-        // ไม่จำกัดจำนวนรายการ แสดงทั้งหมดตามที่ผู้ใช้ต้องการ
     }
 
     function updateStats() {
-        const countedSkus = new Set(allRecords.map(r => String(r.sku_id).toLowerCase().trim()));
-        
-        totalScannedEl.textContent = `${countedSkus.size.toLocaleString()} / ${totalScanned.toLocaleString()}`;
-        
-        const uncounted = skuMasterList.filter(s => !countedSkus.has(String(s.sku_name || '').toLowerCase().trim()));
+        const allCountedSkus = new Set(allRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
+
+        const todayRecords = allRecords.filter(r => isTodayInThailand(r.created_at));
+        const todaySkus = new Set(todayRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
+        const todayQty = todayRecords.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
+
+        if (totalScannedEl) {
+            totalScannedEl.textContent = `${todaySkus.size.toLocaleString()} / ${todayQty.toLocaleString()}`;
+        }
+
         const uncountedEl = document.getElementById('totalUncounted');
         const progressEl = document.getElementById('progressPercent');
-        
+        const totalItems = skuMasterList.length;
+        const countedSkuTotal = allCountedSkus.size;
+        const uncountedCount = totalItems > 0
+            ? skuMasterList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name))).length
+            : 0;
+
         if (uncountedEl) {
-            uncountedEl.textContent = uncounted.length.toLocaleString();
+            uncountedEl.textContent = uncountedCount.toLocaleString();
         }
-        
+
         if (progressEl) {
-            const totalItems = skuMasterList.length;
             if (totalItems === 0) {
                 progressEl.textContent = '0%';
             } else {
-                const countedCount = totalItems - uncounted.length;
-                const percent = Math.floor((countedCount / totalItems) * 100);
+                const percent = Math.floor((countedSkuTotal / totalItems) * 100);
                 progressEl.textContent = `${percent}%`;
             }
         }
+
+        refreshDashboardSummary();
     }
 
     // =============================================
@@ -792,65 +844,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (isOpen) {
             modal.classList.remove('open');
         } else {
-            if (id === 'settingsModal') {
-                document.getElementById('sbUrl').value = localStorage.getItem('SB_URL') || '';
-                document.getElementById('sbKey').value = localStorage.getItem('SB_KEY') || '';
-                const ts = document.getElementById('testStatus');
-                ts.style.display = 'none';
-                ts.textContent   = '';
-            }
             modal.classList.add('open');
             lucide.createIcons();
         }
     };
-
-    window.saveSettings = function() {
-        const url = document.getElementById('sbUrl').value.trim();
-        const key = document.getElementById('sbKey').value.trim();
-        if (!url || !key) { alert('กรุณากรอก URL และ API Key ให้ครบ'); return; }
-        localStorage.setItem('SB_URL', url);
-        localStorage.setItem('SB_KEY', key);
-        supabaseClient = null;
-        initSupabase();
-        toggleModal('settingsModal');
-        showToast('✓ บันทึกการตั้งค่าสำเร็จ!', 'success');
-    };
-
-    window.testConnection = async function() {
-        const url      = document.getElementById('sbUrl').value.trim();
-        const key      = document.getElementById('sbKey').value.trim();
-        const statusEl = document.getElementById('testStatus');
-
-        const setStatus = (bg, color, border, msg) => {
-            statusEl.style.cssText = `display:block;padding:0.75rem 1rem;border-radius:10px;font-size:0.85rem;margin-bottom:1rem;background:${bg};color:${color};border:1px solid ${border};`;
-            statusEl.textContent   = msg;
-        };
-
-        if (!url || !key) { setStatus('rgba(239,68,68,0.1)','#fca5a5','rgba(239,68,68,0.3)','❌ กรุณากรอก URL และ API Key ก่อน'); return; }
-        setStatus('rgba(99,102,241,0.1)','#a5b4fc','rgba(99,102,241,0.3)','🔄 กำลังทดสอบ...');
-
-        try {
-            const res = await fetch(`${url}/rest/v1/inventory_counts?select=id&limit=1`, {
-                headers: { 'apikey': key, 'Authorization': `Bearer ${key}` }
-            });
-            if (res.ok) setStatus('rgba(16,185,129,0.1)','#6ee7b7','rgba(16,185,129,0.3)','✅ เชื่อมต่อสำเร็จ! Table inventory_counts พร้อมใช้งาน');
-            else throw new Error(`HTTP ${res.status}`);
-        } catch (err) {
-            setStatus('rgba(239,68,68,0.1)','#fca5a5','rgba(239,68,68,0.3)',`❌ ไม่สามารถเชื่อมต่อได้: ${err.message}`);
-        }
-    };
-
-    window.toggleKeyVisibility = function() {
-        const input = document.getElementById('sbKey');
-        const icon  = document.getElementById('eyeIcon');
-        if (input.type === 'password') { input.type = 'text';     icon.setAttribute('data-lucide', 'eye-off'); }
-        else                           { input.type = 'password'; icon.setAttribute('data-lucide', 'eye');     }
-        lucide.createIcons();
-    };
-
-    document.getElementById('settingsModal').addEventListener('click', function(e) {
-        if (e.target === this) toggleModal('settingsModal');
-    });
 
     // =============================================
     //  EDIT / DELETE 2-STEP CONFIRMATION MODAL
@@ -895,8 +892,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (edState.mode === 'edit') {
             if (edState.step === 1) {
                 const newQty = parseInt(document.getElementById('edNewQty').value, 10);
-                if (!newQty || newQty < 1) {
-                    showToast('กรุณาระบุจำนวนที่ถูกต้อง (1 ขึ้นไป)', 'error');
+                if (Number.isNaN(newQty) || newQty < 0) {
+                    showToast('กรุณาระบุจำนวนที่ถูกต้อง (0 ขึ้นไป)', 'error');
                     return;
                 }
                 edState.newQty = newQty;
@@ -936,8 +933,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     logAudit('UPDATE', edState.id, edState.sku, edState.oldQty, edState.newQty, edState.warehouse, edState.location, edState.counterName);
 
                     // Update stats
-                    const diff = edState.newQty - edState.oldQty;
-                    totalScanned += diff;
                     updateStats();
 
                     showToast(`✓ อัปเดตจำนวน ${edState.sku} เป็น ${edState.newQty} ชิ้นเรียบร้อย`, 'success');
@@ -985,8 +980,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         lucide.createIcons();
                     }
 
-                    // Update stats
-                    totalScanned -= edState.oldQty;
                     updateStats();
 
                     showToast(`✓ ลบรายการ ${edState.sku} ออกจากระบบเรียบร้อย`, 'success');
@@ -1239,9 +1232,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
         }
         
-        // Calculate uncounted
-        const countedSkus = new Set(allRecords.map(r => String(r.sku_id).toLowerCase().trim()));
-        uncountedItemsCache = skuMasterList.filter(s => !countedSkus.has(String(s.sku_name || '').toLowerCase().trim()));
+        const allCountedSkus = new Set(allRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
+        uncountedItemsCache = skuMasterList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name)));
         
         // Update badge
         const uncountedEl = document.getElementById('totalUncounted');
@@ -1288,6 +1280,357 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
+    function escapeFileName(value) {
+        return String(value || '')
+            .replace(/[\\/:*?"<>|]+/g, '_')
+            .trim();
+    }
+
+    function formatThaiDateTime(value) {
+        if (!value) return '-';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '-';
+        return date.toLocaleString('th-TH', {
+            year: 'numeric',
+            month: 'short',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+    }
+
+    function parseDateStart(value) {
+        if (!value) return null;
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return null;
+        return date;
+    }
+
+    function parseDateEnd(value) {
+        if (!value) return null;
+        const date = new Date(`${value}T23:59:59.999`);
+        if (Number.isNaN(date.getTime())) return null;
+        return date;
+    }
+
+    function getFilteredDashboardRows() {
+        const counter = (dashboardFilters.counter || '').trim().toLowerCase();
+        const startDate = parseDateStart(dashboardFilters.startDate);
+        const endDate = parseDateEnd(dashboardFilters.endDate);
+
+        return allRecords.filter(row => {
+            const rowCounter = String(row.counter_name || '').trim().toLowerCase();
+            const rowDate = row.created_at ? new Date(row.created_at) : null;
+
+            if (counter && rowCounter !== counter) return false;
+            if (startDate && (!rowDate || rowDate < startDate)) return false;
+            if (endDate && (!rowDate || rowDate > endDate)) return false;
+            return true;
+        });
+    }
+
+    function getCountedSkuSet(rows) {
+        return new Set(rows.map(r => String(r.sku_id || '').toLowerCase().trim()).filter(Boolean));
+    }
+
+    function sumQuantity(rows) {
+        return rows.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
+    }
+
+    function getUncountedCountFromRows(rows) {
+        const countedSet = getCountedSkuSet(rows);
+        return skuMasterList.filter(s => !countedSet.has(String(s.sku_name || '').toLowerCase().trim())).length;
+    }
+
+    function getCounterOptions() {
+        const counters = new Set();
+        allRecords.forEach(row => {
+            const value = String(row.counter_name || '').trim();
+            if (value) counters.add(value);
+        });
+        return Array.from(counters).sort((a, b) => a.localeCompare(b, 'th'));
+    }
+
+    function setDashboardScopeLabel() {
+        const label = document.getElementById('dashboardScopeLabel');
+        if (!label) return;
+
+        const parts = [];
+        if (dashboardFilters.counter) parts.push(`ผู้นับ: ${dashboardFilters.counter}`);
+        if (dashboardFilters.startDate) parts.push(`เริ่ม: ${dashboardFilters.startDate}`);
+        if (dashboardFilters.endDate) parts.push(`ถึง: ${dashboardFilters.endDate}`);
+
+        label.textContent = parts.length ? parts.join(' | ') : 'ทั้งหมด';
+    }
+
+    function populateDashboardCounterFilter() {
+        const select = document.getElementById('dashboardCounterFilter');
+        if (!select) return;
+
+        const current = dashboardFilters.counter || '';
+        const options = getCounterOptions();
+        select.innerHTML = `<option value="">ทั้งหมด</option>` + options.map(name => `<option value="${name}">${name}</option>`).join('');
+        select.value = current;
+    }
+
+    function getChartContext() {
+        const canvas = document.getElementById('dashboardChart');
+        if (!canvas) return null;
+        return canvas.getContext('2d');
+    }
+
+    function renderDashboardChart(rows) {
+        const ctx = getChartContext();
+        if (!ctx || !window.Chart) return;
+
+        const counterMap = new Map();
+        rows.forEach(row => {
+            const key = String(row.counter_name || 'Unknown').trim() || 'Unknown';
+            counterMap.set(key, (counterMap.get(key) || 0) + 1);
+        });
+
+        const sorted = Array.from(counterMap.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 8);
+
+        const labels = sorted.length ? sorted.map(([name]) => name) : ['ไม่มีข้อมูล'];
+        const values = sorted.length ? sorted.map(([, count]) => count) : [0];
+
+        if (dashboardChart) {
+            dashboardChart.destroy();
+        }
+
+        dashboardChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'จำนวนรายการที่ส่ง',
+                    data: values,
+                    backgroundColor: 'rgba(59, 130, 246, 0.75)',
+                    borderColor: 'rgba(59, 130, 246, 1)',
+                    borderWidth: 1,
+                    borderRadius: 10
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#18181b',
+                        borderColor: '#3f3f46',
+                        borderWidth: 1,
+                        titleColor: '#fafafa',
+                        bodyColor: '#fafafa'
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: { color: '#a1a1aa' },
+                        grid: { color: 'rgba(63, 63, 70, 0.35)' }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: '#a1a1aa', precision: 0 },
+                        grid: { color: 'rgba(63, 63, 70, 0.35)' }
+                    }
+                }
+            }
+        });
+    }
+
+    function renderDashboardSubmissionList(rows) {
+        const container = document.getElementById('dashboardSubmissionList');
+        const tableBody = document.getElementById('dashboardSubmissionTableBody');
+        const countEl = document.getElementById('dashboardListCount');
+
+        if (!container || !tableBody || !countEl) return;
+
+        countEl.textContent = `${rows.length.toLocaleString()} รายการ`;
+
+        if (rows.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state" style="padding: 2rem 1rem;">
+                    <i data-lucide="inbox"></i>
+                    <p>ไม่พบข้อมูลตามฟิลเตอร์</p>
+                </div>`;
+            tableBody.innerHTML = '';
+            lucide.createIcons();
+            return;
+        }
+
+        const ordered = [...rows].sort((a, b) => {
+            const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+            const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+            return bTime - aTime;
+        });
+
+        container.innerHTML = ordered.slice(0, 12).map(row => {
+            const skuName = skuMasterList.find(s => String(s.sku_name || '').toLowerCase().trim() === String(row.sku_id || '').toLowerCase().trim())?.name_pro || '';
+            return `
+                <div class="dashboard-submission-item">
+                    <strong>${row.counter_name || 'Unknown'} • ${row.sku_id || '-'}</strong>
+                    <small>${skuName ? `${skuName}<br>` : ''}${row.warehouse || '-'} / ${row.location || '-'}<br>${formatThaiDateTime(row.created_at)} • จำนวน ${row.counted_qty || 0}</small>
+                </div>`;
+        }).join('');
+
+        tableBody.innerHTML = ordered.slice(0, 20).map(row => {
+            const isRecent = row.created_at ? new Date(row.created_at).getTime() >= (Date.now() - (24 * 60 * 60 * 1000)) : false;
+            return `
+                <tr>
+                    <td>${row.counter_name || 'Unknown'}</td>
+                    <td>${formatThaiDateTime(row.created_at)}</td>
+                    <td>${row.sku_id || '-'} <span class="progress-pill">${row.counted_qty || 0}</span></td>
+                    <td>${isRecent ? 'วันนี้' : 'ก่อนหน้า'}</td>
+                </tr>`;
+        }).join('');
+    }
+
+    function refreshDashboardSummary() {
+        const modal = document.getElementById('dashboardModal');
+        if (!modal || !modal.classList.contains('open')) return;
+
+        const rows = getFilteredDashboardRows();
+        dashboardRecordsCache = rows;
+
+        const countedSkus = getCountedSkuSet(rows);
+        const countedQty = sumQuantity(rows);
+        const totalSkus = skuMasterList.length;
+        const uncountedCount = getUncountedCountFromRows(rows);
+        const progressPercent = totalSkus > 0 ? Math.floor((countedSkus.size / totalSkus) * 100) : 0;
+        const remainingPercent = totalSkus > 0 ? Math.max(0, 100 - progressPercent) : 0;
+        const totalRecords = allRecords.length;
+        const sendRate = totalRecords > 0 ? Math.floor((rows.length / totalRecords) * 100) : 0;
+
+        const countedSkuEl = document.getElementById('dashboardCountedSku');
+        const countedQtyEl = document.getElementById('dashboardCountedQty');
+        const uncountedSkuEl = document.getElementById('dashboardUncountedSku');
+        const remainingPctEl = document.getElementById('dashboardRemainingPct');
+        const progressEl = document.getElementById('dashboardProgress');
+        const progressQtyEl = document.getElementById('dashboardProgressQty');
+        const rateEl = document.getElementById('dashboardRate');
+        const rateHintEl = document.getElementById('dashboardRateHint');
+
+        if (countedSkuEl) countedSkuEl.textContent = countedSkus.size.toLocaleString();
+        if (countedQtyEl) countedQtyEl.textContent = `${countedQty.toLocaleString()} ชิ้น`;
+        if (uncountedSkuEl) uncountedSkuEl.textContent = uncountedCount.toLocaleString();
+        if (remainingPctEl) remainingPctEl.textContent = `${remainingPercent}%`;
+        if (progressEl) progressEl.textContent = `${progressPercent}%`;
+        if (progressQtyEl) progressQtyEl.textContent = `${countedSkus.size.toLocaleString()} / ${totalSkus.toLocaleString()} SKU`;
+        if (rateEl) rateEl.textContent = `${sendRate}%`;
+        if (rateHintEl) rateHintEl.textContent = `${rows.length.toLocaleString()} / ${totalRecords.toLocaleString()} รายการ`;
+
+        setDashboardScopeLabel();
+        populateDashboardCounterFilter();
+        renderDashboardChart(rows);
+        renderDashboardSubmissionList(rows);
+        lucide.createIcons();
+    }
+
+    window.openExportMenu = function(event) {
+        if (event) event.stopPropagation();
+        const menu = document.getElementById('exportMenu');
+        if (!menu) return;
+        exportMenuVisible = !exportMenuVisible;
+        menu.style.display = exportMenuVisible ? 'flex' : 'none';
+    };
+
+    window.exportInventory = function(format) {
+        if (!allRecords.length) {
+            showToast('ไม่มีข้อมูล inventory_counts สำหรับส่งออก', 'error');
+            return;
+        }
+
+        const exportRows = allRecords.map((row, index) => {
+            const skuName = skuMasterList.find(s => String(s.sku_name || '').toLowerCase().trim() === String(row.sku_id || '').toLowerCase().trim())?.name_pro || '';
+            return {
+                '#': index + 1,
+                sku_id: row.sku_id || '-',
+                name_pro: skuName || '-',
+                counted_qty: row.counted_qty || 0,
+                warehouse: row.warehouse || '-',
+                location: row.location || '-',
+                counter_name: row.counter_name || '-',
+                created_at: formatThaiDateTime(row.created_at)
+            };
+        });
+
+        const baseName = `inventory_counts_${new Date().toISOString().split('T')[0]}`;
+
+        try {
+            if (format === 'csv') {
+                const ws = XLSX.utils.json_to_sheet(exportRows);
+                const csv = XLSX.utils.sheet_to_csv(ws);
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${baseName}.csv`;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                showToast(`ดาวน์โหลดไฟล์ CSV สำเร็จ (${exportRows.length} รายการ)`);
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'inventory_counts');
+            ws['!cols'] = [
+                { wch: 8 },
+                { wch: 24 },
+                { wch: 28 },
+                { wch: 14 },
+                { wch: 22 },
+                { wch: 18 },
+                { wch: 22 },
+                { wch: 24 }
+            ];
+            XLSX.writeFile(wb, `${baseName}.xlsx`);
+            showToast(`ดาวน์โหลดไฟล์ Excel สำเร็จ (${exportRows.length} รายการ)`);
+        } catch (err) {
+            console.error('[Export Inventory Error]', err);
+            showToast(`ส่งออกล้มเหลว: ${err.message}`, 'error');
+        }
+    };
+
+    window.openDashboard = function() {
+        exportMenuVisible = false;
+        const menu = document.getElementById('exportMenu');
+        if (menu) menu.style.display = 'none';
+        window.location.href = 'Html/dashboard.html';
+    };
+
+    window.closeDashboard = function() {
+        const modal = document.getElementById('dashboardModal');
+        if (!modal) return;
+        modal.classList.remove('open');
+    };
+
+    window.applyDashboardFilters = function() {
+        const counterSelect = document.getElementById('dashboardCounterFilter');
+        const startInput = document.getElementById('dashboardStartDate');
+        const endInput = document.getElementById('dashboardEndDate');
+
+        dashboardFilters.counter = counterSelect ? counterSelect.value : '';
+        dashboardFilters.startDate = startInput ? startInput.value : '';
+        dashboardFilters.endDate = endInput ? endInput.value : '';
+        refreshDashboardSummary();
+    };
+
+    window.resetDashboardFilters = function() {
+        dashboardFilters = { counter: '', startDate: '', endDate: '' };
+        const counterSelect = document.getElementById('dashboardCounterFilter');
+        const startInput = document.getElementById('dashboardStartDate');
+        const endInput = document.getElementById('dashboardEndDate');
+        if (counterSelect) counterSelect.value = '';
+        if (startInput) startInput.value = '';
+        if (endInput) endInput.value = '';
+        refreshDashboardSummary();
+    };
+
     window.exportUncountedExcel = function() {
         if (!uncountedItemsCache || uncountedItemsCache.length === 0) {
             showToast('ไม่มีรายการที่ยังไม่ได้นับให้ส่งออก', 'error');
@@ -1310,9 +1653,9 @@ document.addEventListener('DOMContentLoaded', () => {
             XLSX.utils.book_append_sheet(wb, ws, "Uncounted_Items");
 
             ws['!cols'] = [
-                { wch: 8 },  // #
-                { wch: 30 }, // SKU
-                { wch: 50 }  // Product Name
+                { wch: 8 },
+                { wch: 30 },
+                { wch: 50 }
             ];
 
             const dateStr = new Date().toISOString().split('T')[0];
@@ -1324,4 +1667,34 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`ส่งออกล้มเหลว: ${err.message}`, 'error');
         }
     };
+
+    document.addEventListener('click', (e) => {
+        const menu = document.getElementById('exportMenu');
+        if (!menu) return;
+        const button = e.target.closest && e.target.closest('[title="ส่งออกข้อมูล inventory_counts"]');
+        if (!button && !menu.contains(e.target)) {
+            menu.style.display = 'none';
+            exportMenuVisible = false;
+        }
+    });
+
+    const dashboardModal = document.getElementById('dashboardModal');
+    if (dashboardModal) {
+        dashboardModal.addEventListener('click', function(e) {
+            if (e.target === this) closeDashboard();
+        });
+    }
+
+    const dashboardCounterFilter = document.getElementById('dashboardCounterFilter');
+    if (dashboardCounterFilter) {
+        dashboardCounterFilter.addEventListener('change', applyDashboardFilters);
+    }
+
+    initSupabase();
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && supabaseClient) {
+            loadAllData();
+        }
+    });
 });

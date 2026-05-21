@@ -14,8 +14,37 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <!-- SheetJS for Excel -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <!-- Chart.js for Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
 </head>
-<body>
+<body class="has-sidebar">
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="เมนูหลัก">
+            <div class="sidebar-brand">เมนู</div>
+            <nav class="sidebar-nav">
+                <a href="index.html" class="sidebar-nav-item active" title="หน้านับสต็อก">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>นับสต็อก</span>
+                </a>
+                <a href="Html/audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
+                    <i data-lucide="shield-check"></i>
+                    <span>ตรวจสอบ</span>
+                </a>
+                <a href="Html/sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
+                    <i data-lucide="database"></i>
+                    <span>SKU Master</span>
+                </a>
+                <a href="Html/dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="Html/settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
+                    <i data-lucide="settings"></i>
+                    <span>ตั้งค่า</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-area">
     <div class="dashboard-container">
         <!-- Header -->
         <header class="dashboard-header">
@@ -24,39 +53,40 @@
                 <p id="monthSubtitle" style="font-family: 'Kanit', sans-serif; font-size: 1.5rem; font-weight: 600; color: #93c5fd; text-align: center; margin-top: 0.25rem; letter-spacing: 0.02em;">นับสต็อกเดือน...</p>
             </div>
             <div class="header-stats">
-                <div class="stat-box">
-                    <span class="stat-label">บันทึกแล้ววันนี้ (SKU / ชิ้น)</span>
-                    <span class="stat-value" id="totalScanned">0 / 0</span>
+                <div class="header-stats-kpis">
+                    <div class="stat-box">
+                        <span class="stat-label">บันทึกแล้ววันนี้ (SKU / ชิ้น)</span>
+                        <span class="stat-value" id="totalScanned">0 / 0</span>
+                    </div>
+                    <div class="stat-box" style="cursor: pointer; border-color: rgba(239, 68, 68, 0.3); transition: all 0.2s;" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ" onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='var(--card)'">
+                        <span class="stat-label">ยังไม่ได้นับ (SKU)</span>
+                        <span class="stat-value" id="totalUncounted" style="color: #fca5a5;">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">ความคืบหน้า</span>
+                        <span class="stat-value" id="progressPercent" style="color: #34d399;">0%</span>
+                    </div>
                 </div>
-                <div class="stat-box" style="cursor: pointer; border-color: rgba(239, 68, 68, 0.3); transition: all 0.2s;" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ" onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='var(--card)'">
-                    <span class="stat-label">ยังไม่ได้นับ (SKU)</span>
-                    <span class="stat-value" id="totalUncounted" style="color: #fca5a5;">0</span>
+                <div class="header-stats-actions">
+                    <div id="connectionBadge" class="connection-badge badge-disconnected connection-badge-status" title="สถานะการเชื่อมต่อ Supabase">
+                        <i data-lucide="wifi-off" id="badgeIcon" data-badge-icon></i>
+                        <span id="badgeText" data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                    </div>
+                    <button class="settings-btn-cs" onclick="openLogDrawer()" title="ดูประวัติ Audit Log">
+                        <i data-lucide="history"></i>
+                    </button>
+                    <button class="settings-btn-cs" onclick="openExportMenu(event)" title="ส่งออกข้อมูล inventory_counts">
+                        <i data-lucide="download"></i>
+                    </button>
                 </div>
-                <div class="stat-box">
-                    <span class="stat-label">ความคืบหน้า</span>
-                    <span class="stat-value" id="progressPercent" style="color: #34d399;">0%</span>
-                </div>
-                <div id="connectionBadge" class="connection-badge badge-disconnected" onclick="toggleModal('settingsModal')">
-                    <i data-lucide="wifi-off" id="badgeIcon"></i>
-                    <span id="badgeText">ไม่ได้เชื่อมต่อ</span>
-                </div>
-                <a href="Html/sku_master.html" class="settings-btn-cs" title="จัดการ SKU Master" style="text-decoration: none;">
-                    <i data-lucide="database"></i>
-                </a>
-                <button class="settings-btn-cs" onclick="openLogDrawer()" title="ดูประวัติ Audit Log">
-                    <i data-lucide="history"></i>
-                </button>
-                <button class="settings-btn-cs" onclick="toggleModal('settingsModal')" title="ตั้งค่า Supabase">
-                    <i data-lucide="settings"></i>
-                </button>
             </div>
         </header>
 
         <!-- Form Card -->
         <div class="card full-width-card">
-            <div class="form-header-tabs" style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; background: var(--input-bg); padding: 0.35rem; border-radius: 12px; border: 1px solid var(--card-border);">
-                <button type="button" id="btnModeSingle" class="mode-tab active" onclick="setMode('single')" style="flex: 1; padding: 0.6rem; border: none; background: var(--card); color: var(--text); border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">ทีละรายการ (Single)</button>
-                <button type="button" id="btnModeGroup" class="mode-tab" onclick="setMode('group')" style="flex: 1; padding: 0.6rem; border: none; background: transparent; color: var(--text-muted); border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.2s;">แบบกลุ่ม (Group)</button>
+            <div class="form-header-tabs">
+                <button type="button" id="btnModeSingle" class="mode-tab" onclick="setMode('single')">ทีละรายการ (Single)</button>
+                <button type="button" id="btnModeGroup" class="mode-tab mode-tab-group active" onclick="setMode('group')">แบบกลุ่ม (Group)</button>
             </div>
 
             <form id="stockForm">
@@ -119,17 +149,17 @@
                     <div class="form-group qty-group">
                         <label for="quantity">จำนวนที่นับ</label>
                         <div class="input-wrapper">
-                            <input type="number" id="quantity" name="quantity" placeholder="1" min="1" value="1" required>
+                            <input type="number" id="quantity" name="quantity" placeholder="0" min="0" value="1" required>
                         </div>
                     </div>
 
-                    <div class="form-group btn-group" id="singleActionGroup">
+                    <div class="form-group btn-group" id="singleActionGroup" style="display: none;">
                         <button type="submit" class="submit-btn" id="submitBtn">
                             <i data-lucide="save"></i>
                             <span>บันทึกข้อมูล</span>
                         </button>
                     </div>
-                    <div class="form-group btn-group" id="groupActionGroup" style="display: none;">
+                    <div class="form-group btn-group" id="groupActionGroup">
                         <button type="button" class="submit-btn" id="addGroupBtn" onclick="addGroupItem()" style="background: var(--success);">
                             <i data-lucide="plus"></i>
                             <span>เพิ่มลงกลุ่ม</span>
@@ -138,7 +168,7 @@
                 </div>
 
                 <!-- Group Mode Container -->
-                <div id="groupContainer" style="display: none; margin-top: 1.5rem; border-top: 1px dashed var(--card-border); padding-top: 1.5rem;">
+                <div id="groupContainer" style="margin-top: 1.5rem; border-top: 1px dashed var(--card-border); padding-top: 1.5rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3 style="font-size: 1rem; font-weight: 500; display: flex; align-items: center; gap: 0.5rem;"><i data-lucide="layers" style="width: 18px; height: 18px; color: var(--primary);"></i> รายการในกลุ่ม <span id="groupCountText" style="color: var(--text-muted); font-size: 0.85rem;">(0/25)</span></h3>
                         <button type="button" class="submit-btn" id="submitGroupBtn" onclick="submitGroup()" disabled style="height: auto; padding: 0.5rem 1rem; font-size: 0.9rem;">
@@ -174,44 +204,6 @@
     <!-- Toast Notifications Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="cs-modal">
-        <div class="cs-modal-content">
-            <div class="cs-modal-header">
-                <h2><i data-lucide="key"></i> Supabase Config</h2>
-                <button class="icon-btn" onclick="toggleModal('settingsModal')">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-            <p class="cs-modal-desc">กรอก URL และ API Key จาก Supabase Project ของคุณ<br>ข้อมูลจะถูกบันทึกในเครื่องนี้เท่านั้น</p>
-
-            <div class="cs-form-group">
-                <label>Supabase Project URL</label>
-                <input type="text" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off">
-            </div>
-            <div class="cs-form-group">
-                <label>Supabase API Key (anon/public)</label>
-                <div style="position:relative;">
-                    <input type="password" id="sbKey" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." autocomplete="off" style="padding-right:3rem;">
-                    <button id="toggleKeyBtn" onclick="toggleKeyVisibility()" style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);display:flex;align-items:center;">
-                        <i data-lucide="eye" id="eyeIcon"></i>
-                    </button>
-                </div>
-            </div>
-
-            <div id="testStatus" style="display:none; padding:0.75rem 1rem; border-radius:10px; font-size:0.85rem; margin-bottom:1rem;"></div>
-
-            <div style="display:flex; gap:0.75rem;">
-                <button class="cs-btn-test" onclick="testConnection()">
-                    <i data-lucide="plug"></i> ทดสอบการเชื่อมต่อ
-                </button>
-                <button class="cs-btn-save" onclick="saveSettings()">
-                    <i data-lucide="save"></i> บันทึก
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Edit / Delete 2-Step Confirmation Modal -->
     <div id="editDeleteModal" class="cs-modal">
         <div class="cs-modal-content" style="max-width: 500px;">
@@ -225,7 +217,7 @@
 
             <div id="edInputGroup" class="cs-form-group" style="display: none;">
                 <label for="edNewQty">จำนวนใหม่</label>
-                <input type="number" id="edNewQty" min="1" placeholder="ระบุจำนวนใหม่">
+                <input type="number" id="edNewQty" min="0" placeholder="ระบุจำนวนใหม่">
             </div>
 
             <div id="edWarningBox" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem 1rem; border-radius: 10px; display: none; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem;">
@@ -295,7 +287,125 @@
         </div>
     </div>
 
+    <!-- Export Menu -->
+    <div id="exportMenu" class="export-menu" style="display:none;">
+        <button type="button" class="export-menu-item" onclick="exportInventory('excel')">
+            <i data-lucide="file-spreadsheet"></i>
+            <span>Excel</span>
+        </button>
+        <button type="button" class="export-menu-item" onclick="exportInventory('csv')">
+            <i data-lucide="file-text"></i>
+            <span>CSV</span>
+        </button>
+        <button type="button" class="export-menu-item" onclick="openDashboard()">
+            <i data-lucide="layout-dashboard"></i>
+            <span>Dashboard</span>
+        </button>
+    </div>
+
+    <!-- Dashboard Modal -->
+    <div id="dashboardModal" class="cs-modal dashboard-modal">
+        <div class="cs-modal-content">
+            <div class="cs-modal-header">
+                <h2><i data-lucide="layout-dashboard"></i> Inventory Counts Dashboard</h2>
+                <div style="display:flex; gap:0.5rem; align-items:center;">
+                    <button class="settings-btn-cs" onclick="exportInventory('excel')" title="Excel"><i data-lucide="file-spreadsheet"></i></button>
+                    <button class="settings-btn-cs" onclick="exportInventory('csv')" title="CSV"><i data-lucide="file-text"></i></button>
+                    <button class="icon-btn" onclick="closeDashboard()"><i data-lucide="x"></i></button>
+                </div>
+            </div>
+            <p class="cs-modal-desc">สรุปสินค้าที่นับแล้ว / ยังไม่ได้นับ, อัตราการส่งงาน, และกรองตามชื่อผู้นับพร้อมช่วงเวลา</p>
+
+            <div class="dashboard-toolbar">
+                <div class="cs-form-group">
+                    <label for="dashboardCounterFilter">ชื่อผู้นับ</label>
+                    <select id="dashboardCounterFilter" onchange="applyDashboardFilters()">
+                        <option value="">ทั้งหมด</option>
+                    </select>
+                </div>
+                <div class="cs-form-group">
+                    <label for="dashboardStartDate">วันที่เริ่ม</label>
+                    <input type="date" id="dashboardStartDate" onchange="applyDashboardFilters()">
+                </div>
+                <div class="cs-form-group">
+                    <label for="dashboardEndDate">วันที่สิ้นสุด</label>
+                    <input type="date" id="dashboardEndDate" onchange="applyDashboardFilters()">
+                </div>
+                <div class="cs-form-group" style="justify-content:end;">
+                    <button type="button" class="submit-btn" onclick="resetDashboardFilters()" style="height:44px;">
+                        <i data-lucide="refresh-cw"></i>
+                        <span>ล้างฟิลเตอร์</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="dashboard-metrics">
+                <div class="metric-card">
+                    <span class="metric-label">นับแล้ว</span>
+                    <span class="metric-value" id="dashboardCountedSku">0</span>
+                    <span class="metric-sub" id="dashboardCountedQty">0 ชิ้น</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">ยังไม่ได้นับ</span>
+                    <span class="metric-value" id="dashboardUncountedSku">0</span>
+                    <span class="metric-sub" id="dashboardRemainingPct">0%</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">ความคืบหน้า</span>
+                    <span class="metric-value" id="dashboardProgress">0%</span>
+                    <span class="metric-sub" id="dashboardProgressQty">0 / 0 SKU</span>
+                </div>
+                <div class="metric-card">
+                    <span class="metric-label">อัตราการส่งงาน</span>
+                    <span class="metric-value" id="dashboardRate">0%</span>
+                    <span class="metric-sub" id="dashboardRateHint">จากรายการที่กรอง</span>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <section class="dashboard-panel">
+                    <div class="panel-header">
+                        <h3>ภาพรวมการนับ</h3>
+                        <span id="dashboardScopeLabel">ทั้งหมด</span>
+                    </div>
+                    <div class="dashboard-chart-wrap">
+                        <canvas id="dashboardChart"></canvas>
+                    </div>
+                </section>
+                <section class="dashboard-panel">
+                    <div class="panel-header">
+                        <h3>รายการส่งงาน</h3>
+                        <span id="dashboardListCount">0 รายการ</span>
+                    </div>
+                    <div id="dashboardSubmissionList" class="dashboard-submission-list">
+                        <div class="empty-state" style="padding:2rem 1rem;">
+                            <i data-lucide="loader-2" class="spin"></i>
+                            <p>กำลังโหลดข้อมูล...</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="dashboard-table-box">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ผู้นับ</th>
+                            <th>เวลา</th>
+                            <th>รายการ</th>
+                            <th>สถานะ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dashboardSubmissionTableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+        </main>
+    </div>
+
     <script src="Js/api.js"></script>
+    <script src="Js/settings-shared.js"></script>
     <script src="Js/script.js"></script>
 </body>
 </html>

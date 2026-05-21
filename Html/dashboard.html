@@ -1,0 +1,1738 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Analytics Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #07080a;
+            --panel: #121316;
+            --panel-2: #181a1f;
+            --line: #262a33;
+            --line-2: #353b47;
+            --text: #f4f7fb;
+            --muted: #98a2b3;
+            --muted-2: #6b7280;
+            --blue: #4f8cff;
+            --blue-2: #2f6df6;
+            --green: #1ec98a;
+            --green-2: #14b86f;
+            --red: #ff5b6e;
+            --amber: #ffb020;
+            --shadow: 0 18px 48px rgba(0,0,0,.35);
+            --radius-xl: 24px;
+            --radius-lg: 18px;
+            --radius-md: 14px;
+            --radius-sm: 10px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            min-height: 100%;
+            background:
+                radial-gradient(circle at top left, rgba(79, 140, 255, .11), transparent 26%),
+                radial-gradient(circle at top right, rgba(30, 201, 138, .09), transparent 22%),
+                linear-gradient(180deg, #07080a 0%, #050607 100%);
+            color: var(--text);
+            font-family: 'Kanit', 'Outfit', sans-serif;
+        }
+
+        body.has-sidebar {
+            padding: 0;
+        }
+
+        body.has-sidebar .main-area {
+            padding: 24px;
+        }
+
+        .app-shell {
+            max-width: 1580px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 22px;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 18px;
+            padding: 2px 2px 0;
+        }
+
+        .brand {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .brand-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .brand-title svg {
+            width: 26px;
+            height: 26px;
+            color: var(--blue);
+        }
+
+        .brand-sub {
+            color: var(--muted);
+            font-size: .92rem;
+            line-height: 1.45;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+            color: var(--text);
+            padding: 12px 16px;
+            border-radius: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            transition: .18s ease;
+            box-shadow: 0 10px 22px rgba(0,0,0,.16);
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            border-color: #36404f;
+            background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+        }
+
+        .btn-primary {
+            background: linear-gradient(180deg, rgba(79,140,255,.24), rgba(79,140,255,.14));
+            border-color: rgba(79,140,255,.38);
+        }
+
+        .btn-primary:hover {
+            border-color: rgba(79,140,255,.58);
+        }
+
+        .btn-soft {
+            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+        }
+
+        .btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1.3fr 1fr;
+            gap: 16px;
+        }
+
+        .hero-card {
+            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-card::after {
+            content: '';
+            position: absolute;
+            inset: auto -20% -40% auto;
+            width: 280px;
+            height: 280px;
+            background: radial-gradient(circle, rgba(79,140,255,.12), transparent 65%);
+            pointer-events: none;
+        }
+
+        .hero-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .hero-title {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .hero-title h1 {
+            margin: 0;
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .hero-title p {
+            margin: 0;
+            color: var(--muted);
+            font-size: .95rem;
+            max-width: 68ch;
+        }
+
+        .hero-badges {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.03);
+            color: var(--text);
+            font-size: .86rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .pill svg {
+            width: 14px;
+            height: 14px;
+            color: var(--muted);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .kpi {
+            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            border: 1px solid var(--line);
+            border-radius: 20px;
+            padding: 18px;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            box-shadow: 0 12px 30px rgba(0,0,0,.2);
+        }
+
+        .kpi-top {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .kpi-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: grid;
+            place-items: center;
+            background: rgba(79,140,255,.12);
+            border: 1px solid rgba(79,140,255,.22);
+            flex-shrink: 0;
+        }
+
+        .kpi-icon.green {
+            background: rgba(30,201,138,.11);
+            border-color: rgba(30,201,138,.22);
+        }
+
+        .kpi-icon.red {
+            background: rgba(255,91,110,.12);
+            border-color: rgba(255,91,110,.22);
+        }
+
+        .kpi-icon.amber {
+            background: rgba(255,176,32,.12);
+            border-color: rgba(255,176,32,.22);
+        }
+
+        .kpi-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .kpi-label {
+            color: var(--muted);
+            font-size: .82rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+        }
+
+        .kpi-value {
+            margin-top: 2px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            line-height: 1;
+            letter-spacing: -0.03em;
+        }
+
+        .kpi-desc {
+            color: var(--muted);
+            font-size: .9rem;
+        }
+
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 1.05fr 1.2fr;
+            gap: 16px;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.018));
+            border: 1px solid var(--line);
+            border-radius: var(--radius-xl);
+            box-shadow: var(--shadow);
+            padding: 18px;
+            min-height: 100%;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .panel-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .panel-title svg {
+            width: 18px;
+            height: 18px;
+            color: var(--blue);
+        }
+
+        .panel-sub {
+            color: var(--muted);
+            font-size: .86rem;
+        }
+
+        .chart-card {
+            background: rgba(0,0,0,.16);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            padding: 14px;
+        }
+
+        .chart-wrap {
+            position: relative;
+            height: 320px;
+        }
+
+        .chart-wrap.large {
+            height: 360px;
+        }
+
+        .section-stack {
+            display: grid;
+            gap: 16px;
+        }
+
+        .filter-bar {
+            display: grid;
+            grid-template-columns: 1.2fr .8fr .8fr .8fr auto;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 14px;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+        }
+
+        .field label {
+            color: var(--muted);
+            font-size: .82rem;
+            font-weight: 600;
+        }
+
+        .control {
+            width: 100%;
+            height: 48px;
+            border-radius: 14px;
+            border: 1px solid var(--line);
+            background: #08090c;
+            color: var(--text);
+            padding: 0 14px;
+            outline: none;
+            transition: .16s ease;
+            font-family: inherit;
+            font-size: .96rem;
+        }
+
+        .control:focus {
+            border-color: rgba(79,140,255,.62);
+            box-shadow: 0 0 0 4px rgba(79,140,255,.12);
+        }
+
+        input[type="date"].control {
+            cursor: pointer;
+            appearance: auto;
+            -webkit-appearance: auto;
+            color-scheme: dark;
+            padding-right: 42px;
+        }
+
+        input[type="date"].control::-webkit-calendar-picker-indicator {
+            cursor: pointer;
+            opacity: .95;
+            filter: invert(1);
+        }
+
+        .substats {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .substat {
+            background: rgba(0,0,0,.2);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 14px;
+        }
+
+        .substat .label {
+            color: var(--muted);
+            font-size: .78rem;
+            text-transform: uppercase;
+            letter-spacing: .06em;
+            font-weight: 700;
+        }
+
+        .substat .value {
+            margin-top: 8px;
+            font-size: 1.6rem;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .substat .hint {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: .84rem;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .table-box {
+            background: rgba(0,0,0,.18);
+            border: 1px solid var(--line);
+            border-radius: 18px;
+            overflow: hidden;
+        }
+
+        .table-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 16px 0;
+        }
+
+        .table-head h3 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1rem;
+        }
+
+        .table-head h3 svg {
+            width: 18px;
+            height: 18px;
+            color: var(--blue);
+        }
+
+        .table-scroll {
+            overflow: auto;
+            max-height: 420px;
+            margin-top: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 760px;
+        }
+
+        thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background: #101319;
+            color: #cbd5e1;
+            font-size: .8rem;
+            letter-spacing: .03em;
+            text-transform: uppercase;
+            font-weight: 700;
+            text-align: left;
+            border-bottom: 1px solid var(--line);
+            padding: 14px 16px;
+        }
+
+        tbody td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(38,42,51,.7);
+            font-size: .94rem;
+            vertical-align: top;
+        }
+
+        tbody tr:hover {
+            background: rgba(255,255,255,.02);
+        }
+
+        .sku {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 700;
+            letter-spacing: .01em;
+        }
+
+        .qty-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 10px;
+            font-size: .82rem;
+            font-weight: 700;
+            background: rgba(30,201,138,.10);
+            color: #7af0bf;
+            border: 1px solid rgba(30,201,138,.16);
+        }
+
+        .qty-badge.red {
+            background: rgba(255,91,110,.10);
+            color: #ffb0ba;
+            border-color: rgba(255,91,110,.18);
+        }
+
+        .status-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 10px;
+            border-radius: 999px;
+            font-size: .8rem;
+            font-weight: 700;
+            background: rgba(79,140,255,.11);
+            color: #9cc0ff;
+            border: 1px solid rgba(79,140,255,.18);
+        }
+
+        .status-chip.ok {
+            background: rgba(30,201,138,.10);
+            color: #7af0bf;
+            border-color: rgba(30,201,138,.18);
+        }
+
+        .status-chip.warn {
+            background: rgba(255,176,32,.10);
+            color: #ffd586;
+            border-color: rgba(255,176,32,.18);
+        }
+
+        .status-chip.bad {
+            background: rgba(255,91,110,.10);
+            color: #ffb0ba;
+            border-color: rgba(255,91,110,.18);
+        }
+
+        .card-foot {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px 16px;
+            border-top: 1px solid var(--line);
+        }
+
+        .small-muted {
+            color: var(--muted);
+            font-size: .88rem;
+        }
+
+        .progress {
+            height: 10px;
+            width: 100%;
+            background: #0a0c0f;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress > span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, var(--blue), #6bb3ff);
+            width: 0%;
+        }
+
+        .drawer-like {
+            border: 1px solid var(--line);
+            background: rgba(0,0,0,.18);
+            border-radius: 18px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .count-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .count-item {
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.02);
+            border-radius: 16px;
+            padding: 14px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .count-item-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .count-item-title {
+            font-weight: 700;
+            font-size: .98rem;
+        }
+
+        .count-item-meta {
+            color: var(--muted);
+            font-size: .86rem;
+            line-height: 1.45;
+        }
+
+        .timeline {
+            display: grid;
+            gap: 12px;
+        }
+
+        .timeline-item {
+            display: grid;
+            grid-template-columns: 84px 1fr;
+            gap: 12px;
+            align-items: start;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(38,42,51,.65);
+        }
+
+        .timeline-item:last-child {
+            border-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .time-key {
+            color: var(--muted);
+            font-size: .85rem;
+            font-weight: 700;
+        }
+
+        .time-val {
+            font-size: .9rem;
+            line-height: 1.5;
+        }
+
+        .empty-state {
+            padding: 28px 18px;
+            text-align: center;
+            color: var(--muted);
+            border: 1px dashed var(--line-2);
+            border-radius: 16px;
+            background: rgba(255,255,255,.02);
+        }
+
+        .empty-state svg {
+            width: 28px;
+            height: 28px;
+            margin-bottom: 8px;
+            color: var(--muted);
+        }
+
+        .loading-bar {
+            height: 4px;
+            border-radius: 999px;
+            background: rgba(79,140,255,.14);
+            overflow: hidden;
+        }
+
+        .loading-bar > span {
+            display: block;
+            width: 34%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, var(--blue), transparent);
+            animation: slide 1.5s infinite linear;
+        }
+
+        @keyframes slide {
+            from { transform: translateX(-120%); }
+            to { transform: translateX(360%); }
+        }
+
+        .footnote {
+            color: var(--muted-2);
+            font-size: .82rem;
+        }
+
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+
+        .table-summary {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            padding: 0 16px 16px;
+        }
+
+        @media (max-width: 1280px) {
+            .hero-grid,
+            .layout-grid,
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .kpi-grid,
+            .substats {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .filter-bar {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 860px) {
+            body {
+                padding: 14px;
+            }
+
+            .topbar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .toolbar {
+                width: 100%;
+            }
+
+            .btn {
+                justify-content: center;
+                width: 100%;
+            }
+
+            .brand-title {
+                font-size: 1.7rem;
+            }
+
+            .hero-title h1 {
+                font-size: 1.8rem;
+            }
+
+            .kpi-grid,
+            .substats {
+                grid-template-columns: 1fr;
+            }
+
+            .filter-bar {
+                grid-template-columns: 1fr;
+            }
+
+            .timeline-item {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+        }
+    </style>
+</head>
+<body class="has-sidebar">
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="เมนูหลัก">
+            <div class="sidebar-brand">เมนู</div>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>นับสต็อก</span>
+                </a>
+                <a href="audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
+                    <i data-lucide="shield-check"></i>
+                    <span>ตรวจสอบ</span>
+                </a>
+                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
+                    <i data-lucide="database"></i>
+                    <span>SKU Master</span>
+                </a>
+                <a href="dashboard.html" class="sidebar-nav-item active" title="ภาพรวมและรายงาน">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
+                    <i data-lucide="settings"></i>
+                    <span>ตั้งค่า</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-area">
+    <div class="app-shell">
+        <header class="topbar">
+            <div class="brand">
+                <div class="brand-title">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Analytics Dashboard</span>
+                </div>
+                <div class="brand-sub">
+                    สรุปภาพรวมการนับสต็อกแบบอ่านง่าย ดูได้ทันทีว่าใครนับไปถึงไหน คลังไหนขยับแล้ว และยังเหลืออะไรบ้าง
+                </div>
+            </div>
+            <div class="toolbar">
+                <button class="btn btn-primary" id="btnExportExcel" type="button">
+                    <i data-lucide="file-spreadsheet"></i>
+                    <span>Export Excel</span>
+                </button>
+                <button class="btn btn-soft" id="btnExportCsv" type="button">
+                    <i data-lucide="file-text"></i>
+                    <span>Export CSV</span>
+                </button>
+            </div>
+        </header>
+
+        <section class="hero-grid">
+            <article class="hero-card">
+                <div class="hero-header">
+                    <div class="hero-title">
+                        <h1>ภาพรวมการนับและการส่งงาน</h1>
+                        <p>
+                            หน้านี้เอาไว้ดูภาพรวมแบบเร็ว ๆ ว่าตอนนี้นับไปแล้วเท่าไร ยังเหลืออะไรบ้าง และใครเป็นคนส่งงานเข้ามา
+                            ถ้าอยากดูละเอียดก็เลือกชื่อผู้นับ ช่วงวันที่ หรือคลัง แล้วกดกรองข้อมูลได้เลย
+                        </p>
+                    </div>
+                    <div class="hero-badges">
+                        <span class="pill"><i data-lucide="calendar-days"></i><span id="todayLabel">-</span></span>
+                        <span class="pill"><i data-lucide="database"></i><span id="rowsLabel">-</span></span>
+                        <span class="pill" id="connectionPill"><i data-lucide="wifi-off" id="connectionPillIcon"></i><span id="connectionLabel">ไม่ได้เชื่อมต่อ</span></span>
+                    </div>
+                </div>
+
+                <div class="kpi-grid">
+                    <div class="kpi">
+                        <div class="kpi-top">
+                            <div class="kpi-icon">
+                                <i data-lucide="check-circle-2"></i>
+                            </div>
+                            <div>
+                                <div class="kpi-label">นับแล้ว (SKU)</div>
+                                <div class="kpi-value" id="kpiCounted">0</div>
+                            </div>
+                        </div>
+                        <div class="kpi-desc">จำนวน SKU ที่มีการบันทึกแล้วในระบบ</div>
+                    </div>
+
+                    <div class="kpi">
+                        <div class="kpi-top">
+                            <div class="kpi-icon red">
+                                <i data-lucide="alert-circle"></i>
+                            </div>
+                            <div>
+                                <div class="kpi-label">ยังไม่ได้นับ (SKU)</div>
+                                <div class="kpi-value" id="kpiUncounted">0</div>
+                            </div>
+                        </div>
+                        <div class="kpi-desc">สินค้าที่ยังไม่พบรายการบันทึก</div>
+                    </div>
+
+                    <div class="kpi">
+                        <div class="kpi-top">
+                            <div class="kpi-icon green">
+                                <i data-lucide="pie-chart"></i>
+                            </div>
+                            <div>
+                                <div class="kpi-label">ความคืบหน้า</div>
+                                <div class="kpi-value" id="kpiProgress">0%</div>
+                            </div>
+                        </div>
+                        <div class="kpi-desc">เปอร์เซ็นต์ SKU ที่ถูกนับเทียบกับ SKU Master</div>
+                    </div>
+
+                    <div class="kpi">
+                        <div class="kpi-top">
+                            <div class="kpi-icon amber">
+                                <i data-lucide="activity"></i>
+                            </div>
+                            <div>
+                                <div class="kpi-label">อัตราการส่งงาน</div>
+                                <div class="kpi-value" id="kpiRate">0%</div>
+                            </div>
+                        </div>
+                        <div class="kpi-desc">สัดส่วนรายการที่ถูกส่งงานเมื่อเทียบกับข้อมูลทั้งหมด</div>
+                    </div>
+                </div>
+            </article>
+
+            <aside class="hero-card">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">
+                            <i data-lucide="target"></i>
+                            <span>สรุปแบบเร็ว</span>
+                        </div>
+                        <div class="panel-sub">สรุปตัวเลขสำคัญแบบอ่านเร็ว</div>
+                    </div>
+                </div>
+
+                <div class="substats">
+                    <div class="substat">
+                        <div class="label">บันทึกทั้งหมด</div>
+                        <div class="value" id="statTotalRecords">0</div>
+                        <div class="hint">จำนวนรายการใน inventory_counts</div>
+                    </div>
+                    <div class="substat">
+                        <div class="label">จำนวนชิ้นรวม</div>
+                        <div class="value" id="statTotalQty">0</div>
+                        <div class="hint">ผลรวม counted_qty ทุกบรรทัด</div>
+                    </div>
+                    <div class="substat">
+                        <div class="label">ผู้ส่งงาน</div>
+                        <div class="value" id="statCounters">0</div>
+                        <div class="hint">จำนวนชื่อผู้นับที่ไม่ซ้ำ</div>
+                    </div>
+                    <div class="substat">
+                        <div class="label">คลังที่ใช้งาน</div>
+                        <div class="value" id="statWarehouses">0</div>
+                        <div class="hint">จำนวนคลังที่มีข้อมูลล่าสุด</div>
+                    </div>
+                </div>
+
+                <div class="drawer-like">
+                    <div class="panel-title">
+                        <i data-lucide="sparkles"></i>
+                        <span>สถานะภาพรวม</span>
+                    </div>
+                    <div class="progress" aria-label="progress">
+                        <span id="progressBar"></span>
+                    </div>
+                    <div class="small-muted" id="progressText">กำลังโหลดข้อมูล...</div>
+                    <div class="footnote">
+                        ใช้ตัวกรองด้านล่างเพื่อเจาะดูเฉพาะข้อมูลที่ต้องการได้ เช่น คนเดียว คลังเดียว หรือช่วงเวลาที่สนใจ
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <section class="layout-grid">
+            <article class="panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">
+                            <i data-lucide="pie-chart"></i>
+                            <span>สัดส่วนการนับ</span>
+                        </div>
+                        <div class="panel-sub">วงกลมแสดงสัดส่วนสินค้าที่นับแล้วและยังไม่ได้นับ</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-wrap">
+                        <canvas id="countPieChart"></canvas>
+                    </div>
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">
+                            <i data-lucide="bar-chart-3"></i>
+                            <span>แนวโน้มการส่งงานตามเวลา</span>
+                        </div>
+                        <div class="panel-sub">แสดงจำนวนรายการที่ถูกส่งตามช่วงเวลาแบบ Timeline</div>
+                    </div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-wrap large">
+                        <canvas id="timelineChart"></canvas>
+                    </div>
+                </div>
+            </article>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">
+                        <i data-lucide="users"></i>
+                        <span>ผลงานตามผู้นับ</span>
+                    </div>
+                    <div class="panel-sub">เลือกผู้นับเพื่อดูรายการทั้งหมดที่ส่งมาในช่วงเวลาที่กำหนด</div>
+                </div>
+            </div>
+
+            <div class="filter-bar">
+                <div class="field">
+                    <label for="filterCounter">ชื่อผู้นับ</label>
+                    <select class="control" id="filterCounter">
+                        <option value="">-- ผู้ส่งทั้งหมด --</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="filterWarehouse">คลัง</label>
+                    <select class="control" id="filterWarehouse">
+                        <option value="">-- ทุกคลัง --</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="filterStartDate">วันที่เริ่ม</label>
+                    <input class="control" type="date" id="filterStartDate" title="คลิกเพื่อเลือกวันที่">
+                </div>
+                <div class="field">
+                    <label for="filterEndDate">วันที่สิ้นสุด</label>
+                    <input class="control" type="date" id="filterEndDate" title="คลิกเพื่อเลือกวันที่">
+                </div>
+                <button class="btn btn-primary" type="button" id="btnApplyFilters">
+                    <i data-lucide="filter"></i>
+                    <span>กรองข้อมูล</span>
+                </button>
+            </div>
+
+            <div class="content-grid">
+                <div class="table-box">
+                    <div class="table-head">
+                        <h3>
+                            <i data-lucide="clipboard-list"></i>
+                            <span>รายการที่ถูกกรอง</span>
+                        </h3>
+                        <span class="status-chip ok" id="filteredCountChip">0 รายการ</span>
+                    </div>
+                    <div class="table-summary">
+                        <span class="status-chip">รวมชิ้น <strong id="filteredQtyChip">0</strong></span>
+                        <span class="status-chip warn">ผู้นับ <strong id="filteredCounterChip">0</strong></span>
+                        <span class="status-chip">คลัง <strong id="filteredWarehouseChip">0</strong></span>
+                    </div>
+                    <div class="table-scroll">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width:70px;">#</th>
+                                    <th>รหัสสินค้า (SKU)</th>
+                                    <th style="width:120px;">จำนวน</th>
+                                    <th>คลัง</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th>เวลา</th>
+                                </tr>
+                            </thead>
+                            <tbody id="filteredTableBody">
+                                <tr><td colspan="6" class="sr-only">กำลังโหลด</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card-foot">
+                        <span class="small-muted" id="filteredNote">กรุณาเลือกตัวกรองเพื่อดูข้อมูล</span>
+                        <button class="btn btn-soft" type="button" id="btnResetFilters">
+                            <i data-lucide="rotate-ccw"></i>
+                            <span>ล้างฟิลเตอร์</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section-stack">
+                    <div class="table-box">
+                        <div class="table-head">
+                            <h3>
+                                <i data-lucide="trending-up"></i>
+                                <span>Top ผู้ส่งงาน</span>
+                            </h3>
+                            <span class="status-chip ok" id="topCounterCount">0 คน</span>
+                        </div>
+                        <div class="table-scroll" style="max-height: 310px;">
+                            <table style="min-width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th style="width:70px;">#</th>
+                                        <th>ชื่อผู้นับ</th>
+                                        <th style="width:120px;">รายการ</th>
+                                        <th style="width:120px;">ชิ้น</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="topCounterBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="table-box">
+                        <div class="table-head">
+                            <h3>
+                                <i data-lucide="boxes"></i>
+                                <span>Top คลังที่ใช้งาน</span>
+                            </h3>
+                            <span class="status-chip ok" id="topWarehouseCount">0 โซน</span>
+                        </div>
+                        <div class="count-list" id="warehouseBreakdown"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">
+                        <i data-lucide="history"></i>
+                        <span>Timeline ล่าสุดและรายละเอียดการส่งงาน</span>
+                    </div>
+                    <div class="panel-sub">บันทึกล่าสุดจาก inventory_counts แยกตามเวลาเพื่อดูการเดินงานของแต่ละคน</div>
+                </div>
+            </div>
+
+            <div class="timeline" id="timelineList">
+                <div class="empty-state">
+                    <i data-lucide="loader-2"></i>
+                    <div>กำลังโหลดข้อมูล...</div>
+                    <div class="loading-bar" style="margin-top:14px;"><span></span></div>
+                </div>
+            </div>
+        </section>
+    </div>
+        </main>
+    </div>
+
+    <script src="../Js/api.js"></script>
+    <script src="../Js/settings-shared.js"></script>
+    <script>
+        lucide.createIcons();
+
+        let supabaseClient = window.apiService ? window.apiService.getClient() : null;
+        let allRecords = [];
+        let skuMaster = [];
+        let filteredRows = [];
+        let countPieChart = null;
+        let timelineChart = null;
+
+        const els = {
+            todayLabel: document.getElementById('todayLabel'),
+            rowsLabel: document.getElementById('rowsLabel'),
+            connectionLabel: document.getElementById('connectionLabel'),
+            kpiCounted: document.getElementById('kpiCounted'),
+            kpiUncounted: document.getElementById('kpiUncounted'),
+            kpiProgress: document.getElementById('kpiProgress'),
+            kpiRate: document.getElementById('kpiRate'),
+            statTotalRecords: document.getElementById('statTotalRecords'),
+            statTotalQty: document.getElementById('statTotalQty'),
+            statCounters: document.getElementById('statCounters'),
+            statWarehouses: document.getElementById('statWarehouses'),
+            progressBar: document.getElementById('progressBar'),
+            progressText: document.getElementById('progressText'),
+            filteredCountChip: document.getElementById('filteredCountChip'),
+            filteredQtyChip: document.getElementById('filteredQtyChip'),
+            filteredCounterChip: document.getElementById('filteredCounterChip'),
+            filteredWarehouseChip: document.getElementById('filteredWarehouseChip'),
+            filteredNote: document.getElementById('filteredNote'),
+            topCounterCount: document.getElementById('topCounterCount'),
+            topCounterBody: document.getElementById('topCounterBody'),
+            topWarehouseCount: document.getElementById('topWarehouseCount'),
+            warehouseBreakdown: document.getElementById('warehouseBreakdown'),
+            filteredTableBody: document.getElementById('filteredTableBody'),
+            timelineList: document.getElementById('timelineList'),
+            filterCounter: document.getElementById('filterCounter'),
+            filterWarehouse: document.getElementById('filterWarehouse'),
+            filterStartDate: document.getElementById('filterStartDate'),
+            filterEndDate: document.getElementById('filterEndDate')
+        };
+
+        const thaiNow = new Date().toLocaleString('th-TH', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+        els.todayLabel.textContent = thaiNow;
+
+        function formatDateTime(value) {
+            if (!value) return '-';
+            const date = new Date(value);
+            return date.toLocaleString('th-TH', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        function openNativeDatePicker(input) {
+            if (!input) return;
+            if (typeof input.showPicker === 'function') {
+                input.showPicker();
+                return;
+            }
+            input.focus();
+            input.click();
+        }
+
+        function normalize(value) {
+            return String(value || '').trim().toLowerCase();
+        }
+
+        function buildLookup(list, keyField, valueField) {
+            const map = new Map();
+            list.forEach(row => {
+                const key = normalize(row[keyField]);
+                if (key) map.set(key, row[valueField] || '');
+            });
+            return map;
+        }
+
+        function updateDashboardConnectionStatus(connected) {
+            const label = els.connectionLabel;
+            const icon = document.getElementById('connectionPillIcon');
+            const pill = document.getElementById('connectionPill');
+            if (!label) return;
+            if (connected) {
+                label.textContent = 'เชื่อมต่อแล้ว';
+                if (icon) icon.setAttribute('data-lucide', 'wifi');
+                if (pill) pill.style.borderColor = 'rgba(30, 201, 138, 0.35)';
+            } else {
+                label.textContent = 'ไม่ได้เชื่อมต่อ';
+                if (icon) icon.setAttribute('data-lucide', 'wifi-off');
+                if (pill) pill.style.borderColor = 'rgba(255, 91, 110, 0.35)';
+            }
+            lucide.createIcons();
+        }
+
+        async function loadAllData() {
+            if (!supabaseClient) {
+                updateDashboardConnectionStatus(false);
+                return;
+            }
+            updateDashboardConnectionStatus(true);
+
+            try {
+                const [skuRes, countRes] = await Promise.all([
+                    loadPagedRows('sku_master', 'sku_name, name_pro'),
+                    loadPagedRows('inventory_counts', '*')
+                ]);
+
+                skuMaster = skuRes;
+                allRecords = countRes;
+
+                render();
+            } catch (error) {
+                console.error(error);
+                els.timelineList.innerHTML = `
+                    <div class="empty-state">
+                        <i data-lucide="alert-triangle"></i>
+                        <div>โหลดข้อมูลไม่สำเร็จ</div>
+                        <div style="margin-top:8px;">${error.message}</div>
+                    </div>`;
+                lucide.createIcons();
+            }
+        }
+
+        async function loadPagedRows(table, selectQuery) {
+            let rows = [];
+            let from = 0;
+            const pageSize = 1000;
+
+            while (true) {
+                const { data, error } = await supabaseClient
+                    .from(table)
+                    .select(selectQuery)
+                    .order(table === 'inventory_counts' ? 'created_at' : 'sku_name', { ascending: false })
+                    .range(from, from + pageSize - 1);
+
+                if (error) throw error;
+                rows = rows.concat(data || []);
+                if (!data || data.length < pageSize) break;
+                from += pageSize;
+            }
+
+            return rows;
+        }
+
+        function getSKUName(skuId) {
+            const found = skuMaster.find(row => normalize(row.sku_name) === normalize(skuId));
+            return found ? found.name_pro : '';
+        }
+
+        function getFilters() {
+            return {
+                counter: normalize(els.filterCounter.value),
+                warehouse: normalize(els.filterWarehouse.value),
+                startDate: els.filterStartDate.value ? new Date(`${els.filterStartDate.value}T00:00:00`) : null,
+                endDate: els.filterEndDate.value ? new Date(`${els.filterEndDate.value}T23:59:59.999`) : null
+            };
+        }
+
+        function applyFilters(rows) {
+            const f = getFilters();
+            return rows.filter(row => {
+                const rowDate = row.created_at ? new Date(row.created_at) : null;
+                const counter = normalize(row.counter_name);
+                const warehouse = normalize(row.warehouse);
+
+                if (f.counter && counter !== f.counter) return false;
+                if (f.warehouse && warehouse !== f.warehouse) return false;
+                if (f.startDate && (!rowDate || rowDate < f.startDate)) return false;
+                if (f.endDate && (!rowDate || rowDate > f.endDate)) return false;
+                return true;
+            });
+        }
+
+        function renderKpis() {
+            const countedSet = new Set(allRecords.map(row => normalize(row.sku_id)));
+            const countedSku = countedSet.size;
+            const totalSku = skuMaster.length;
+            const uncountedSku = Math.max(totalSku - countedSku, 0);
+            const progress = totalSku ? Math.floor((countedSku / totalSku) * 100) : 0;
+
+            const totalQty = allRecords.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
+            const totalRecords = allRecords.length;
+            const counters = new Set(allRecords.map(r => normalize(r.counter_name)).filter(Boolean)).size;
+            const warehouses = new Set(allRecords.map(r => normalize(r.warehouse)).filter(Boolean)).size;
+            const rate = totalRecords && skuMaster.length ? Math.min(100, Math.floor((totalRecords / skuMaster.length) * 100)) : 0;
+
+            els.kpiCounted.textContent = countedSku.toLocaleString();
+            els.kpiUncounted.textContent = uncountedSku.toLocaleString();
+            els.kpiProgress.textContent = `${progress}%`;
+            els.kpiRate.textContent = `${rate}%`;
+
+            els.statTotalRecords.textContent = totalRecords.toLocaleString();
+            els.statTotalQty.textContent = totalQty.toLocaleString();
+            els.statCounters.textContent = counters.toLocaleString();
+            els.statWarehouses.textContent = warehouses.toLocaleString();
+
+            els.rowsLabel.textContent = `${totalRecords.toLocaleString()} records`;
+
+            els.progressBar.style.width = `${progress}%`;
+            els.progressText.textContent = `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU | ความคืบหน้า ${progress}%`;
+        }
+
+        function renderFilters() {
+            const counters = [...new Set(allRecords.map(r => r.counter_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+            const warehouses = [...new Set(allRecords.map(r => r.warehouse).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+
+            els.filterCounter.innerHTML = `<option value="">-- ผู้ส่งทั้งหมด --</option>` + counters.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+            els.filterWarehouse.innerHTML = `<option value="">-- ทุกคลัง --</option>` + warehouses.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+        }
+
+        function renderPieChart(rows) {
+            const countedSku = new Set(rows.map(row => normalize(row.sku_id))).size;
+            const totalSku = skuMaster.length;
+            const uncountedSku = Math.max(totalSku - countedSku, 0);
+
+            const data = [countedSku, uncountedSku];
+            const ctx = document.getElementById('countPieChart');
+
+            if (countPieChart) countPieChart.destroy();
+            countPieChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['นับแล้ว', 'ยังไม่ได้นับ'],
+                    datasets: [{
+                        data,
+                        backgroundColor: ['#1ec98a', '#ff5b6e'],
+                        borderColor: '#101319',
+                        borderWidth: 4,
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '58%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#dbe2ea',
+                                usePointStyle: true,
+                                boxWidth: 10,
+                                boxHeight: 10,
+                                padding: 16
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: '#121316',
+                            borderColor: '#353b47',
+                            borderWidth: 1,
+                            titleColor: '#fff',
+                            bodyColor: '#fff'
+                        }
+                    }
+                }
+            });
+        }
+
+        function groupByHour(rows) {
+            const buckets = new Map();
+            rows.forEach(row => {
+                const date = row.created_at ? new Date(row.created_at) : null;
+                if (!date || Number.isNaN(date.getTime())) return;
+                const key = date.toLocaleString('th-TH', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit'
+                });
+                buckets.set(key, (buckets.get(key) || 0) + 1);
+            });
+            return [...buckets.entries()].sort((a, b) => a[0].localeCompare(b[0], 'th'));
+        }
+
+        function renderTimelineChart(rows) {
+            const grouped = groupByHour(rows);
+            const labels = grouped.map(x => x[0]);
+            const values = grouped.map(x => x[1]);
+
+            const ctx = document.getElementById('timelineChart');
+            if (timelineChart) timelineChart.destroy();
+
+            timelineChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['ไม่มีข้อมูล'],
+                    datasets: [{
+                        label: 'จำนวนรายการ',
+                        data: values.length ? values : [0],
+                        backgroundColor: 'rgba(79,140,255,.8)',
+                        borderColor: '#4f8cff',
+                        borderWidth: 1,
+                        borderRadius: 10,
+                        maxBarThickness: 56
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#121316',
+                            borderColor: '#353b47',
+                            borderWidth: 1,
+                            titleColor: '#fff',
+                            bodyColor: '#fff'
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#9aa4b2' },
+                            grid: { color: 'rgba(255,255,255,.04)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#9aa4b2', precision: 0 },
+                            grid: { color: 'rgba(255,255,255,.06)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTopCounters(rows) {
+            const grouped = new Map();
+            rows.forEach(row => {
+                const key = row.counter_name || 'Unknown';
+                const bucket = grouped.get(key) || { records: 0, qty: 0 };
+                bucket.records += 1;
+                bucket.qty += Number(row.counted_qty) || 0;
+                grouped.set(key, bucket);
+            });
+
+            const top = [...grouped.entries()]
+                .map(([name, value]) => ({ name, ...value }))
+                .sort((a, b) => b.records - a.records)
+                .slice(0, 10);
+
+            els.topCounterCount.textContent = `${top.length} คน`;
+
+            if (!top.length) {
+                els.topCounterBody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><i data-lucide="inbox"></i><div>ไม่มีข้อมูล</div></div></td></tr>`;
+                lucide.createIcons();
+                return;
+            }
+
+            els.topCounterBody.innerHTML = top.map((row, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td class="sku">${escapeHtml(row.name)}</td>
+                    <td><span class="qty-badge">${row.records}</span></td>
+                    <td><span class="qty-badge">${row.qty}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function renderWarehouseBreakdown(rows) {
+            const grouped = new Map();
+            rows.forEach(row => {
+                const key = row.warehouse || 'Unknown';
+                const bucket = grouped.get(key) || { records: 0, qty: 0 };
+                bucket.records += 1;
+                bucket.qty += Number(row.counted_qty) || 0;
+                grouped.set(key, bucket);
+            });
+
+            const top = [...grouped.entries()]
+                .map(([name, value]) => ({ name, ...value }))
+                .sort((a, b) => b.records - a.records);
+
+            els.topWarehouseCount.textContent = `${top.length} โซน`;
+
+            if (!top.length) {
+                els.warehouseBreakdown.innerHTML = `<div class="empty-state"><i data-lucide="inbox"></i><div>ไม่มีข้อมูลคลัง</div></div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            els.warehouseBreakdown.innerHTML = top.slice(0, 8).map(row => `
+                <div class="count-item">
+                    <div class="count-item-top">
+                        <div class="count-item-title">${escapeHtml(row.name)}</div>
+                        <span class="status-chip ok">${row.records} รายการ</span>
+                    </div>
+                    <div class="count-item-meta">รวม ${row.qty.toLocaleString()} ชิ้น</div>
+                </div>
+            `).join('');
+        }
+
+        function renderFilteredTable(rows) {
+            const counterSet = new Set(rows.map(r => normalize(r.counter_name)).filter(Boolean));
+            const warehouseSet = new Set(rows.map(r => normalize(r.warehouse)).filter(Boolean));
+            const totalQty = rows.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
+
+            els.filteredCountChip.textContent = `${rows.length.toLocaleString()} รายการ`;
+            els.filteredQtyChip.textContent = totalQty.toLocaleString();
+            els.filteredCounterChip.textContent = counterSet.size.toLocaleString();
+            els.filteredWarehouseChip.textContent = warehouseSet.size.toLocaleString();
+            els.filteredNote.textContent = rows.length ? `แสดงผลจากตัวกรองปัจจุบัน ${rows.length.toLocaleString()} รายการ` : 'ไม่มีข้อมูลตามเงื่อนไขที่เลือก';
+
+            if (!rows.length) {
+                els.filteredTableBody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><i data-lucide="filter-x"></i><div>ไม่พบข้อมูลตามตัวกรอง</div></div></td></tr>`;
+                lucide.createIcons();
+                return;
+            }
+
+            els.filteredTableBody.innerHTML = rows.slice(0, 100).map((row, index) => `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td>
+                        <div class="sku">${escapeHtml(row.sku_id || '-')}</div>
+                        <div class="small-muted">${escapeHtml(getSKUName(row.sku_id) || '')}</div>
+                    </td>
+                    <td><span class="qty-badge">${Number(row.counted_qty) || 0}</span></td>
+                    <td>${escapeHtml(row.warehouse || '-')}</td>
+                    <td>${escapeHtml(row.location || '-')}</td>
+                    <td>${formatDateTime(row.created_at)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function renderTimelineList(rows) {
+            const latest = [...rows]
+                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                .slice(0, 12);
+
+            if (!latest.length) {
+                els.timelineList.innerHTML = `
+                    <div class="empty-state">
+                        <i data-lucide="inbox"></i>
+                        <div>ยังไม่มีรายการแสดง</div>
+                    </div>`;
+                lucide.createIcons();
+                return;
+            }
+
+            els.timelineList.innerHTML = latest.map(row => `
+                <div class="timeline-item">
+                    <div class="time-key">${formatDateTime(row.created_at)}</div>
+                    <div class="time-val">
+                        <div><strong>${escapeHtml(row.counter_name || 'Unknown')}</strong> ส่งรายการ <strong>${escapeHtml(row.sku_id || '-')}</strong> จำนวน <strong>${Number(row.counted_qty) || 0}</strong> ชิ้น</div>
+                        <div class="small-muted">${escapeHtml(row.warehouse || '-')} / ${escapeHtml(row.location || '-')} ${getSKUName(row.sku_id) ? `• ${escapeHtml(getSKUName(row.sku_id))}` : ''}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateExportButtons(rows) {
+            document.getElementById('btnExportExcel').onclick = () => exportData('xlsx', rows);
+            document.getElementById('btnExportCsv').onclick = () => exportData('csv', rows);
+        }
+
+        function exportData(type, rows) {
+            const exportRows = rows.map((row, index) => ({
+                '#': index + 1,
+                sku_id: row.sku_id || '-',
+                name_pro: getSKUName(row.sku_id) || '-',
+                counted_qty: Number(row.counted_qty) || 0,
+                warehouse: row.warehouse || '-',
+                location: row.location || '-',
+                counter_name: row.counter_name || '-',
+                created_at: formatDateTime(row.created_at)
+            }));
+
+            const fileBase = `inventory_dashboard_${new Date().toISOString().slice(0,10)}`;
+
+            if (type === 'csv') {
+                const ws = XLSX.utils.json_to_sheet(exportRows);
+                const csv = XLSX.utils.sheet_to_csv(ws);
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${fileBase}.csv`;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 900);
+                return;
+            }
+
+            const ws = XLSX.utils.json_to_sheet(exportRows);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Dashboard');
+            ws['!cols'] = [
+                { wch: 8 },
+                { wch: 20 },
+                { wch: 28 },
+                { wch: 14 },
+                { wch: 20 },
+                { wch: 18 },
+                { wch: 20 },
+                { wch: 26 }
+            ];
+            XLSX.writeFile(wb, `${fileBase}.xlsx`);
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&')
+                .replace(/</g, '<')
+                .replace(/>/g, '>')
+                .replace(/"/g, '"');
+        }
+
+        function populateFilterOptions(rows) {
+            const counters = [...new Set(rows.map(r => r.counter_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+            const warehouses = [...new Set(rows.map(r => r.warehouse).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
+
+            const currentCounter = els.filterCounter.value;
+            const currentWarehouse = els.filterWarehouse.value;
+
+            els.filterCounter.innerHTML = `<option value="">-- ผู้ส่งทั้งหมด --</option>` + counters.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+            els.filterWarehouse.innerHTML = `<option value="">-- ทุกคลัง --</option>` + warehouses.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+
+            els.filterCounter.value = currentCounter;
+            els.filterWarehouse.value = currentWarehouse;
+        }
+
+        function render() {
+            const filtered = applyFilters(allRecords);
+            filteredRows = filtered;
+
+            renderKpis(filtered);
+            populateFilterOptions(allRecords);
+            renderPieChart(filtered);
+            renderTimelineChart(filtered);
+            renderTopCounters(filtered);
+            renderWarehouseBreakdown(filtered);
+            renderFilteredTable(filtered);
+            renderTimelineList(filtered);
+            updateExportButtons(filtered);
+
+            els.progressBar.style.width = `${Math.min(100, Math.floor((new Set(filtered.map(row => normalize(row.sku_id))).size / Math.max(1, skuMaster.length)) * 100))}%`;
+            lucide.createIcons();
+        }
+
+        document.getElementById('btnApplyFilters').addEventListener('click', render);
+        document.getElementById('btnResetFilters').addEventListener('click', () => {
+            els.filterCounter.value = '';
+            els.filterWarehouse.value = '';
+            els.filterStartDate.value = '';
+            els.filterEndDate.value = '';
+            render();
+        });
+
+        [els.filterCounter, els.filterWarehouse, els.filterStartDate, els.filterEndDate].forEach(el => {
+            el.addEventListener('change', render);
+        });
+
+        [els.filterStartDate, els.filterEndDate].forEach(el => {
+            if (!el) return;
+            el.addEventListener('click', () => openNativeDatePicker(el));
+        });
+
+        if (!supabaseClient) {
+            els.timelineList.innerHTML = `
+                <div class="empty-state">
+                    <i data-lucide="alert-triangle"></i>
+                    <div>กรุณาตั้งค่า Supabase URL/KEY ใน <a href="settings.html" style="color:#93c5fd;">หน้าตั้งค่า</a> ก่อน</div>
+                    <div style="margin-top:8px;">Dashboard นี้ใช้ข้อมูลชุดเดียวกับระบบนับสต็อก</div>
+                </div>`;
+            lucide.createIcons();
+        } else {
+            loadAllData();
+        }
+    </script>
+</body>
+</html>

@@ -455,6 +455,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     let currentMode = 'group';
     let groupItems = [];
+    let isGroupSubmitting = false;
     const maxGroupItems = 25;
 
     window.setMode = function(mode) {
@@ -555,6 +556,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     window.submitGroup = async function() {
+        if (isGroupSubmitting) return;
+
         if (!supabaseClient) { initSupabase(); }
         if (!supabaseClient) {
             showToast('กรุณาตั้งค่า Supabase URL/KEY ก่อน', 'error');
@@ -577,6 +580,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const submitGroupBtn = document.getElementById('submitGroupBtn');
+        isGroupSubmitting = true;
         submitGroupBtn.disabled = true;
         const orig = submitGroupBtn.innerHTML;
         submitGroupBtn.innerHTML = `<i data-lucide="loader-2" class="spin"></i> กำลังส่งข้อมูล...`;
@@ -650,6 +654,7 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
             submitGroupBtn.disabled = groupItems.length === 0;
         } finally {
+            isGroupSubmitting = false;
             submitGroupBtn.innerHTML = orig;
             if (groupItems.length === 0) {
                 submitGroupBtn.disabled = true;
@@ -748,9 +753,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     function trimRecentRecords() {
         const items = recordList.querySelectorAll('.record-item');
-        while (items.length > MAX_RECENT_RECORDS) {
-            const listItems = recordList.querySelectorAll('.record-item');
-            listItems[listItems.length - 1].remove();
+        for (let i = items.length - 1; i >= MAX_RECENT_RECORDS; i--) {
+            if (items[i]) items[i].remove();
         }
     }
 

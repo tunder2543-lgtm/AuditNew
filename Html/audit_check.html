@@ -145,6 +145,21 @@
             user-select: none;
         }
 
+        .gs-table .col-check {
+            width: 36px;
+            min-width: 36px;
+            background: #f8f9fa;
+            text-align: center;
+        }
+
+        .gs-table .col-check input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            accent-color: #1a73e8;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+
         .gs-table .col-row-num {
             width: 42px;
             min-width: 42px;
@@ -165,8 +180,22 @@
         .gs-table .col-status { width: 200px; }
         .gs-table .col-note { width: auto; min-width: 220px; }
 
-        .gs-table tbody tr:hover td:not(.col-row-num):not(.col-status):not(.col-note) {
+        .gs-table tbody tr:hover td:not(.col-check):not(.col-row-num):not(.col-status):not(.col-note) {
             background: #f1f3f4;
+        }
+
+        .btn-gs.btn-danger {
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.45);
+        }
+
+        .btn-gs.btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, 0.12);
+        }
+
+        .btn-gs.btn-danger:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
         }
 
         .gs-cell {
@@ -412,6 +441,10 @@
                             <i data-lucide="eraser" style="width:16px;height:16px"></i>
                             ล้างตาราง
                         </button>
+                        <button type="button" class="btn-gs btn-danger" id="btnDeleteSelected" disabled>
+                            <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                            ลบรายการที่เลือก (<span id="selectedCount">0</span>)
+                        </button>
                         <button type="button" class="btn-gs" id="btnImport">
                             <i data-lucide="upload" style="width:16px;height:16px"></i>
                             นำเข้า Excel
@@ -480,6 +513,7 @@
                         <table class="gs-table" id="auditSheet">
                             <thead>
                                 <tr>
+                                    <th class="col-check"></th>
                                     <th class="col-row-num"></th>
                                     <th class="col-letter">A</th>
                                     <th class="col-letter">B</th>
@@ -488,6 +522,9 @@
                                     <th class="col-letter">E</th>
                                 </tr>
                                 <tr>
+                                    <th class="col-check">
+                                        <input type="checkbox" id="selectAllRows" title="เลือกทั้งหมดที่แสดง">
+                                    </th>
                                     <th class="col-row-num">#</th>
                                     <th class="col-sku">รหัสสินค้า (SKU)</th>
                                     <th class="col-loc">ตำแหน่ง</th>
@@ -897,8 +934,14 @@
                 }
 
                 tr.classList.toggle('row-filtered-out', !show);
+                if (!show) {
+                    const cb = tr.querySelector('.row-select-cb');
+                    if (cb) cb.checked = false;
+                }
                 if (show && hasData) visible++;
             });
+
+            updateSelectionUI();
 
             document.getElementById('statVisible').textContent = visible;
             document.getElementById('statTotal').textContent = totalData;
@@ -1188,9 +1231,81 @@
             showToast('ตรวจสอบครบทุกแถวแล้ว');
         }
 
+        function getVisibleRows() {
+            return Array.from(sheetBody.querySelectorAll('tr')).filter(
+                tr => !tr.classList.contains('row-filtered-out')
+            );
+        }
+
+        function getCheckedRows() {
+            return Array.from(sheetBody.querySelectorAll('tr')).filter(tr => {
+                const cb = tr.querySelector('.row-select-cb');
+                return cb && cb.checked && !tr.classList.contains('row-filtered-out');
+            });
+        }
+
+        function updateSelectionUI() {
+            const checked = getCheckedRows();
+            const count = checked.length;
+            const btn = document.getElementById('btnDeleteSelected');
+            const countEl = document.getElementById('selectedCount');
+            const selectAll = document.getElementById('selectAllRows');
+
+            if (countEl) countEl.textContent = count;
+            if (btn) btn.disabled = count === 0;
+
+            const visible = getVisibleRows();
+            const visibleWithCb = visible.filter(tr => tr.querySelector('.row-select-cb'));
+            if (selectAll && visibleWithCb.length) {
+                selectAll.checked = visibleWithCb.every(tr => tr.querySelector('.row-select-cb').checked);
+                selectAll.indeterminate = count > 0 && !selectAll.checked;
+            } else if (selectAll) {
+                selectAll.checked = false;
+                selectAll.indeterminate = false;
+            }
+        }
+
+        function deleteSelectedRows() {
+            const checked = getCheckedRows();
+            if (!checked.length) {
+                showToast('กรุณาเลือกรายการที่ต้องการลบ', 'error');
+                return;
+            }
+
+            const lines = checked.slice(0, 8).map(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim() || '-';
+                const loc = tr.querySelector('[data-field="loc"]').value.trim() || '-';
+                const qty = tr.querySelector('[data-field="qty"]').value.trim() || '-';
+                return `• ${sku} | ${loc} | ${qty}`;
+            });
+            const more = checked.length > 8 ? `\n... และอีก ${checked.length - 8} รายการ` : '';
+            const listText = lines.join('\n') + more;
+
+            const msg1 = `ยืนยันครั้งที่ 1\n\nต้องการลบ ${checked.length} รายการที่เลือกจากตาราง?\n\n${listText}`;
+            if (!confirm(msg1)) return;
+
+            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nลบ ${checked.length} รายการถาวร\n\nการดำเนินการนี้ไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
+            if (!confirm(msg2)) return;
+
+            const deleted = checked.length;
+            checked.forEach(tr => tr.remove());
+
+            while (sheetBody.children.length < INITIAL_ROWS) {
+                addRows(1);
+            }
+
+            renumberRows();
+            refreshLocationFilterOptions();
+            updateStats();
+            applyTableView();
+            updateSelectionUI();
+            showToast(`ลบ ${deleted} รายการแล้ว`);
+        }
+
         function createRow(rowNum) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
+                <td class="col-check"><input type="checkbox" class="row-select-cb" title="เลือกแถวนี้"></td>
                 <td class="col-row-num">${rowNum}</td>
                 <td class="col-sku"><input type="text" class="gs-cell" data-field="sku" autocomplete="off" spellcheck="false"></td>
                 <td class="col-loc"><input type="text" class="gs-cell" data-field="loc" autocomplete="off" spellcheck="false"></td>
@@ -1198,6 +1313,9 @@
                 <td class="col-status status-cell status-empty"></td>
                 <td class="col-note note-cell"></td>
             `;
+
+            const rowCb = tr.querySelector('.row-select-cb');
+            if (rowCb) rowCb.addEventListener('change', updateSelectionUI);
 
             const inputs = tr.querySelectorAll('.gs-cell');
             inputs.forEach((input, idx) => {
@@ -1284,6 +1402,16 @@
             applyTableView();
         });
         document.getElementById('btnClear').addEventListener('click', clearSheet);
+        document.getElementById('btnDeleteSelected').addEventListener('click', deleteSelectedRows);
+
+        document.getElementById('selectAllRows').addEventListener('change', (e) => {
+            const checked = e.target.checked;
+            getVisibleRows().forEach(tr => {
+                const cb = tr.querySelector('.row-select-cb');
+                if (cb) cb.checked = checked;
+            });
+            updateSelectionUI();
+        });
 
         document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
         document.getElementById('btnExport').addEventListener('click', exportTableToExcel);

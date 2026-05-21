@@ -490,10 +490,6 @@
                             <i data-lucide="plus" style="width:16px;height:16px"></i>
                             เพิ่มแถว
                         </button>
-                        <button type="button" class="btn-gs" id="btnClear">
-                            <i data-lucide="eraser" style="width:16px;height:16px"></i>
-                            ล้างตาราง
-                        </button>
                         <button type="button" class="btn-gs btn-danger" id="btnDeleteSelected" disabled>
                             <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                             ลบรายการที่เลือก (<span id="selectedCount">0</span>)
@@ -1548,11 +1544,6 @@
             }
         }
 
-        function clearSheet() {
-            if (!confirm('ล้างข้อมูลทั้งหมดในตาราง?')) return;
-            initSheet(INITIAL_ROWS);
-        }
-
         async function fillRows(items) {
             if (!items.length) return;
 
@@ -1587,7 +1578,6 @@
             refreshLocationFilterOptions();
             applyTableView();
         });
-        document.getElementById('btnClear').addEventListener('click', clearSheet);
         document.getElementById('btnDeleteSelected').addEventListener('click', deleteSelectedRows);
 
         document.getElementById('selectAllRows').addEventListener('change', (e) => {

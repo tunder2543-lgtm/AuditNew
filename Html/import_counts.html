@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>นำเข้าผลการนับ — Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .ic-page {
+            width: 100%;
+            max-width: 1180px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .ic-hero {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding-bottom: 0.25rem;
+        }
+
+        .ic-hero-text h1 {
+            font-family: 'Kanit', sans-serif;
+            font-size: clamp(1.45rem, 3vw, 1.85rem);
+            font-weight: 500;
+            margin: 0 0 0.35rem;
+            background: linear-gradient(135deg, #e0f2fe 0%, #7dd3fc 45%, #38bdf8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .ic-hero-text p {
+            margin: 0;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+            max-width: 520px;
+            line-height: 1.5;
+        }
+
+        .ic-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .ic-step {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 0.35rem 0.7rem;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .ic-step-num {
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.2);
+            color: #93c5fd;
+            font-size: 0.7rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .ic-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.25rem;
+        }
+
+        @media (max-width: 900px) {
+            .ic-grid { grid-template-columns: 1fr; }
+        }
+
+        .ic-panel {
+            background: linear-gradient(165deg, rgba(24, 24, 27, 0.95) 0%, rgba(15, 15, 18, 0.98) 100%);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+        }
+
+        .ic-panel-head {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(59, 130, 246, 0.06);
+        }
+
+        .ic-panel-head.upload-head {
+            background: rgba(16, 185, 129, 0.06);
+        }
+
+        .ic-panel-head.preview-head {
+            background: rgba(59, 130, 246, 0.08);
+        }
+
+        .ic-panel-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .ic-panel-icon.blue {
+            background: rgba(59, 130, 246, 0.18);
+            color: #60a5fa;
+        }
+
+        .ic-panel-icon.green {
+            background: rgba(16, 185, 129, 0.18);
+            color: #34d399;
+        }
+
+        .ic-panel-icon.cyan {
+            background: rgba(6, 182, 212, 0.18);
+            color: #22d3ee;
+        }
+
+        .ic-panel-head h2 {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            margin: 0;
+            color: var(--text);
+        }
+
+        .ic-panel-head span {
+            display: block;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-weight: 400;
+            margin-top: 0.1rem;
+        }
+
+        .ic-panel-body {
+            padding: 1.25rem;
+        }
+
+        .ic-fields {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        @media (max-width: 520px) {
+            .ic-fields { grid-template-columns: 1fr; }
+        }
+
+        .ic-field label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            letter-spacing: 0.02em;
+        }
+
+        .ic-field label i {
+            display: none;
+        }
+
+        .ic-field input,
+        .ic-field select {
+            padding: 0.6rem 0.85rem;
+            border-radius: 10px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text);
+            font-size: 0.9rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .ic-field input:focus,
+        .ic-field select:focus {
+            outline: none;
+            border-color: var(--input-focus);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .ic-format-hint {
+            margin-top: 1rem;
+            padding: 0.75rem 1rem;
+            border-radius: 10px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px dashed rgba(59, 130, 246, 0.3);
+            font-size: 0.8rem;
+            color: #94a3b8;
+            line-height: 1.55;
+        }
+
+        .ic-format-hint code {
+            font-size: 0.78rem;
+            padding: 0.15rem 0.45rem;
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.35);
+            color: #bae6fd;
+            font-family: ui-monospace, monospace;
+        }
+
+        .ic-dropzone {
+            position: relative;
+            border: 2px dashed rgba(59, 130, 246, 0.4);
+            border-radius: 14px;
+            padding: 2.25rem 1.5rem;
+            text-align: center;
+            cursor: pointer;
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.12) 0%, transparent 55%),
+                rgba(9, 9, 11, 0.5);
+            transition: border-color 0.25s, background 0.25s, transform 0.2s;
+        }
+
+        .ic-dropzone:hover,
+        .ic-dropzone.drag-over {
+            border-color: rgba(96, 165, 250, 0.85);
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.2) 0%, transparent 55%),
+                rgba(15, 23, 42, 0.4);
+        }
+
+        .ic-dropzone.has-file {
+            border-color: rgba(34, 197, 94, 0.55);
+            border-style: solid;
+            background:
+                radial-gradient(ellipse at 50% 0%, rgba(16, 185, 129, 0.15) 0%, transparent 55%),
+                rgba(6, 78, 59, 0.12);
+        }
+
+        .ic-dropzone-icon {
+            width: 56px;
+            height: 56px;
+            margin: 0 auto 0.85rem;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.35);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #60a5fa;
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        .ic-dropzone.has-file .ic-dropzone-icon {
+            background: rgba(16, 185, 129, 0.18);
+            border-color: rgba(34, 197, 94, 0.4);
+            color: #34d399;
+        }
+
+        .ic-dropzone:hover .ic-dropzone-icon {
+            transform: scale(1.05);
+        }
+
+        .ic-dropzone h3 {
+            margin: 0 0 0.35rem;
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .ic-file-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+            padding: 0.35rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            color: #86efac;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.25);
+            max-width: 100%;
+            word-break: break-all;
+        }
+
+        .ic-file-badge.empty {
+            display: none;
+        }
+
+        .ic-dropzone-hint {
+            margin: 0.35rem 0 0;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .ic-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .btn-ic-template {
+            border-color: rgba(59, 130, 246, 0.45) !important;
+            color: #bfdbfe !important;
+        }
+        .btn-ic-template:hover {
+            background: rgba(59, 130, 246, 0.15) !important;
+        }
+
+        .btn-ic-audit {
+            border-color: rgba(168, 85, 247, 0.4) !important;
+            color: #e9d5ff !important;
+            text-decoration: none;
+        }
+        .btn-ic-audit:hover {
+            background: rgba(168, 85, 247, 0.12) !important;
+        }
+
+        .ic-preview-panel {
+            display: none;
+            animation: ic-fade-in 0.35s ease;
+        }
+
+        .ic-preview-panel.visible {
+            display: block;
+        }
+
+        @keyframes ic-fade-in {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .ic-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1.25rem;
+        }
+
+        @media (max-width: 600px) {
+            .ic-stats { grid-template-columns: 1fr; }
+        }
+
+        .ic-stat {
+            position: relative;
+            padding: 1rem 1rem 1rem 1.15rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.02);
+            overflow: hidden;
+        }
+
+        .ic-stat::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            border-radius: 4px 0 0 4px;
+        }
+
+        .ic-stat.ok::before { background: linear-gradient(180deg, #34d399, #10b981); }
+        .ic-stat.err::before { background: linear-gradient(180deg, #f87171, #ef4444); }
+        .ic-stat.total::before { background: linear-gradient(180deg, #fbbf24, #f59e0b); }
+
+        .ic-stat strong {
+            display: block;
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.75rem;
+            font-weight: 500;
+            line-height: 1.1;
+        }
+
+        .ic-stat.ok strong { color: #34d399; }
+        .ic-stat.err strong { color: #f87171; }
+        .ic-stat.total strong { color: #fbbf24; }
+
+        .ic-stat span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .ic-stat-icon {
+            position: absolute;
+            right: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            opacity: 0.12;
+            width: 40px;
+            height: 40px;
+        }
+
+        .ic-confirm-banner {
+            display: none;
+            align-items: flex-start;
+            gap: 0.65rem;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            border-radius: 10px;
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            color: #fde68a;
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+
+        .ic-confirm-banner.show {
+            display: flex;
+        }
+
+        .ic-confirm-banner i {
+            flex-shrink: 0;
+            margin-top: 0.1rem;
+            color: #fbbf24;
+        }
+
+        .ic-action-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .btn-ic-import {
+            background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
+            border-color: rgba(59, 130, 246, 0.6) !important;
+            color: #fff !important;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+        }
+
+        .btn-ic-import:hover:not(:disabled) {
+            filter: brightness(1.08);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+        }
+
+        .btn-ic-import:disabled {
+            opacity: 0.45;
+            box-shadow: none;
+        }
+
+        .btn-ic-import.step2 {
+            background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%) !important;
+            border-color: rgba(245, 158, 11, 0.5) !important;
+            box-shadow: 0 4px 14px rgba(245, 158, 11, 0.3);
+        }
+
+        .ic-table-wrap {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            overflow: hidden;
+            max-height: 380px;
+            overflow-y: auto;
+        }
+
+        .ic-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        .ic-table thead {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+        }
+
+        .ic-table th {
+            background: #1e293b;
+            text-align: left;
+            padding: 0.6rem 0.85rem;
+            font-weight: 500;
+            color: #e2e8f0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            white-space: nowrap;
+        }
+
+        .ic-table td {
+            padding: 0.55rem 0.85rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+        }
+
+        .ic-table tbody tr:nth-child(even) td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .ic-table tbody tr:hover td {
+            background: rgba(59, 130, 246, 0.06);
+        }
+
+        .ic-table .col-num {
+            color: var(--text-muted);
+            width: 2.5rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .ic-table .col-sku {
+            font-weight: 500;
+            color: #e0f2fe;
+            font-family: ui-monospace, 'Kanit', monospace;
+            font-size: 0.8rem;
+        }
+
+        .ic-table .col-qty {
+            font-variant-numeric: tabular-nums;
+            font-weight: 500;
+            color: #a5f3fc;
+        }
+
+        .ic-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.2rem 0.55rem;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 500;
+        }
+
+        .ic-badge.ok {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .ic-badge.err {
+            background: rgba(239, 68, 68, 0.12);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        tr.row-invalid td {
+            background: rgba(239, 68, 68, 0.04) !important;
+        }
+
+        .ic-table-foot {
+            margin-top: 0.75rem;
+            font-size: 0.76rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .ic-empty-state {
+            text-align: center;
+            padding: 2.5rem 1.5rem;
+            color: var(--text-muted);
+        }
+
+        .ic-empty-state i {
+            width: 48px;
+            height: 48px;
+            opacity: 0.35;
+            margin-bottom: 0.75rem;
+        }
+
+        .ic-loading-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 15000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1.5rem;
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(6px);
+        }
+
+        .ic-loading-overlay.active {
+            display: flex;
+        }
+
+        .ic-loading-box {
+            background: linear-gradient(165deg, #1a1d24 0%, #12141a 100%);
+            border: 1px solid rgba(59, 130, 246, 0.35);
+            border-radius: 16px;
+            padding: 2rem 2.5rem;
+            min-width: 300px;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45);
+        }
+
+        .ic-loading-spin {
+            width: 48px;
+            height: 48px;
+            color: #3b82f6;
+            margin: 0 auto 1rem;
+            animation: ic-spin 0.9s linear infinite;
+        }
+
+        @keyframes ic-spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .ic-loading-box h3 {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.1rem;
+            margin: 0 0 0.35rem;
+        }
+
+        .ic-loading-box p {
+            margin: 0 0 1rem;
+            font-size: 0.88rem;
+            color: var(--text-muted);
+        }
+
+        .ic-progress-track {
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .ic-progress-fill {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #2563eb, #38bdf8);
+            transition: width 0.25s ease;
+        }
+
+        input[type="file"] { display: none; }
+    </style>
+</head>
+<body class="has-sidebar">
+    <div class="app-layout">
+        <aside class="sidebar" aria-label="เมนูหลัก">
+            <div class="sidebar-brand">เมนู</div>
+            <nav class="sidebar-nav">
+                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
+                    <i data-lucide="clipboard-list"></i>
+                    <span>นับสต็อก</span>
+                </a>
+                <a href="import_counts.html" class="sidebar-nav-item active" title="นำเข้าผลการนับจาก Excel">
+                    <i data-lucide="file-input"></i>
+                    <span>Import นับ</span>
+                </a>
+                <a href="audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
+                    <i data-lucide="shield-check"></i>
+                    <span>ตรวจสอบ</span>
+                </a>
+                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
+                    <i data-lucide="database"></i>
+                    <span>SKU Master</span>
+                </a>
+                <a href="dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
+                    <i data-lucide="settings"></i>
+                    <span>ตั้งค่า</span>
+                </a>
+            </nav>
+        </aside>
+        <main class="main-area">
+            <div class="ic-page dashboard-container">
+                <div class="ic-hero dashboard-header" style="border:none;padding:0;background:transparent;">
+                    <div class="ic-hero-text header-content" style="align-items:flex-start;text-align:left;">
+                        <h1>นำเข้าผลการนับ</h1>
+                        <p>อัปโหลด Excel บันทึกลงระบบทีละชุด — ไม่ต้องคีย์ทีละแถว · ตรวจสอบผลได้ที่หน้าตรวจสอบ</p>
+                        <div class="ic-steps">
+                            <span class="ic-step"><span class="ic-step-num">1</span> ตั้งค่าคลัง / ผู้นับ</span>
+                            <span class="ic-step"><span class="ic-step-num">2</span> อัปโหลด Excel</span>
+                            <span class="ic-step"><span class="ic-step-num">3</span> ยืนยันนำเข้า</span>
+                        </div>
+                    </div>
+                    <div class="header-stats">
+                        <div class="header-stats-actions">
+                            <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                                <i data-lucide="wifi-off" data-badge-icon></i>
+                                <span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ic-grid">
+                    <section class="ic-panel">
+                        <div class="ic-panel-head">
+                            <div class="ic-panel-icon blue">
+                                <i data-lucide="settings-2"></i>
+                            </div>
+                            <div>
+                                <h2>ข้อมูลรอบการนับ</h2>
+                                <span>ใช้กับทุกแถวในไฟล์</span>
+                            </div>
+                        </div>
+                        <div class="ic-panel-body">
+                            <div class="ic-fields">
+                                <div class="ic-field">
+                                    <label for="importWarehouse">คลัง</label>
+                                    <select id="importWarehouse">
+                                        <option value="ตึกกันตนา">ตึกกันตนา</option>
+                                        <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                                        <option value="คลังอะไหล่">คลังอะไหล่</option>
+                                    </select>
+                                </div>
+                                <div class="ic-field">
+                                    <label for="importCounterName">ชื่อผู้นับ</label>
+                                    <input type="text" id="importCounterName" placeholder="เช่น สมชาย" autocomplete="off">
+                                </div>
+                            </div>
+                            <div class="ic-format-hint">
+                                คอลัมน์ Excel: <code>A = SKU</code> · <code>B = ตำแหน่ง</code> · <code>C = จำนวน</code>
+                                (รองรับ 0) · แถวว่างและหัวตารางจะข้ามอัตโนมัติ
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="ic-panel">
+                        <div class="ic-panel-head upload-head">
+                            <div class="ic-panel-icon green">
+                                <i data-lucide="file-spreadsheet"></i>
+                            </div>
+                            <div>
+                                <h2>อัปโหลดไฟล์</h2>
+                                <span>.xlsx · .xls · .csv</span>
+                            </div>
+                        </div>
+                        <div class="ic-panel-body">
+                            <div class="ic-dropzone" id="uploadZone">
+                                <div class="ic-dropzone-icon">
+                                    <i data-lucide="upload-cloud" style="width:28px;height:28px"></i>
+                                </div>
+                                <h3>เลือกไฟล์ Excel</h3>
+                                <p class="ic-dropzone-hint" id="fileHint">คลิกหรือลากไฟล์มาวางที่นี่</p>
+                                <span class="ic-file-badge empty" id="fileBadge">
+                                    <i data-lucide="file-check-2" style="width:14px;height:14px"></i>
+                                    <span id="fileLabel"></span>
+                                </span>
+                                <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+                            </div>
+                            <div class="ic-toolbar">
+                                <button type="button" class="btn-gs btn-ic-template" id="btnDownloadTemplate">
+                                    <i data-lucide="download" style="width:16px;height:16px"></i>
+                                    โหลด Template
+                                </button>
+                                <a class="btn-gs btn-ic-audit" href="audit_check.html">
+                                    <i data-lucide="shield-check" style="width:16px;height:16px"></i>
+                                    ไปหน้าตรวจสอบ
+                                </a>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <section class="ic-panel ic-preview-panel" id="previewCard">
+                    <div class="ic-panel-head preview-head">
+                        <div class="ic-panel-icon cyan">
+                            <i data-lucide="table-2"></i>
+                        </div>
+                        <div>
+                            <h2>ตัวอย่างก่อนนำเข้า</h2>
+                            <span>ตรวจสอบความถูกต้องก่อนบันทึก</span>
+                        </div>
+                    </div>
+                    <div class="ic-panel-body">
+                        <div class="ic-stats" id="importSummary"></div>
+
+                        <div class="ic-confirm-banner" id="importConfirmBanner">
+                            <i data-lucide="alert-triangle" style="width:18px;height:18px"></i>
+                            <span id="importConfirmText"></span>
+                        </div>
+
+                        <div class="ic-action-row">
+                            <button type="button" class="btn-gs primary btn-ic-import" id="btnStartImport" disabled>
+                                <i data-lucide="database" style="width:16px;height:16px"></i>
+                                นำเข้าข้อมูล (1/2)
+                            </button>
+                            <button type="button" class="btn-gs" id="btnClearFile">
+                                <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                                ล้างไฟล์
+                            </button>
+                        </div>
+
+                        <div class="ic-table-wrap">
+                            <table class="ic-table">
+                                <thead>
+                                    <tr>
+                                        <th class="col-num">#</th>
+                                        <th>SKU</th>
+                                        <th>ตำแหน่ง</th>
+                                        <th>จำนวน</th>
+                                        <th>สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="previewBody"></tbody>
+                            </table>
+                        </div>
+                        <p class="ic-table-foot">
+                            <i data-lucide="info" style="width:14px;height:14px"></i>
+                            แสดงตัวอย่างสูงสุด 100 แถวแรก · นำเข้าเฉพาะแถวที่ผ่านการตรวจสอบ
+                        </p>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div class="ic-loading-overlay" id="loadingOverlay" aria-busy="true" aria-hidden="true">
+        <div class="ic-loading-box">
+            <i data-lucide="loader-2" class="ic-loading-spin"></i>
+            <h3 id="loadingText">กำลังนำเข้า...</h3>
+            <p id="loadingSubtext"></p>
+            <div class="ic-progress-track">
+                <div class="ic-progress-fill" id="loadingProgress"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="../Js/api.js"></script>
+    <script src="../Js/settings-shared.js"></script>
+    <script>
+        lucide.createIcons();
+
+        const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
+        const CHUNK_SIZE = 200;
+
+        let supabaseClient = null;
+        let parsedRows = [];
+        let pendingValidRows = [];
+        let importConfirmStep = 0;
+        let fileName = '';
+
+        function escapeHtml(s) {
+            return String(s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function showToast(message, type = 'success') {
+            const el = document.getElementById('toastContainer');
+            if (!el) return;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icon = type === 'success' ? 'check-circle-2' : 'alert-circle';
+            toast.innerHTML = `<i data-lucide="${icon}"></i><span>${message}</span>`;
+            el.appendChild(toast);
+            lucide.createIcons();
+            setTimeout(() => {
+                toast.classList.add('toast-closing');
+                toast.addEventListener('animationend', () => toast.remove());
+            }, 4500);
+        }
+
+        function setLoading(on, text = 'กำลังนำเข้า...', sub = '', pct = 0) {
+            const overlay = document.getElementById('loadingOverlay');
+            const progress = document.getElementById('loadingProgress');
+            if (!overlay) return;
+            overlay.classList.toggle('active', on);
+            overlay.setAttribute('aria-hidden', on ? 'false' : 'true');
+            document.body.style.overflow = on ? 'hidden' : '';
+            const t = document.getElementById('loadingText');
+            const s = document.getElementById('loadingSubtext');
+            if (t) t.textContent = text;
+            if (s) s.textContent = sub;
+            if (progress) progress.style.width = `${Math.min(100, Math.max(0, pct))}%`;
+            if (on) lucide.createIcons();
+        }
+
+        function parseExcelRows(sheetRows) {
+            const items = [];
+            for (const row of sheetRows) {
+                const sku = (row[0] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
+                const loc = (row[1] ?? row['location'] ?? row['ตำแหน่ง'] ?? '').toString().trim();
+                const qtyRaw = row[2] ?? row['qty'] ?? row['จำนวน'] ?? '';
+                if (!sku && !loc && (qtyRaw === '' || qtyRaw == null)) continue;
+                if (/^(sku|รหัส|#|คอลัมน์)/i.test(sku)) continue;
+
+                const errors = [];
+                if (!sku) errors.push('ไม่มี SKU');
+                if (!loc) errors.push('ไม่มีตำแหน่ง');
+                const qty = qtyRaw === '' || qtyRaw == null ? NaN : Number(qtyRaw);
+                if (Number.isNaN(qty) || qty < 0 || !Number.isFinite(qty)) errors.push('จำนวนไม่ถูกต้อง');
+
+                items.push({
+                    sku,
+                    loc,
+                    qty: Number.isNaN(qty) ? null : Math.floor(qty),
+                    valid: errors.length === 0,
+                    errors: errors.join(', ')
+                });
+            }
+            return items;
+        }
+
+        function updateFileUI(name, rowCount) {
+            const zone = document.getElementById('uploadZone');
+            const badge = document.getElementById('fileBadge');
+            const label = document.getElementById('fileLabel');
+            const hint = document.getElementById('fileHint');
+            if (name && rowCount > 0) {
+                zone?.classList.add('has-file');
+                badge?.classList.remove('empty');
+                if (label) label.textContent = `${name} · ${rowCount.toLocaleString()} แถว`;
+                if (hint) hint.textContent = 'ไฟล์พร้อมนำเข้า — คลิกเพื่อเปลี่ยนไฟล์';
+            } else {
+                zone?.classList.remove('has-file');
+                badge?.classList.add('empty');
+                if (label) label.textContent = '';
+                if (hint) hint.textContent = 'คลิกหรือลากไฟล์มาวางที่นี่';
+            }
+            lucide.createIcons();
+        }
+
+        function setConfirmBanner(show, text = '') {
+            const banner = document.getElementById('importConfirmBanner');
+            const textEl = document.getElementById('importConfirmText');
+            if (!banner) return;
+            banner.classList.toggle('show', show);
+            if (textEl) textEl.textContent = text;
+        }
+
+        function renderPreview() {
+            const card = document.getElementById('previewCard');
+            const summary = document.getElementById('importSummary');
+            const body = document.getElementById('previewBody');
+            const btn = document.getElementById('btnStartImport');
+
+            const valid = parsedRows.filter(r => r.valid);
+            const invalid = parsedRows.filter(r => !r.valid);
+            pendingValidRows = valid;
+
+            if (!parsedRows.length) {
+                card?.classList.remove('visible');
+                setConfirmBanner(false);
+                return;
+            }
+
+            card?.classList.add('visible');
+
+            summary.innerHTML = `
+                <div class="ic-stat ok">
+                    <i data-lucide="check-circle" class="ic-stat-icon"></i>
+                    <strong>${valid.length.toLocaleString()}</strong>
+                    <span>พร้อมนำเข้า</span>
+                </div>
+                <div class="ic-stat err">
+                    <i data-lucide="x-circle" class="ic-stat-icon"></i>
+                    <strong>${invalid.length.toLocaleString()}</strong>
+                    <span>แถวไม่ผ่าน</span>
+                </div>
+                <div class="ic-stat total">
+                    <i data-lucide="layers" class="ic-stat-icon"></i>
+                    <strong>${parsedRows.length.toLocaleString()}</strong>
+                    <span>แถวทั้งหมดในไฟล์</span>
+                </div>
+            `;
+
+            const show = parsedRows.slice(0, 100);
+            body.innerHTML = show.map((r, i) => `
+                <tr class="${r.valid ? '' : 'row-invalid'}">
+                    <td class="col-num">${i + 1}</td>
+                    <td class="col-sku">${escapeHtml(r.sku || '-')}</td>
+                    <td>${escapeHtml(r.loc || '-')}</td>
+                    <td class="col-qty">${r.qty != null ? r.qty : '-'}</td>
+                    <td>
+                        ${r.valid
+                            ? '<span class="ic-badge ok"><i data-lucide="check" style="width:12px;height:12px"></i> พร้อมนำเข้า</span>'
+                            : `<span class="ic-badge err">${escapeHtml(r.errors)}</span>`}
+                    </td>
+                </tr>
+            `).join('');
+
+            if (btn) {
+                btn.disabled = valid.length === 0;
+                importConfirmStep = 0;
+                btn.classList.remove('step2');
+                btn.innerHTML = '<i data-lucide="database" style="width:16px;height:16px"></i> นำเข้าข้อมูล (1/2)';
+                setConfirmBanner(false);
+            }
+            lucide.createIcons();
+        }
+
+        function clearFile() {
+            parsedRows = [];
+            pendingValidRows = [];
+            importConfirmStep = 0;
+            fileName = '';
+            document.getElementById('fileInput').value = '';
+            updateFileUI('', 0);
+            document.getElementById('previewCard')?.classList.remove('visible');
+            setConfirmBanner(false);
+        }
+
+        function handleFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const wb = XLSX.read(ev.target.result, { type: 'binary' });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    parsedRows = parseExcelRows(rows);
+                    fileName = file.name;
+                    updateFileUI(file.name, parsedRows.length);
+                    renderPreview();
+                    if (!parsedRows.length) {
+                        showToast('ไม่พบข้อมูลในไฟล์', 'error');
+                    } else {
+                        showToast(`โหลดไฟล์แล้ว ${parsedRows.length.toLocaleString()} แถว`);
+                    }
+                } catch (err) {
+                    showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error');
+                }
+            };
+            reader.readAsBinaryString(file);
+        }
+
+        function downloadTemplate() {
+            const sample = [
+                ['SKU', 'ตำแหน่ง', 'จำนวน'],
+                ['BG328', 'A1-01', 10],
+                ['XY100', 'A2-03', 0]
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(sample);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'นับสต็อก');
+            XLSX.writeFile(wb, 'Template_Import_Count.xlsx');
+        }
+
+        async function runImport() {
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+
+            const warehouse = document.getElementById('importWarehouse').value.trim();
+            const counter_name = document.getElementById('importCounterName').value.trim();
+            const rows = pendingValidRows;
+
+            if (!warehouse) {
+                showToast('กรุณาเลือกคลัง', 'error');
+                return;
+            }
+            if (!counter_name) {
+                showToast('กรุณาระบุชื่อผู้นับ', 'error');
+                return;
+            }
+            if (!rows.length) {
+                showToast('ไม่มีแถวที่พร้อมนำเข้า', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnStartImport');
+
+            if (importConfirmStep === 0) {
+                const preview = rows.slice(0, 6).map(r =>
+                    `• ${r.sku} @ ${r.loc} = ${r.qty}`
+                ).join('\n');
+                const more = rows.length > 6 ? `\n... และอีก ${rows.length - 6} แถว` : '';
+                const ok = confirm(
+                    `ยืนยันครั้งที่ 1\n\nบันทึก ${rows.length} แถวเข้า inventory_counts\nคลัง: ${warehouse}\nผู้นับ: ${counter_name}\n\n${preview}${more}\n\nต้องการดำเนินการต่อหรือไม่?`
+                );
+                if (!ok) return;
+                importConfirmStep = 1;
+                if (btn) {
+                    btn.classList.add('step2');
+                    btn.innerHTML = '<i data-lucide="shield-alert" style="width:16px;height:16px"></i> นำเข้าข้อมูล (2/2)';
+                    lucide.createIcons();
+                }
+                setConfirmBanner(
+                    true,
+                    `ยืนยันครั้งที่ 2: กดปุ่ม「นำเข้าข้อมูล (2/2)」อีกครั้งเพื่อบันทึก ${rows.length.toLocaleString()} แถว — ไม่สามารถยกเลิกได้`
+                );
+                return;
+            }
+
+            const ok2 = confirm(
+                `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nเพิ่ม ${rows.length} รายการการนับใน Supabase\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`
+            );
+            if (!ok2) return;
+
+            if (btn) btn.disabled = true;
+            importConfirmStep = 0;
+            setConfirmBanner(false);
+
+            let ok = 0;
+            let fail = 0;
+            const total = rows.length;
+
+            setLoading(true, 'กำลังนำเข้าผลการนับ...', `0 / ${total.toLocaleString()} แถว`, 0);
+
+            try {
+                for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+                    const chunk = rows.slice(i, i + CHUNK_SIZE).map(r => ({
+                        warehouse,
+                        location: r.loc,
+                        sku_id: r.sku,
+                        counted_qty: r.qty,
+                        counter_name
+                    }));
+
+                    const { data, error } = await supabaseClient
+                        .from('inventory_counts')
+                        .insert(chunk)
+                        .select('id');
+
+                    if (error) {
+                        console.error(error);
+                        fail += chunk.length;
+                    } else {
+                        ok += (data || []).length;
+                    }
+
+                    const done = Math.min(i + CHUNK_SIZE, total);
+                    const pct = Math.round((done / total) * 100);
+                    setLoading(
+                        true,
+                        'กำลังนำเข้าผลการนับ...',
+                        `${done.toLocaleString()} / ${total.toLocaleString()} แถว (${pct}%)`,
+                        pct
+                    );
+                }
+
+                localStorage.setItem('saved_counter_name', counter_name);
+                localStorage.setItem('saved_warehouse', warehouse);
+                localStorage.setItem('import_counts_warehouse', warehouse);
+
+                showToast(
+                    `นำเข้าสำเร็จ ${ok} แถว${fail > 0 ? ` (ล้มเหลว ${fail})` : ''} · ${warehouse}`,
+                    fail > 0 ? 'error' : 'success'
+                );
+
+                if (fail === 0) clearFile();
+            } catch (err) {
+                console.error(err);
+                showToast('นำเข้าล้มเหลว: ' + err.message, 'error');
+            } finally {
+                setLoading(false);
+                if (btn) {
+                    btn.disabled = pendingValidRows.length === 0;
+                    btn.classList.remove('step2');
+                    btn.innerHTML = '<i data-lucide="database" style="width:16px;height:16px"></i> นำเข้าข้อมูล (1/2)';
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const f = e.target.files[0];
+            if (f) handleFile(f);
+        });
+
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('drag-over');
+        });
+        uploadZone.addEventListener('dragleave', () => {
+            uploadZone.classList.remove('drag-over');
+        });
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('drag-over');
+            const f = e.dataTransfer.files[0];
+            if (f) handleFile(f);
+        });
+
+        document.getElementById('btnDownloadTemplate').addEventListener('click', downloadTemplate);
+        document.getElementById('btnClearFile').addEventListener('click', clearFile);
+        document.getElementById('btnStartImport').addEventListener('click', runImport);
+
+        const whEl = document.getElementById('importWarehouse');
+        const counterEl = document.getElementById('importCounterName');
+        const savedWh = localStorage.getItem('import_counts_warehouse') ||
+            localStorage.getItem('saved_warehouse') || 'ตึกกันตนา';
+        if (whEl && STANDARD_WAREHOUSES.includes(savedWh)) whEl.value = savedWh;
+        if (counterEl) {
+            counterEl.value = localStorage.getItem('saved_counter_name') || '';
+        }
+
+        supabaseClient = window.apiService ? window.apiService.getClient() : null;
+        if (!supabaseClient) {
+            showToast('กรุณาตั้งค่า Supabase ในหน้าตั้งค่า', 'error');
+        }
+    </script>
+</body>
+</html>

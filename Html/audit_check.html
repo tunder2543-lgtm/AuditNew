@@ -361,6 +361,19 @@
             background: #1557b0;
         }
 
+        .btn-gs:disabled,
+        .btn-gs.primary:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .btn-gs.primary:disabled {
+            background: #3f3f46;
+            border-color: #52525b;
+            color: #a1a1aa;
+        }
+
         .ref-badge {
             font-size: 0.78rem;
             color: var(--text-muted);
@@ -388,8 +401,8 @@
         .audit-loading-overlay {
             position: fixed;
             inset: 0;
-            z-index: 9999;
-            background: rgba(15, 23, 42, 0.72);
+            z-index: 15000;
+            background: rgba(15, 23, 42, 0.78);
             backdrop-filter: blur(4px);
             display: none;
             align-items: center;
@@ -780,6 +793,10 @@
                     <i data-lucide="clipboard-list"></i>
                     <span>นับสต็อก</span>
                 </a>
+                <a href="import_counts.html" class="sidebar-nav-item" title="นำเข้าผลการนับจาก Excel">
+                    <i data-lucide="file-input"></i>
+                    <span>Import นับ</span>
+                </a>
                 <a href="audit_check.html" class="sidebar-nav-item active" title="ตรวจสอบความถูกต้อง">
                     <i data-lucide="shield-check"></i>
                     <span>ตรวจสอบ</span>
@@ -983,7 +1000,7 @@
             <div class="loc-compare-body">
                 <div id="locCompareSetup" class="loc-compare-setup">
                     <p style="margin:0;font-size:0.88rem;color:var(--text-muted);">
-                        ใช้ขอบเขตคลัง/เดือนตามแถบด้านบน · เทียบแล้ว<strong>อัปเดตตำแหน่งเฉพาะ SKU ที่ตรงกันในระบบ</strong> · SKU ใน Excel ที่ไม่มีในโซน = ไม่สร้างเข้า DB (Export ดูอย่างเดียว)
+                        ใช้ขอบเขตคลัง/เดือนตามแถบด้านบน · เทียบ SKU ใน Excel (โซนที่เลือก) กับระบบ — <strong>รวมจำนวน 0</strong> · แก้เฉพาะตำแหน่ง (ไม่สร้าง/ไม่ลบ)
                     </p>
                     <div class="loc-compare-templates">
                         <span class="template-label">แบบฟอร์ม:</span>
@@ -2683,29 +2700,48 @@
             return { map, conflicts };
         }
 
+        function findExcelSkuLabel(normSku) {
+            const row = locCompareState.excelRows.find(r => norm(r.sku) === normSku);
+            return row ? row.sku : normSku;
+        }
+
+        /**
+         * เทียบตำแหน่งตาม SKU ในขอบเขตคลัง/เดือน (รวม counted_qty = 0)
+         * Excel ต้องอยู่ในโซนที่เลือก — ถ้า SKU มีในระบบแล้ว แม้ตำแหน่งเดิมอยู่โซนอื่น ก็อัปเดตได้
+         */
         function buildLocComparePlan(dbRows, zone, excelBySku) {
             const mismatches = [];
             let matchedOk = 0;
-            const skusInZoneDb = new Set();
             const dbAmbiguous = [];
             const filters = getAuditFilters();
             const scopeWh = filters.warehouse ? norm(filters.warehouse) : '';
 
-            const bySkuInZone = new Map();
-            dbRows.forEach(rec => {
-                const loc = (rec.location || '').trim();
-                if (getLocationZone(loc) !== zone) return;
-                if (scopeWh && norm(rec.warehouse) !== scopeWh) return;
+            /** @type {Map<string, Array>} */
+            const bySkuInScope = new Map();
 
+            dbRows.forEach(rec => {
+                if (scopeWh && norm(rec.warehouse) !== scopeWh) return;
                 const sku = norm(rec.sku_id);
                 if (!sku) return;
-                skusInZoneDb.add(sku);
-                if (!bySkuInZone.has(sku)) bySkuInZone.set(sku, []);
-                bySkuInZone.get(sku).push(rec);
+                if (!bySkuInScope.has(sku)) bySkuInScope.set(sku, []);
+                bySkuInScope.get(sku).push(rec);
             });
 
-            bySkuInZone.forEach((recs, sku) => {
-                const distinctLocs = new Set(recs.map(r => norm(r.location)));
+            const notInSystem = [];
+
+            excelBySku.forEach((excelLoc, sku) => {
+                if (getLocationZone(excelLoc) !== zone) return;
+
+                const recs = bySkuInScope.get(sku);
+                if (!recs || !recs.length) {
+                    notInSystem.push({
+                        sku: findExcelSkuLabel(sku),
+                        excelLocation: excelLoc
+                    });
+                    return;
+                }
+
+                const distinctLocs = new Set(recs.map(r => norm((r.location || '').trim())));
                 if (distinctLocs.size > 1) {
                     dbAmbiguous.push({
                         sku: recs[0].sku_id,
@@ -2714,11 +2750,9 @@
                     return;
                 }
 
-                const excelLoc = excelBySku.get(sku);
-                if (excelLoc === undefined) return;
-
                 recs.forEach(rec => {
                     const dbLoc = (rec.location || '').trim();
+                    const qty = Number(rec.counted_qty);
                     if (norm(dbLoc) === norm(excelLoc)) {
                         matchedOk += 1;
                     } else {
@@ -2727,17 +2761,11 @@
                             sku: rec.sku_id,
                             dbLocation: dbLoc,
                             newLocation: excelLoc,
-                            warehouse: rec.warehouse || ''
+                            warehouse: rec.warehouse || '',
+                            counted_qty: Number.isNaN(qty) ? '' : qty
                         });
                     }
                 });
-            });
-
-            const notInSystem = [];
-            excelBySku.forEach((excelLoc, sku) => {
-                if (!skusInZoneDb.has(sku)) {
-                    notInSystem.push({ sku, excelLocation: excelLoc });
-                }
             });
 
             return { mismatches, matchedOk, notInSystem, dbAmbiguous };
@@ -2769,7 +2797,7 @@
                 summary.innerHTML = `
                     <div class="loc-compare-chip fix"><strong>${plan.mismatches.length}</strong><span>ต้องแก้ตำแหน่ง</span></div>
                     <div class="loc-compare-chip ok"><strong>${plan.matchedOk}</strong><span>ตรงกันแล้ว</span></div>
-                    <div class="loc-compare-chip mute"><strong>${plan.notInSystem.length}</strong><span>SKU ใน Excel ไม่พบในโซน ${zone}</span></div>
+                    <div class="loc-compare-chip mute"><strong>${plan.notInSystem.length}</strong><span>SKU ใน Excel ไม่มีในระบบ (โซน ${zone})</span></div>
                     <div class="loc-compare-chip warn"><strong>${ambCount}</strong><span>SKU ซ้ำหลายตำแหน่งใน DB</span></div>
                 `;
             }
@@ -2781,7 +2809,7 @@
                     tbody.innerHTML = plan.mismatches.map((m, i) => `
                         <tr>
                             <td>${i + 1}</td>
-                            <td><strong>${escapeHtml(m.sku)}</strong></td>
+                            <td><strong>${escapeHtml(m.sku)}</strong>${m.counted_qty !== '' && m.counted_qty !== undefined ? `<br><span style="font-size:0.75rem;color:var(--text-muted)">จำนวน ${m.counted_qty}</span>` : ''}</td>
                             <td class="loc-old">${escapeHtml(m.dbLocation)}</td>
                             <td class="loc-arrow">→</td>
                             <td class="loc-new">${escapeHtml(m.newLocation)}</td>
@@ -2793,7 +2821,7 @@
             if (missingBlock && missingList && missingSummary) {
                 const items = [];
                 if (plan.notInSystem.length) {
-                    items.push(`<li><strong>ไม่พบในโซน (${plan.notInSystem.length})</strong> — ไม่สร้าง/ไม่ลบ · ใช้ Export ตรวจด้วยมือ</li>`);
+                    items.push(`<li><strong>ไม่มีในระบบ (${plan.notInSystem.length})</strong> — ไม่มีแถวนับในคลัง/เดือนนี้ · ไม่สร้าง/ไม่ลบ</li>`);
                     plan.notInSystem.forEach(x => {
                         items.push(`<li>${escapeHtml(x.sku)} → ${escapeHtml(x.excelLocation)}</li>`);
                     });
@@ -2821,7 +2849,15 @@
 
             if (applyBtn) {
                 applyBtn.style.display = '';
-                applyBtn.disabled = plan.mismatches.length === 0 || ambCount > 0;
+                const canApply = plan.mismatches.length > 0;
+                applyBtn.disabled = !canApply;
+                applyBtn.title = canApply
+                    ? (ambCount > 0
+                        ? `อัปเดต ${plan.mismatches.length} รายการ — ข้าม SKU ซ้ำใน DB ${ambCount} รายการ`
+                        : `อัปเดตตำแหน่ง ${plan.mismatches.length} รายการ`)
+                    : (ambCount > 0
+                        ? 'ไม่มีรายการที่แก้ได้ — มีเฉพาะ SKU ซ้ำหลายตำแหน่งใน DB'
+                        : 'ไม่มีรายการที่ต้องแก้ตำแหน่ง');
             }
 
             document.getElementById('locCompareSubtitle').textContent =
@@ -2838,7 +2874,7 @@
                     SKU: x.sku,
                     'ตำแหน่ง (Excel)': x.excelLocation || '',
                     'ตำแหน่งในระบบ': '',
-                    เหตุผล: `ไม่พบในโซน ${zone} — ไม่สร้างเข้าระบบ (คลัง/เดือนที่เลือก)`,
+                    เหตุผล: `ไม่มีแถวนับในคลัง/เดือนนี้ (โซน Excel ${zone}) — ไม่สร้างเข้าระบบ`,
                     คลัง: f.warehouse || '',
                     เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
                 });
@@ -2983,11 +3019,13 @@
         /** อัปเดตตำแหน่งเท่านั้น — ไม่ insert รายการใหม่ ไม่ delete SKU */
         async function applyLocCompareUpdates() {
             const items = locCompareState.mismatches;
-            if (locCompareState.dbAmbiguous && locCompareState.dbAmbiguous.length) {
-                showToast('มี SKU ที่ตำแหน่งซ้ำใน DB — แก้ในฐานข้อมูลก่อน', 'error');
+            const ambCount = (locCompareState.dbAmbiguous || []).length;
+            if (!items.length) {
+                showToast(ambCount > 0
+                    ? 'ไม่มีรายการที่แก้ได้ — แก้ SKU ซ้ำหลายตำแหน่งใน DB ก่อน'
+                    : 'ไม่มีรายการที่ต้องแก้ตำแหน่ง', 'error');
                 return;
             }
-            if (!items.length) return;
             if (!supabaseClient) {
                 showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
                 return;
@@ -3001,10 +3039,13 @@
                     `• ${m.sku}: ${m.dbLocation} → ${m.newLocation}`
                 ).join('\n');
                 const more = items.length > 8 ? `\n... และอีก ${items.length - 8} รายการ` : '';
+                const ambNote = ambCount > 0
+                    ? `\n· ข้าม SKU ซ้ำหลายตำแหน่งใน DB ${ambCount} รายการ (ไม่อัปเดตอัตโนมัติ)\n`
+                    : '';
                 const ok = confirm(
                     `ยืนยันครั้งที่ 1\n\nอัปเดตตำแหน่ง ${items.length} รายการ (โซน ${locCompareState.zone})\n` +
                     `· เฉพาะ SKU ที่มีในระบบแล้ว\n` +
-                    `· ไม่สร้างรายการใหม่ · ไม่ลบรหัส\n\n${preview}${more}\n\nยึดตำแหน่งจาก Excel เป็นหลัก`
+                    `· ไม่สร้างรายการใหม่ · ไม่ลบรหัส${ambNote}\n${preview}${more}\n\nยึดตำแหน่งจาก Excel เป็นหลัก`
                 );
                 if (!ok) return;
                 locCompareConfirmStep = 1;
@@ -3028,7 +3069,7 @@
             if (!ok2) return;
 
             if (applyBtn) applyBtn.disabled = true;
-            setLoading(true, 'กำลังบันทึกตำแหน่ง...', `0 / ${items.length}`);
+            setLoading(true, 'กำลังปรับเปลี่ยนตำแหน่ง...', `0 / ${items.length} รายการ`);
 
             let ok = 0;
             let fail = 0;
@@ -3048,7 +3089,7 @@
                         ok += 1;
                     }
 
-                    setLoadingProgress(i + 1, items.length, 'กำลังบันทึกตำแหน่งจาก Excel...');
+                    setLoadingProgress(i + 1, items.length, 'กำลังปรับเปลี่ยนตำแหน่งจาก Excel...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
@@ -3081,6 +3122,8 @@
                 setLoading(false);
                 locCompareConfirmStep = 0;
                 if (applyBtn) {
+                    const still = locCompareState.mismatches.length;
+                    applyBtn.disabled = still === 0;
                     applyBtn.innerHTML =
                         '<i data-lucide="check-check" style="width:16px;height:16px"></i> ยืนยันแก้ไข (1/2)';
                     lucide.createIcons();

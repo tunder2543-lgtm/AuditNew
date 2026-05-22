@@ -319,7 +319,10 @@
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow);
             padding: 18px;
-            min-height: 100%;
+        }
+
+        .panel.panel-compact {
+            padding-bottom: 14px;
         }
 
         .panel-header {
@@ -421,6 +424,18 @@
             cursor: pointer;
             opacity: .95;
             filter: invert(1);
+        }
+
+        select.control {
+            cursor: pointer;
+            appearance: auto;
+            -webkit-appearance: menulist;
+            color-scheme: dark;
+        }
+
+        select.control option {
+            background: #121316;
+            color: var(--text);
         }
 
         .substats {
@@ -808,6 +823,179 @@
                 gap: 6px;
             }
         }
+
+        .month-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            padding: 16px 18px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(79, 140, 255, 0.28);
+            background: linear-gradient(180deg, rgba(79, 140, 255, 0.1), rgba(79, 140, 255, 0.04));
+            margin-bottom: 16px;
+        }
+
+        .month-summary strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .day-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 0;
+        }
+
+        .day-chip {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            color: var(--text);
+            border-radius: 14px;
+            padding: 12px 16px;
+            cursor: pointer;
+            text-align: left;
+            min-width: 140px;
+            transition: .18s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .day-chip:hover {
+            border-color: rgba(79, 140, 255, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .day-chip.active {
+            border-color: rgba(79, 140, 255, 0.65);
+            background: linear-gradient(180deg, rgba(79, 140, 255, 0.22), rgba(79, 140, 255, 0.1));
+            box-shadow: 0 10px 24px rgba(79, 140, 255, 0.18);
+        }
+
+        .day-chip-date {
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        .day-chip-meta {
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+
+        .day-chip-all {
+            min-width: 120px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .warehouse-scope-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .scope-btn {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+            color: var(--text);
+            border-radius: 14px;
+            padding: 11px 18px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.92rem;
+            font-weight: 600;
+            transition: .18s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .scope-btn:hover {
+            border-color: rgba(79, 140, 255, 0.45);
+            transform: translateY(-1px);
+        }
+
+        .scope-btn.active {
+            border-color: rgba(79, 140, 255, 0.7);
+            background: linear-gradient(180deg, rgba(79, 140, 255, 0.24), rgba(79, 140, 255, 0.1));
+            box-shadow: 0 8px 22px rgba(79, 140, 255, 0.2);
+            color: #fff;
+        }
+
+        .warehouse-overview-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .warehouse-overview-card {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+            border-radius: 16px;
+            padding: 16px 18px;
+            cursor: pointer;
+            text-align: left;
+            color: var(--text);
+            transition: .18s ease;
+            font-family: inherit;
+            width: 100%;
+        }
+
+        .warehouse-overview-card:hover {
+            border-color: rgba(79, 140, 255, 0.45);
+            transform: translateY(-2px);
+        }
+
+        .warehouse-overview-card .wh-name {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .warehouse-overview-card .wh-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 12px;
+            font-size: 0.82rem;
+            color: var(--muted);
+        }
+
+        .warehouse-overview-card .wh-metrics strong {
+            display: block;
+            color: #fff;
+            font-size: 1.05rem;
+            margin-top: 2px;
+        }
+
+        .scope-active-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            border: 1px solid rgba(79, 140, 255, 0.35);
+            background: rgba(79, 140, 255, 0.12);
+            color: #93c5fd;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        @media (max-width: 900px) {
+            .warehouse-overview-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body class="has-sidebar">
@@ -860,6 +1048,24 @@
                 </button>
             </div>
         </header>
+
+        <section class="panel panel-compact" id="warehouseScopeSection">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">
+                        <i data-lucide="warehouse"></i>
+                        <span>มุมมองตามคลัง</span>
+                    </div>
+                    <div class="panel-sub" id="scopeSubtitle">ภาพรวมทุกคลัง หรือเลือกดูรายละเอียดเฉพาะคลัง</div>
+                </div>
+                <span class="scope-active-pill" id="scopeActivePill" style="display: none;">
+                    <i data-lucide="filter"></i>
+                    <span id="scopeActiveLabel">-</span>
+                </span>
+            </div>
+            <div class="warehouse-scope-bar" id="warehouseScopeBar"></div>
+            <div class="warehouse-overview-grid" id="warehouseOverviewGrid"></div>
+        </section>
 
         <section class="hero-grid">
             <article class="hero-card">
@@ -983,6 +1189,39 @@
             </aside>
         </section>
 
+        <section class="panel panel-compact">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">
+                        <i data-lucide="calendar-range"></i>
+                        <span>ภาพรวมรายเดือน / วันที่ทำการนับ</span>
+                    </div>
+                    <div class="panel-sub">เลือกเดือนเพื่อดูว่ามีการนับกี่วัน แล้วเลือกวันเพื่อดูรายละเอียดและ Export Excel</div>
+                </div>
+            </div>
+
+            <div class="filter-bar" style="grid-template-columns: 1fr 1.2fr;">
+                <div class="field">
+                    <label for="filterMonth">เลือกเดือน (เฉพาะเดือนที่มีข้อมูลนับ)</label>
+                    <select class="control" id="filterMonth" title="เลือกเดือนที่ต้องการดู">
+                        <option value="">กำลังโหลด...</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="filterCountDay">วันที่ทำการนับ</label>
+                    <select class="control" id="filterCountDay">
+                        <option value="">ทั้งเดือน (ทุกวัน)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="month-summary" id="monthSummary">
+                <span class="small-muted">กำลังโหลดข้อมูลรายเดือน...</span>
+            </div>
+
+            <div class="day-chips" id="countDayChips"></div>
+        </section>
+
         <section class="layout-grid">
             <article class="panel">
                 <div class="panel-header">
@@ -1024,9 +1263,9 @@
                 <div>
                     <div class="panel-title">
                         <i data-lucide="users"></i>
-                        <span>ผลงานตามผู้นับ</span>
+                        <span>รายละเอียดการนับ (ตามตัวกรอง)</span>
                     </div>
-                    <div class="panel-sub">เลือกผู้นับเพื่อดูรายการทั้งหมดที่ส่งมาในช่วงเวลาที่กำหนด</div>
+                    <div class="panel-sub">ตารางและสรุปด้านล่างอัปเดตตามเดือน/วันที่เลือกด้านบน · Export ได้ที่ปุ่มมุมขวาบน</div>
                 </div>
             </div>
 
@@ -1037,8 +1276,8 @@
                         <option value="">-- ผู้ส่งทั้งหมด --</option>
                     </select>
                 </div>
-                <div class="field">
-                    <label for="filterWarehouse">คลัง</label>
+                <div class="field" id="filterWarehouseField">
+                    <label for="filterWarehouse">คลัง (ย่อย)</label>
                     <select class="control" id="filterWarehouse">
                         <option value="">-- ทุกคลัง --</option>
                     </select>
@@ -1165,10 +1404,16 @@
 
         let supabaseClient = window.apiService ? window.apiService.getClient() : null;
         let allRecords = [];
+        let skuMasterAll = [];
         let skuMaster = [];
         let filteredRows = [];
         let countPieChart = null;
         let timelineChart = null;
+        let monthFilter = { yearMonth: '', countDay: '' };
+        let monthSelectOptionsHtml = '';
+        let scopeWarehouse = localStorage.getItem('dashboard_scope_warehouse') || '';
+
+        const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
         const els = {
             todayLabel: document.getElementById('todayLabel'),
@@ -1198,7 +1443,17 @@
             filterCounter: document.getElementById('filterCounter'),
             filterWarehouse: document.getElementById('filterWarehouse'),
             filterStartDate: document.getElementById('filterStartDate'),
-            filterEndDate: document.getElementById('filterEndDate')
+            filterEndDate: document.getElementById('filterEndDate'),
+            filterMonth: document.getElementById('filterMonth'),
+            filterCountDay: document.getElementById('filterCountDay'),
+            monthSummary: document.getElementById('monthSummary'),
+            countDayChips: document.getElementById('countDayChips'),
+            warehouseScopeBar: document.getElementById('warehouseScopeBar'),
+            warehouseOverviewGrid: document.getElementById('warehouseOverviewGrid'),
+            scopeSubtitle: document.getElementById('scopeSubtitle'),
+            scopeActivePill: document.getElementById('scopeActivePill'),
+            scopeActiveLabel: document.getElementById('scopeActiveLabel'),
+            filterWarehouseField: document.getElementById('filterWarehouseField')
         };
 
         const thaiNow = new Date().toLocaleString('th-TH', {
@@ -1236,6 +1491,326 @@
             return String(value || '').trim().toLowerCase();
         }
 
+        function normalizeWarehouse(value) {
+            return String(value || '').trim();
+        }
+
+        function getSkuWarehouse(row) {
+            return normalizeWarehouse(row?.warehouse || 'ตึกกันตนา');
+        }
+
+        function getScopedRecords() {
+            if (!scopeWarehouse) return allRecords;
+            const wh = normalize(scopeWarehouse);
+            return allRecords.filter(r => normalize(r.warehouse) === wh);
+        }
+
+        function getScopedSkuMaster() {
+            if (!scopeWarehouse) return skuMasterAll;
+            const wh = normalize(scopeWarehouse);
+            return skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === wh);
+        }
+
+        function getWarehouseList() {
+            const fromData = [...new Set(allRecords.map(r => r.warehouse).filter(Boolean))];
+            const merged = [...STANDARD_WAREHOUSES];
+            fromData.forEach(w => {
+                if (!merged.includes(w)) merged.push(w);
+            });
+            return merged;
+        }
+
+        function computeWarehouseStats(warehouseName) {
+            const wh = normalize(warehouseName);
+            const masterList = skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === wh);
+            const records = allRecords.filter(r => normalize(r.warehouse) === wh);
+            const countedSet = new Set(records.map(r => normalize(r.sku_id)).filter(Boolean));
+            const countedSku = masterList.filter(s => countedSet.has(normalize(s.sku_name))).length;
+            const totalSku = masterList.length;
+            const uncountedSku = Math.max(totalSku - countedSku, 0);
+            const progress = totalSku ? Math.floor((countedSku / totalSku) * 100) : 0;
+            const totalQty = records.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
+
+            return {
+                warehouse: warehouseName,
+                totalSku,
+                countedSku,
+                uncountedSku,
+                progress,
+                totalRecords: records.length,
+                totalQty,
+                counters: new Set(records.map(r => r.counter_name).filter(Boolean)).size
+            };
+        }
+
+        function setScopeWarehouse(value) {
+            scopeWarehouse = value || '';
+            if (scopeWarehouse) {
+                localStorage.setItem('dashboard_scope_warehouse', scopeWarehouse);
+            } else {
+                localStorage.removeItem('dashboard_scope_warehouse');
+            }
+            if (els.filterWarehouse && scopeWarehouse) {
+                els.filterWarehouse.value = scopeWarehouse;
+            }
+            render();
+        }
+
+        function renderWarehouseScopeBar() {
+            if (!els.warehouseScopeBar) return;
+
+            const buttons = [
+                { value: '', label: 'ภาพรวมทุกคลัง', icon: 'layout-grid' },
+                ...STANDARD_WAREHOUSES.map(w => ({ value: w, label: w, icon: 'warehouse' }))
+            ];
+
+            els.warehouseScopeBar.innerHTML = buttons.map(btn => `
+                <button type="button" class="scope-btn ${scopeWarehouse === btn.value ? 'active' : ''}" data-scope="${escapeHtml(btn.value)}">
+                    <i data-lucide="${btn.icon}"></i>
+                    ${escapeHtml(btn.label)}
+                </button>
+            `).join('');
+
+            els.warehouseScopeBar.querySelectorAll('.scope-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setScopeWarehouse(btn.getAttribute('data-scope') || '');
+                });
+            });
+
+            if (els.scopeActivePill && els.scopeActiveLabel) {
+                if (scopeWarehouse) {
+                    els.scopeActivePill.style.display = 'inline-flex';
+                    els.scopeActiveLabel.textContent = scopeWarehouse;
+                } else {
+                    els.scopeActivePill.style.display = 'none';
+                }
+            }
+
+            if (els.scopeSubtitle) {
+                els.scopeSubtitle.textContent = scopeWarehouse
+                    ? `กำลังดูเฉพาะคลัง: ${scopeWarehouse} — KPI และกราฟคำนวณจากคลังนี้`
+                    : 'ภาพรวมทุกคลัง — คลิกการ์ดด้านล่างหรือปุ่มด้านบนเพื่อดูรายละเอียดแต่ละคลัง';
+            }
+
+            if (els.warehouseOverviewGrid) {
+                els.warehouseOverviewGrid.style.display = scopeWarehouse ? 'none' : '';
+            }
+
+            if (els.filterWarehouseField) {
+                els.filterWarehouseField.style.display = scopeWarehouse ? 'none' : '';
+            }
+        }
+
+        function renderWarehouseOverview() {
+            if (!els.warehouseOverviewGrid || scopeWarehouse) return;
+
+            const cards = STANDARD_WAREHOUSES.map(wh => {
+                const st = computeWarehouseStats(wh);
+                return `
+                    <button type="button" class="warehouse-overview-card" data-scope-wh="${escapeHtml(wh)}">
+                        <div class="wh-name">
+                            <span>${escapeHtml(wh)}</span>
+                            <span class="status-chip ${st.progress >= 80 ? 'ok' : st.progress >= 40 ? 'warn' : ''}">${st.progress}%</span>
+                        </div>
+                        <div class="wh-metrics">
+                            <div>SKU Master<strong>${st.totalSku.toLocaleString()}</strong></div>
+                            <div>นับแล้ว<strong>${st.countedSku.toLocaleString()}</strong></div>
+                            <div>ยังไม่นับ<strong>${st.uncountedSku.toLocaleString()}</strong></div>
+                            <div>รายการ<strong>${st.totalRecords.toLocaleString()}</strong></div>
+                        </div>
+                    </button>
+                `;
+            }).join('');
+
+            els.warehouseOverviewGrid.innerHTML = cards;
+            els.warehouseOverviewGrid.querySelectorAll('.warehouse-overview-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    setScopeWarehouse(card.getAttribute('data-scope-wh') || '');
+                });
+            });
+        }
+
+        function updateScopeLabelInHero() {
+            const heroDesc = document.querySelector('.hero-title p');
+            if (!heroDesc) return;
+            heroDesc.textContent = scopeWarehouse
+                ? `มุมมองคลัง: ${scopeWarehouse} — ตัวเลขด้านล่างคำนวณจาก SKU Master และการนับของคลังนี้`
+                : 'ภาพรวมทุกคลัง — เลือกคลังด้านบนเพื่อดูความคืบหน้า SKU แยกตามคลัง หรือใช้ตัวกรองด้านล่างเจาะรายละเอียด';
+        }
+
+        function getThailandDateKey(isoString) {
+            if (!isoString) return null;
+            const date = new Date(isoString);
+            if (Number.isNaN(date.getTime())) return null;
+            return date.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+        }
+
+        function formatThaiShortDate(dateKey) {
+            if (!dateKey) return '-';
+            const [y, m, day] = dateKey.split('-').map(Number);
+            const be = y + 543;
+            const shortYear = String(be).slice(-2);
+            return `${day}-${m}-${shortYear}`;
+        }
+
+        function formatMonthLabel(yearMonth) {
+            if (!yearMonth) return '-';
+            const [y, m] = yearMonth.split('-').map(Number);
+            const d = new Date(y, m - 1, 1);
+            const monthName = d.toLocaleDateString('th-TH', { month: 'long', timeZone: 'Asia/Bangkok' });
+            return `${monthName} ${y + 543}`;
+        }
+
+        function getMonthsFromRecords(records) {
+            const months = new Set();
+            records.forEach(row => {
+                const key = getThailandDateKey(row.created_at);
+                if (key) months.add(key.slice(0, 7));
+            });
+            return [...months].sort().reverse();
+        }
+
+        function getDaysInMonth(records, yearMonth) {
+            const days = new Map();
+            records.forEach(row => {
+                const key = getThailandDateKey(row.created_at);
+                if (!key || !key.startsWith(yearMonth)) return;
+                const bucket = days.get(key) || {
+                    dateKey: key,
+                    records: 0,
+                    qty: 0,
+                    skus: new Set(),
+                    counters: new Set()
+                };
+                bucket.records += 1;
+                bucket.qty += Number(row.counted_qty) || 0;
+                if (row.sku_id) bucket.skus.add(normalize(row.sku_id));
+                if (row.counter_name) bucket.counters.add(row.counter_name);
+                days.set(key, bucket);
+            });
+            return [...days.values()].sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+        }
+
+        function syncDateInputsFromMonthFilter() {
+            if (monthFilter.countDay) {
+                els.filterStartDate.value = monthFilter.countDay;
+                els.filterEndDate.value = monthFilter.countDay;
+                return;
+            }
+            if (monthFilter.yearMonth) {
+                const [y, m] = monthFilter.yearMonth.split('-').map(Number);
+                const lastDay = new Date(y, m, 0).getDate();
+                els.filterStartDate.value = `${monthFilter.yearMonth}-01`;
+                els.filterEndDate.value = `${monthFilter.yearMonth}-${String(lastDay).padStart(2, '0')}`;
+                return;
+            }
+            els.filterStartDate.value = '';
+            els.filterEndDate.value = '';
+        }
+
+        function populateMonthSelect(months) {
+            if (!els.filterMonth) return;
+
+            if (!months.length) {
+                els.filterMonth.innerHTML = '<option value="">ไม่มีข้อมูลการนับ</option>';
+                els.filterMonth.disabled = true;
+                monthSelectOptionsHtml = '';
+                return;
+            }
+
+            const optionsHtml = months.map(m =>
+                `<option value="${m}">${escapeHtml(formatMonthLabel(m))}</option>`
+            ).join('');
+
+            if (optionsHtml !== monthSelectOptionsHtml) {
+                els.filterMonth.innerHTML = optionsHtml;
+                monthSelectOptionsHtml = optionsHtml;
+            }
+
+            els.filterMonth.disabled = false;
+
+            if (!monthFilter.yearMonth || !months.includes(monthFilter.yearMonth)) {
+                monthFilter.yearMonth = months[0];
+            }
+            els.filterMonth.value = monthFilter.yearMonth;
+        }
+
+        function renderMonthOverview() {
+            const scopedRecords = getScopedRecords();
+            const months = getMonthsFromRecords(scopedRecords);
+            populateMonthSelect(months);
+
+            if (!months.length) {
+                const emptyMsg = scopeWarehouse
+                    ? `ยังไม่มีข้อมูลการนับในคลัง ${scopeWarehouse}`
+                    : 'ยังไม่มีข้อมูลการนับในระบบ';
+                els.monthSummary.innerHTML = `<span class="small-muted">${escapeHtml(emptyMsg)}</span>`;
+                els.countDayChips.innerHTML = '';
+                if (els.filterCountDay) {
+                    els.filterCountDay.innerHTML = '<option value="">ทั้งเดือน (ทุกวัน)</option>';
+                }
+                return;
+            }
+
+            const days = getDaysInMonth(scopedRecords, monthFilter.yearMonth);
+            if (monthFilter.countDay && !days.some(d => d.dateKey === monthFilter.countDay)) {
+                monthFilter.countDay = '';
+            }
+
+            const dayLabels = days.map(d => formatThaiShortDate(d.dateKey)).join(' / ');
+            const totalRecords = days.reduce((s, d) => s + d.records, 0);
+            const totalQty = days.reduce((s, d) => s + d.qty, 0);
+
+            const scopeNote = scopeWarehouse ? ` · คลัง <strong>${escapeHtml(scopeWarehouse)}</strong>` : ' · ทุกคลัง';
+            els.monthSummary.innerHTML = `
+                <div>
+                    <strong>${escapeHtml(formatMonthLabel(monthFilter.yearMonth))}</strong>${scopeNote}
+                    · ใช้เวลานับ <strong>${days.length}</strong> วัน
+                    ${days.length ? `(${escapeHtml(dayLabels)})` : ''}
+                </div>
+                <span class="status-chip ok">${totalRecords.toLocaleString()} รายการ</span>
+                <span class="status-chip">${totalQty.toLocaleString()} ชิ้น</span>
+                ${monthFilter.countDay ? `<span class="status-chip warn">กำลังดูวัน ${escapeHtml(formatThaiShortDate(monthFilter.countDay))}</span>` : ''}
+            `;
+
+            if (els.filterCountDay) {
+                els.filterCountDay.innerHTML =
+                    `<option value="">ทั้งเดือน (${days.length} วัน)</option>` +
+                    days.map(d => {
+                        const label = `${formatThaiShortDate(d.dateKey)} · ${d.records} รายการ · ${d.skus.size} SKU`;
+                        return `<option value="${d.dateKey}" ${monthFilter.countDay === d.dateKey ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+                    }).join('');
+            }
+
+            const chips = [
+                `<button type="button" class="day-chip day-chip-all ${!monthFilter.countDay ? 'active' : ''}" data-day="">
+                    <span class="day-chip-date">ทั้งเดือน</span>
+                    <span class="day-chip-meta">${days.length} วัน · ${totalRecords.toLocaleString()} รายการ</span>
+                </button>`
+            ];
+
+            days.forEach(d => {
+                const active = monthFilter.countDay === d.dateKey ? 'active' : '';
+                chips.push(`
+                    <button type="button" class="day-chip ${active}" data-day="${d.dateKey}">
+                        <span class="day-chip-date">${escapeHtml(formatThaiShortDate(d.dateKey))}</span>
+                        <span class="day-chip-meta">${d.records.toLocaleString()} รายการ · ${d.skus.size} SKU · ${d.counters.size} คน</span>
+                    </button>
+                `);
+            });
+
+            els.countDayChips.innerHTML = chips.join('');
+            els.countDayChips.querySelectorAll('.day-chip').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const day = btn.getAttribute('data-day') || '';
+                    monthFilter.countDay = monthFilter.countDay === day ? '' : day;
+                    if (els.filterCountDay) els.filterCountDay.value = monthFilter.countDay;
+                    syncDateInputsFromMonthFilter();
+                    render();
+                });
+            });
+        }
+
         function buildLookup(list, keyField, valueField) {
             const map = new Map();
             list.forEach(row => {
@@ -1271,11 +1846,15 @@
 
             try {
                 const [skuRes, countRes] = await Promise.all([
-                    loadPagedRows('sku_master', 'sku_name, name_pro'),
+                    loadPagedRows('sku_master', 'sku_name, name_pro, warehouse'),
                     loadPagedRows('inventory_counts', '*')
                 ]);
 
-                skuMaster = skuRes;
+                skuMasterAll = skuRes.map(row => ({
+                    ...row,
+                    warehouse: getSkuWarehouse(row)
+                }));
+                skuMaster = getScopedSkuMaster();
                 allRecords = countRes;
 
                 render();
@@ -1312,26 +1891,49 @@
             return rows;
         }
 
-        function getSKUName(skuId) {
-            const found = skuMaster.find(row => normalize(row.sku_name) === normalize(skuId));
+        function getSKUName(skuId, warehouseHint) {
+            const key = normalize(skuId);
+            const wh = warehouseHint ? normalize(warehouseHint) : (scopeWarehouse ? normalize(scopeWarehouse) : '');
+            const pool = wh
+                ? skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === wh)
+                : skuMasterAll;
+            const found = pool.find(row => normalize(row.sku_name) === key);
             return found ? found.name_pro : '';
+        }
+
+        function bangkokStartOfDay(dateStr) {
+            if (!dateStr) return null;
+            return new Date(`${dateStr}T00:00:00+07:00`);
+        }
+
+        function bangkokEndOfDay(dateStr) {
+            if (!dateStr) return null;
+            return new Date(`${dateStr}T23:59:59.999+07:00`);
         }
 
         function getFilters() {
             return {
                 counter: normalize(els.filterCounter.value),
-                warehouse: normalize(els.filterWarehouse.value),
-                startDate: els.filterStartDate.value ? new Date(`${els.filterStartDate.value}T00:00:00`) : null,
-                endDate: els.filterEndDate.value ? new Date(`${els.filterEndDate.value}T23:59:59.999`) : null
+                warehouse: scopeWarehouse ? normalize(scopeWarehouse) : normalize(els.filterWarehouse.value),
+                startDate: els.filterStartDate.value ? bangkokStartOfDay(els.filterStartDate.value) : null,
+                endDate: els.filterEndDate.value ? bangkokEndOfDay(els.filterEndDate.value) : null
             };
         }
 
         function applyFilters(rows) {
+            const baseRows = rows || getScopedRecords();
             const f = getFilters();
-            return rows.filter(row => {
+            return baseRows.filter(row => {
+                const rowDateKey = getThailandDateKey(row.created_at);
                 const rowDate = row.created_at ? new Date(row.created_at) : null;
                 const counter = normalize(row.counter_name);
                 const warehouse = normalize(row.warehouse);
+
+                if (monthFilter.countDay) {
+                    if (rowDateKey !== monthFilter.countDay) return false;
+                } else if (monthFilter.yearMonth) {
+                    if (!rowDateKey || !rowDateKey.startsWith(monthFilter.yearMonth)) return false;
+                }
 
                 if (f.counter && counter !== f.counter) return false;
                 if (f.warehouse && warehouse !== f.warehouse) return false;
@@ -1341,18 +1943,38 @@
             });
         }
 
-        function renderKpis() {
-            const countedSet = new Set(allRecords.map(row => normalize(row.sku_id)));
-            const countedSku = countedSet.size;
-            const totalSku = skuMaster.length;
+        function renderKpis(scopeRows) {
+            const rows = Array.isArray(scopeRows) ? scopeRows : getScopedRecords();
+            const masterList = getScopedSkuMaster();
+            skuMaster = masterList;
+
+            let countedSku = 0;
+            let totalSku = 0;
+
+            if (!scopeWarehouse) {
+                STANDARD_WAREHOUSES.forEach(wh => {
+                    const whNorm = normalize(wh);
+                    const masterWh = skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === whNorm);
+                    const rowSkus = new Set(
+                        rows.filter(r => normalize(r.warehouse) === whNorm).map(r => normalize(r.sku_id)).filter(Boolean)
+                    );
+                    totalSku += masterWh.length;
+                    countedSku += masterWh.filter(s => rowSkus.has(normalize(s.sku_name))).length;
+                });
+            } else {
+                totalSku = masterList.length;
+                const countedSet = new Set(rows.map(row => normalize(row.sku_id)).filter(Boolean));
+                countedSku = masterList.filter(s => countedSet.has(normalize(s.sku_name))).length;
+            }
+
             const uncountedSku = Math.max(totalSku - countedSku, 0);
             const progress = totalSku ? Math.floor((countedSku / totalSku) * 100) : 0;
 
-            const totalQty = allRecords.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
-            const totalRecords = allRecords.length;
-            const counters = new Set(allRecords.map(r => normalize(r.counter_name)).filter(Boolean)).size;
-            const warehouses = new Set(allRecords.map(r => normalize(r.warehouse)).filter(Boolean)).size;
-            const rate = totalRecords && skuMaster.length ? Math.min(100, Math.floor((totalRecords / skuMaster.length) * 100)) : 0;
+            const totalQty = rows.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
+            const totalRecords = rows.length;
+            const counters = new Set(rows.map(r => normalize(r.counter_name)).filter(Boolean)).size;
+            const warehouses = new Set(rows.map(r => normalize(r.warehouse)).filter(Boolean)).size;
+            const rate = totalRecords && totalSku ? Math.min(100, Math.floor((totalRecords / totalSku) * 100)) : 0;
 
             els.kpiCounted.textContent = countedSku.toLocaleString();
             els.kpiUncounted.textContent = uncountedSku.toLocaleString();
@@ -1364,10 +1986,14 @@
             els.statCounters.textContent = counters.toLocaleString();
             els.statWarehouses.textContent = warehouses.toLocaleString();
 
-            els.rowsLabel.textContent = `${totalRecords.toLocaleString()} records`;
+            const scopeTag = scopeWarehouse ? ` · ${scopeWarehouse}` : ' · ทุกคลัง';
+            els.rowsLabel.textContent = `${totalRecords.toLocaleString()} records${scopeTag}`;
 
             els.progressBar.style.width = `${progress}%`;
-            els.progressText.textContent = `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU | ความคืบหน้า ${progress}%`;
+            const progressNote = scopeWarehouse
+                ? `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU (${scopeWarehouse})`
+                : `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU รวม 3 คลัง`;
+            els.progressText.textContent = `${progressNote} | ความคืบหน้า ${progress}%`;
         }
 
         function renderFilters() {
@@ -1379,8 +2005,10 @@
         }
 
         function renderPieChart(rows) {
-            const countedSku = new Set(rows.map(row => normalize(row.sku_id))).size;
-            const totalSku = skuMaster.length;
+            const masterList = getScopedSkuMaster();
+            const countedSet = new Set(rows.map(row => normalize(row.sku_id)).filter(Boolean));
+            const countedSku = masterList.filter(s => countedSet.has(normalize(s.sku_name))).length;
+            const totalSku = masterList.length;
             const uncountedSku = Math.max(totalSku - countedSku, 0);
 
             const data = [countedSku, uncountedSku];
@@ -1575,12 +2203,14 @@
                 return;
             }
 
-            els.filteredTableBody.innerHTML = rows.slice(0, 100).map((row, index) => `
+            const displayLimit = 300;
+            const displayRows = rows.slice(0, displayLimit);
+            els.filteredTableBody.innerHTML = displayRows.map((row, index) => `
                 <tr>
                     <td>${index + 1}</td>
                     <td>
                         <div class="sku">${escapeHtml(row.sku_id || '-')}</div>
-                        <div class="small-muted">${escapeHtml(getSKUName(row.sku_id) || '')}</div>
+                        <div class="small-muted">${escapeHtml(getSKUName(row.sku_id, row.warehouse) || '')}</div>
                     </td>
                     <td><span class="qty-badge">${Number(row.counted_qty) || 0}</span></td>
                     <td>${escapeHtml(row.warehouse || '-')}</td>
@@ -1588,6 +2218,10 @@
                     <td>${formatDateTime(row.created_at)}</td>
                 </tr>
             `).join('');
+
+            if (rows.length > displayLimit) {
+                els.filteredNote.textContent += ` · แสดง ${displayLimit} แถวแรก (Export ได้ครบ ${rows.length.toLocaleString()} แถว)`;
+            }
         }
 
         function renderTimelineList(rows) {
@@ -1610,7 +2244,7 @@
                     <div class="time-key">${formatDateTime(row.created_at)}</div>
                     <div class="time-val">
                         <div><strong>${escapeHtml(row.counter_name || 'Unknown')}</strong> ส่งรายการ <strong>${escapeHtml(row.sku_id || '-')}</strong> จำนวน <strong>${Number(row.counted_qty) || 0}</strong> ชิ้น</div>
-                        <div class="small-muted">${escapeHtml(row.warehouse || '-')} / ${escapeHtml(row.location || '-')} ${getSKUName(row.sku_id) ? `• ${escapeHtml(getSKUName(row.sku_id))}` : ''}</div>
+                        <div class="small-muted">${escapeHtml(row.warehouse || '-')} / ${escapeHtml(row.location || '-')} ${getSKUName(row.sku_id, row.warehouse) ? `• ${escapeHtml(getSKUName(row.sku_id, row.warehouse))}` : ''}</div>
                     </div>
                 </div>
             `).join('');
@@ -1624,8 +2258,9 @@
         function exportData(type, rows) {
             const exportRows = rows.map((row, index) => ({
                 '#': index + 1,
+                วันที่นับ: formatThaiShortDate(getThailandDateKey(row.created_at)),
                 sku_id: row.sku_id || '-',
-                name_pro: getSKUName(row.sku_id) || '-',
+                name_pro: getSKUName(row.sku_id, row.warehouse) || '-',
                 counted_qty: Number(row.counted_qty) || 0,
                 warehouse: row.warehouse || '-',
                 location: row.location || '-',
@@ -1633,7 +2268,15 @@
                 created_at: formatDateTime(row.created_at)
             }));
 
-            const fileBase = `inventory_dashboard_${new Date().toISOString().slice(0,10)}`;
+            const whPart = scopeWarehouse
+                ? scopeWarehouse.replace(/[\\/:*?"<>|]+/g, '_')
+                : 'all_warehouses';
+            let fileBase = `inventory_dashboard_${whPart}_${new Date().toISOString().slice(0, 10)}`;
+            if (monthFilter.countDay) {
+                fileBase = `inventory_${whPart}_${formatThaiShortDate(monthFilter.countDay).replace(/-/g, '')}`;
+            } else if (monthFilter.yearMonth) {
+                fileBase = `inventory_${whPart}_${monthFilter.yearMonth.replace('-', '')}`;
+            }
 
             if (type === 'csv') {
                 const ws = XLSX.utils.json_to_sheet(exportRows);
@@ -1687,11 +2330,20 @@
         }
 
         function render() {
-            const filtered = applyFilters(allRecords);
+            skuMaster = getScopedSkuMaster();
+            renderWarehouseScopeBar();
+            renderWarehouseOverview();
+            updateScopeLabelInHero();
+
+            renderMonthOverview();
+            syncDateInputsFromMonthFilter();
+
+            const scopedRecords = getScopedRecords();
+            const filtered = applyFilters(scopedRecords);
             filteredRows = filtered;
 
             renderKpis(filtered);
-            populateFilterOptions(allRecords);
+            populateFilterOptions(scopedRecords);
             renderPieChart(filtered);
             renderTimelineChart(filtered);
             renderTopCounters(filtered);
@@ -1700,18 +2352,43 @@
             renderTimelineList(filtered);
             updateExportButtons(filtered);
 
-            els.progressBar.style.width = `${Math.min(100, Math.floor((new Set(filtered.map(row => normalize(row.sku_id))).size / Math.max(1, skuMaster.length)) * 100))}%`;
+            const masterList = getScopedSkuMaster();
+            const countedInFilter = new Set(filtered.map(row => normalize(row.sku_id)).filter(Boolean));
+            const countedSku = masterList.filter(s => countedInFilter.has(normalize(s.sku_name))).length;
+            const progress = masterList.length
+                ? Math.min(100, Math.floor((countedSku / masterList.length) * 100))
+                : 0;
+            els.progressBar.style.width = `${progress}%`;
             lucide.createIcons();
         }
 
         document.getElementById('btnApplyFilters').addEventListener('click', render);
         document.getElementById('btnResetFilters').addEventListener('click', () => {
             els.filterCounter.value = '';
-            els.filterWarehouse.value = '';
-            els.filterStartDate.value = '';
-            els.filterEndDate.value = '';
+            if (!scopeWarehouse) els.filterWarehouse.value = '';
+            monthFilter.countDay = '';
+            const months = getMonthsFromRecords(getScopedRecords());
+            monthFilter.yearMonth = months[0] || '';
+            if (els.filterCountDay) els.filterCountDay.value = '';
             render();
         });
+
+        if (els.filterMonth) {
+            els.filterMonth.addEventListener('change', () => {
+                if (!els.filterMonth.value) return;
+                monthFilter.yearMonth = els.filterMonth.value;
+                monthFilter.countDay = '';
+                if (els.filterCountDay) els.filterCountDay.value = '';
+                render();
+            });
+        }
+
+        if (els.filterCountDay) {
+            els.filterCountDay.addEventListener('change', () => {
+                monthFilter.countDay = els.filterCountDay.value;
+                render();
+            });
+        }
 
         [els.filterCounter, els.filterWarehouse, els.filterStartDate, els.filterEndDate].forEach(el => {
             el.addEventListener('change', render);

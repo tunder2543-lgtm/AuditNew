@@ -70,21 +70,86 @@
             background: rgba(0,0,0,0.2);
         }
 
-        .search-wrapper {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        .filter-toolbar {
+            display: grid;
+            grid-template-columns: minmax(200px, 240px) minmax(0, 1fr) auto;
+            gap: 12px 16px;
+            align-items: end;
             margin-bottom: 1rem;
         }
 
-        .search-input {
-            width: 300px;
-            padding: 0.6rem 1rem;
-            padding-left: 2.5rem;
-            border-radius: 8px;
+        .filter-field {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            min-width: 0;
+        }
+
+        .filter-field label {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        .filter-control {
+            width: 100%;
+            height: 42px;
+            padding: 0 14px;
+            border-radius: 10px;
             background: var(--input-bg);
             border: 1px solid var(--input-border);
             color: var(--text);
+            font-family: inherit;
+            font-size: 0.92rem;
+            outline: none;
+            transition: border-color 0.16s ease, box-shadow 0.16s ease;
+        }
+
+        .filter-control:focus {
+            border-color: rgba(59, 130, 246, 0.55);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+        }
+
+        select.filter-control {
+            cursor: pointer;
+            padding-right: 2rem;
+        }
+
+        .search-input-wrap {
+            position: relative;
+        }
+
+        .search-input-wrap .search-icon {
+            position: absolute;
+            left: 0.85rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 16px;
+            height: 16px;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+
+        .search-input-wrap .filter-control {
+            padding-left: 2.5rem;
+        }
+
+        .filter-field-action .submit-btn {
+            height: 42px;
+            padding: 0 1.1rem;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            .filter-toolbar {
+                grid-template-columns: 1fr;
+                align-items: stretch;
+            }
+
+            .filter-field-action .submit-btn {
+                width: 100%;
+            }
         }
 
         .progress-bar {
@@ -182,7 +247,7 @@
                 <div class="action-card" style="flex: 1;" onclick="document.getElementById('fileInput').click()">
                     <i data-lucide="upload-cloud" style="width: 32px; height: 32px; color: var(--primary); margin-bottom: 0.5rem;"></i>
                     <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem;">Import Excel</h3>
-                    <p style="font-size: 0.8rem; color: var(--text-muted);">อัปเดตหรือเพิ่ม SKU ใหม่เข้าสู่ระบบ (คอลัมน์: SKU_NAME, NAME_PRO)</p>
+                    <p style="font-size: 0.8rem; color: var(--text-muted);">อัปเดตหรือเพิ่ม SKU ตามหมวดคลังที่เลือก (คอลัมน์: SKU_NAME, NAME_PRO)</p>
                     <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" style="display: none;" onchange="handleFileUpload(event)">
                 </div>
                 
@@ -207,13 +272,25 @@
                 </button>
             </div>
 
-            <div class="search-wrapper" style="margin-top: 2rem;">
-                <div style="position: relative;">
-                    <i data-lucide="search" style="position: absolute; left: 0.75rem; top: 50%; transform: translateY(-50%); width: 16px; color: var(--text-muted);"></i>
-                    <input type="text" id="searchInput" class="search-input" placeholder="ค้นหา SKU หรือ ชื่อสินค้า..." onkeyup="filterTable()">
+            <div class="filter-toolbar" style="margin-top: 2rem;">
+                <div class="filter-field">
+                    <label for="warehouseFilter">หมวดคลัง (SKU Master)</label>
+                    <select id="warehouseFilter" class="filter-control" onchange="onWarehouseFilterChange()">
+                        <option value="ตึกกันตนา">ตึกกันตนา</option>
+                        <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                        <option value="คลังอะไหล่">คลังอะไหล่</option>
+                    </select>
                 </div>
-                <div>
-                    <button class="submit-btn" style="height: auto; padding: 0.5rem 1rem; font-size: 0.85rem;" onclick="loadData()">
+                <div class="filter-field">
+                    <label for="searchInput">ค้นหา</label>
+                    <div class="search-input-wrap">
+                        <i data-lucide="search" class="search-icon"></i>
+                        <input type="text" id="searchInput" class="filter-control" placeholder="ค้นหา SKU หรือ ชื่อสินค้า..." onkeyup="filterTable()">
+                    </div>
+                </div>
+                <div class="filter-field filter-field-action">
+                    <label aria-hidden="true">&nbsp;</label>
+                    <button type="button" class="submit-btn" style="font-size: 0.85rem;" onclick="loadData()">
                         <i data-lucide="refresh-cw" style="width: 14px;"></i> โหลดข้อมูลใหม่
                     </button>
                 </div>
@@ -226,12 +303,13 @@
                             <th style="width: 60px;">#</th>
                             <th style="width: 250px;">รหัสสินค้า (SKU_NAME)</th>
                             <th>ชื่อสินค้า (NAME_PRO)</th>
+                            <th style="width: 180px;">หมวดคลัง</th>
                             <th style="width: 200px;">อัปเดตล่าสุด</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">
                         <tr>
-                            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">กำลังโหลดข้อมูล...</td>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">กำลังโหลดข้อมูล...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -284,7 +362,7 @@
 
             <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.25); padding: 0.75rem 1rem; border-radius: 10px; display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem;">
                 <i data-lucide="alert-triangle" style="color: #fcd34d; width: 20px; height: 20px; flex-shrink: 0;"></i>
-                <span style="font-size: 0.85rem; color: #fcd34d;">ระบบจะทำการ Upsert อัตโนมัติ (หากรหัส SKU ซ้ำ จะอัปเดตชื่อสินค้าเป็นค่าใหม่)</span>
+                <span style="font-size: 0.85rem; color: #fcd34d;">นำเข้าเฉพาะหมวดคลังที่เลือก — หาก SKU มีอยู่ในคลังอื่นแล้ว ระบบจะข้ามรายการนั้น (ไม่ทับคลังเดิม)</span>
             </div>
 
             <div style="display: flex; gap: 1rem;">
@@ -317,17 +395,34 @@
         let currentPage = 1;
         const rowsPerPage = 50;
 
+        function getSelectedWarehouse() {
+            const el = document.getElementById('warehouseFilter');
+            return el ? el.value : 'ตึกกันตนา';
+        }
+
+        window.onWarehouseFilterChange = function() {
+            localStorage.setItem('sku_master_warehouse', getSelectedWarehouse());
+            loadData();
+        };
+
         // Initialize Supabase
         supabaseClient = window.apiService ? window.apiService.getClient() : null;
+
+        const warehouseFilterEl = document.getElementById('warehouseFilter');
+        const savedSkuWarehouse = localStorage.getItem('sku_master_warehouse');
+        if (warehouseFilterEl && savedSkuWarehouse) {
+            warehouseFilterEl.value = savedSkuWarehouse;
+        }
         
         if (supabaseClient) {
             loadData();
         } else {
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
         }
 
         async function loadData() {
             if (!supabaseClient) return;
+            const warehouse = getSelectedWarehouse();
             
             showLoading('กำลังโหลดข้อมูล...');
             
@@ -340,6 +435,7 @@
                     const { data, error } = await supabaseClient
                         .from('sku_master')
                         .select('*')
+                        .eq('warehouse', warehouse)
                         .order('sku_name', { ascending: true })
                         .range(from, from + PAGE - 1);
                         
@@ -358,12 +454,12 @@
                 currentPage = 1;
                 
                 renderTable();
-                showToast(`โหลดข้อมูลสำเร็จ ${allSkuData.length} รายการ`);
+                showToast(`โหลด ${warehouse} สำเร็จ ${allSkuData.length} รายการ`);
                 
             } catch (err) {
                 console.error(err);
                 showToast(`โหลดข้อมูลล้มเหลว: ${err.message}`, 'error');
-                document.getElementById('tableBody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--danger); padding: 2rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 2rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
             } finally {
                 hideLoading();
             }
@@ -389,7 +485,7 @@
             const tbody = document.getElementById('tableBody');
             
             if (filteredData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">ไม่พบข้อมูล</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">ไม่พบข้อมูลในหมวดคลังนี้</td></tr>';
                 updatePagination();
                 return;
             }
@@ -405,6 +501,7 @@
                         <td style="color: var(--text-muted);">${start + index + 1}</td>
                         <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${item.sku_name}</td>
                         <td>${item.name_pro || '-'}</td>
+                        <td style="font-size: 0.9rem;">${item.warehouse || '-'}</td>
                         <td style="font-size: 0.85rem; color: var(--text-muted);">${date}</td>
                     </tr>
                 `;
@@ -467,9 +564,11 @@
                     h.toUpperCase().includes('DESC')
                 ));
                 
+                const warehouse = getSelectedWarehouse();
                 const formattedData = rows.map(row => ({
                     sku_name: String(row[skuKey] || '').trim(),
-                    name_pro: String(nameKey ? (row[nameKey] || '') : '').trim()
+                    name_pro: String(nameKey ? (row[nameKey] || '') : '').trim(),
+                    warehouse
                 })).filter(item => item.sku_name); // กรองแถวที่ไม่มี SKU ออก
                 
                 if (formattedData.length === 0) {
@@ -497,7 +596,8 @@
             const desc = document.getElementById('importModalDesc');
             const tbody = document.getElementById('previewTableBody');
 
-            desc.innerHTML = `พบข้อมูลทั้งหมด <strong>${data.length.toLocaleString()}</strong> รายการ (แสดงตัวอย่าง 5 รายการแรก)`;
+            const wh = getSelectedWarehouse();
+            desc.innerHTML = `นำเข้าหมวด <strong>${wh}</strong> — พบ <strong>${data.length.toLocaleString()}</strong> รายการ (แสดงตัวอย่าง 5 รายการแรก)`;
 
             const previewSlice = data.slice(0, 5);
             tbody.innerHTML = previewSlice.map((item, idx) => `
@@ -528,42 +628,129 @@
             }
         }
 
+        function normSkuKey(s) {
+            return (s || '').toString().trim().toUpperCase();
+        }
+
         async function uploadToSupabase(data) {
             if (!supabaseClient) return;
-            
+            const warehouse = getSelectedWarehouse();
+            if (!warehouse) {
+                showToast('กรุณาเลือกหมวดคลังก่อนนำเข้า', 'error');
+                return;
+            }
+
             showLoading(`กำลังบันทึกข้อมูล 0 / ${data.length}`);
             const progressFill = document.getElementById('progressFill');
-            
-            const CHUNK_SIZE = 500; // อัปโหลดทีละ 500 รายการ
-            let successCount = 0;
+
+            const CHUNK_SIZE = 500;
+            let insertCount = 0;
+            let updateCount = 0;
             let errorCount = 0;
-            
+            let ambiguousCount = 0;
+            const ambiguousSamples = [];
+
             try {
-                for (let i = 0; i < data.length; i += CHUNK_SIZE) {
-                    const chunk = data.slice(i, i + CHUNK_SIZE);
-                    
-                    // ใช้ upsert เพื่ออัปเดตกรณีมี SKU อยู่แล้ว
-                    const { error } = await supabaseClient
+                const skuNames = [...new Set(data.map(d => d.sku_name).filter(Boolean))];
+                /** @type {Map<string, Array<{id, sku_name, name_pro, warehouse}>>} */
+                const existingBySku = new Map();
+
+                for (let i = 0; i < skuNames.length; i += CHUNK_SIZE) {
+                    const nameChunk = skuNames.slice(i, i + CHUNK_SIZE);
+                    const { data: existing, error: lookupErr } = await supabaseClient
                         .from('sku_master')
-                        .upsert(chunk, { onConflict: 'sku_name' });
-                        
+                        .select('id, sku_name, name_pro, warehouse')
+                        .eq('warehouse', warehouse)
+                        .in('sku_name', nameChunk);
+                    if (lookupErr) throw lookupErr;
+                    (existing || []).forEach(row => {
+                        const key = normSkuKey(row.sku_name);
+                        if (!existingBySku.has(key)) existingBySku.set(key, []);
+                        existingBySku.get(key).push(row);
+                    });
+                }
+
+                const toInsert = [];
+                const toUpdate = [];
+
+                for (const row of data) {
+                    const key = normSkuKey(row.sku_name);
+                    if (!key) continue;
+                    const matches = existingBySku.get(key) || [];
+
+                    if (matches.length === 0) {
+                        toInsert.push({
+                            sku_name: row.sku_name,
+                            name_pro: row.name_pro,
+                            warehouse
+                        });
+                    } else if (matches.length === 1) {
+                        toUpdate.push({
+                            id: matches[0].id,
+                            name_pro: row.name_pro
+                        });
+                    } else {
+                        ambiguousCount += 1;
+                        if (ambiguousSamples.length < 8) {
+                            ambiguousSamples.push(`${row.sku_name} (${matches.length} แถว)`);
+                        }
+                    }
+                }
+
+                let done = 0;
+                const totalOps = toInsert.length + toUpdate.length;
+
+                for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+                    const chunk = toInsert.slice(i, i + CHUNK_SIZE);
+                    const { error } = await supabaseClient.from('sku_master').insert(chunk);
                     if (error) {
-                        console.error('Upload chunk error:', error);
+                        console.error('Insert chunk error:', error);
                         errorCount += chunk.length;
                     } else {
-                        successCount += chunk.length;
+                        insertCount += chunk.length;
                     }
-                    
-                    const progress = Math.round(((i + chunk.length) / data.length) * 100);
-                    progressFill.style.width = `${progress}%`;
-                    document.getElementById('loadingText').textContent = `กำลังบันทึกข้อมูล ${successCount + errorCount} / ${data.length}`;
+                    done += chunk.length;
+                    if (totalOps) {
+                        progressFill.style.width = `${Math.round((done / totalOps) * 100)}%`;
+                        document.getElementById('loadingText').textContent =
+                            `กำลังบันทึก ${done} / ${totalOps}`;
+                    }
                 }
-                
-                showToast(`นำเข้าสำเร็จ ${successCount} รายการ${errorCount > 0 ? ` (ผิดพลาด ${errorCount})` : ''}`, errorCount > 0 ? 'error' : 'success');
-                
-                // โหลดข้อมูลใหม่มาแสดง
+
+                for (let i = 0; i < toUpdate.length; i += 20) {
+                    const chunk = toUpdate.slice(i, i + 20);
+                    for (const item of chunk) {
+                        const { error } = await supabaseClient
+                            .from('sku_master')
+                            .update({ name_pro: item.name_pro })
+                            .eq('id', item.id)
+                            .eq('warehouse', warehouse);
+                        if (error) {
+                            console.error('Update error:', error);
+                            errorCount += 1;
+                        } else {
+                            updateCount += 1;
+                        }
+                    }
+                    done += chunk.length;
+                    if (totalOps) {
+                        progressFill.style.width = `${Math.round((done / totalOps) * 100)}%`;
+                        document.getElementById('loadingText').textContent =
+                            `กำลังบันทึก ${done} / ${totalOps}`;
+                    }
+                }
+
+                let msg = `นำเข้า ${warehouse}: เพิ่ม ${insertCount} · อัปเดต ${updateCount}`;
+                if (ambiguousCount > 0) {
+                    msg += ` · ข้าม ambiguous ${ambiguousCount}`;
+                    if (ambiguousSamples.length) {
+                        msg += ` (${ambiguousSamples.join(', ')}${ambiguousCount > ambiguousSamples.length ? '...' : ''})`;
+                    }
+                }
+                if (errorCount > 0) msg += ` · ผิดพลาด ${errorCount}`;
+                showToast(msg, errorCount > 0 || ambiguousCount > 0 ? 'error' : 'success');
+
                 await loadData();
-                
             } catch (err) {
                 console.error(err);
                 showToast(`ล้มเหลว: ${err.message}`, 'error');
@@ -580,9 +767,11 @@
                 return;
             }
             
+            const wh = getSelectedWarehouse();
             const exportData = allSkuData.map(item => ({
                 'sku_name': item.sku_name,
                 'name_pro': item.name_pro,
+                'warehouse': item.warehouse || wh,
                 'Created/Updated': item.created_at ? new Date(item.created_at).toLocaleString('th-TH') : ''
             }));
             
@@ -596,7 +785,8 @@
                 { wch: 20 }  // Date
             ];
             
-            XLSX.writeFile(wb, `SKU_Master_${new Date().toISOString().split('T')[0]}.xlsx`);
+            const safeWh = wh.replace(/[\\/:*?"<>|]+/g, '_');
+            XLSX.writeFile(wb, `SKU_Master_${safeWh}_${new Date().toISOString().split('T')[0]}.xlsx`);
             showToast('ดาวน์โหลดไฟล์ Excel สำเร็จ');
         }
 

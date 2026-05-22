@@ -198,6 +198,52 @@
             cursor: not-allowed;
         }
 
+        .btn-gs.btn-edit-loc.active-mode {
+            background: rgba(245, 158, 11, 0.18);
+            border-color: rgba(245, 158, 11, 0.55);
+            color: #fcd34d;
+        }
+
+        .btn-gs.btn-save-loc {
+            background: rgba(30, 201, 138, 0.14);
+            border-color: rgba(30, 201, 138, 0.45);
+            color: #6ee7b7;
+        }
+
+        .btn-gs.btn-save-loc:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        #auditSheet.edit-loc-mode .col-status,
+        #auditSheet.edit-loc-mode .col-note {
+            display: none;
+        }
+
+        #auditSheet.edit-loc-mode tr[data-record-id] .col-loc .gs-cell {
+            background: #fffef5;
+        }
+
+        #auditSheet.edit-loc-mode tr.loc-dirty .col-loc .gs-cell {
+            box-shadow: inset 0 0 0 2px #f59e0b;
+            background: #fffbeb;
+        }
+
+        .edit-loc-banner {
+            display: none;
+            margin: 0 0 0.75rem;
+            padding: 0.65rem 1rem;
+            border-radius: 10px;
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            background: rgba(245, 158, 11, 0.1);
+            color: #fcd34d;
+            font-size: 0.85rem;
+        }
+
+        .edit-loc-banner.active {
+            display: block;
+        }
+
         .gs-cell {
             width: 100%;
             height: 28px;
@@ -432,6 +478,297 @@
         tr.row-filtered-out {
             display: none;
         }
+
+        .audit-data-scope {
+            margin-bottom: 0.75rem;
+            border-color: rgba(79, 140, 255, 0.28);
+            background: linear-gradient(180deg, rgba(79, 140, 255, 0.08), rgba(79, 140, 255, 0.02));
+        }
+
+        .audit-data-scope select {
+            min-width: 160px;
+            cursor: pointer;
+            color-scheme: dark;
+        }
+
+        .audit-data-scope select option {
+            background: #121316;
+            color: var(--text);
+        }
+
+        .audit-data-scope input[type="checkbox"] {
+            width: 15px;
+            height: 15px;
+            accent-color: var(--primary);
+        }
+
+        .audit-scope-hint {
+            font-size: 0.78rem;
+            color: #93c5fd;
+            flex: 1 1 100%;
+        }
+
+        .btn-loc-compare {
+            border-color: rgba(168, 85, 247, 0.45);
+            color: #e9d5ff;
+        }
+        .btn-loc-compare:hover {
+            background: rgba(168, 85, 247, 0.15);
+        }
+
+        .loc-compare-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 12000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.62);
+            backdrop-filter: blur(4px);
+        }
+        .loc-compare-backdrop.open {
+            display: flex;
+        }
+
+        .loc-compare-dialog {
+            width: min(920px, 100%);
+            max-height: min(90vh, 820px);
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(165deg, #1a1d24 0%, #12141a 100%);
+            border: 1px solid rgba(168, 85, 247, 0.35);
+            border-radius: 16px;
+            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .loc-compare-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.25rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(168, 85, 247, 0.08);
+        }
+        .loc-compare-header h2 {
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin: 0 0 0.25rem;
+            color: #f3e8ff;
+        }
+        .loc-compare-header p {
+            margin: 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+        .loc-compare-close {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 8px;
+        }
+        .loc-compare-close:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .loc-compare-body {
+            padding: 1.25rem 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .loc-compare-setup {
+            display: grid;
+            gap: 1rem;
+        }
+        .loc-compare-templates {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            padding: 0.65rem 0.75rem;
+            border-radius: 10px;
+            border: 1px dashed rgba(168, 85, 247, 0.35);
+            background: rgba(168, 85, 247, 0.06);
+        }
+        .loc-compare-templates .template-label {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-right: 0.25rem;
+        }
+        .loc-compare-gsheet-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            text-decoration: none;
+            color: inherit;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 0.45rem 0.85rem;
+            font-size: 0.85rem;
+            background: rgba(34, 197, 94, 0.1);
+            border-color: rgba(34, 197, 94, 0.35);
+            color: #bbf7d0;
+        }
+        .loc-compare-gsheet-link:hover {
+            background: rgba(34, 197, 94, 0.18);
+        }
+        .btn-loc-template {
+            border-color: rgba(59, 130, 246, 0.45);
+            color: #bfdbfe;
+        }
+        .btn-loc-template:hover {
+            background: rgba(59, 130, 246, 0.15);
+        }
+        .loc-compare-file-zone {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .loc-compare-file-name {
+            font-size: 0.85rem;
+            color: #c4b5fd;
+            padding: 0.35rem 0.65rem;
+            background: rgba(168, 85, 247, 0.12);
+            border-radius: 8px;
+        }
+        .loc-compare-zone-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            align-items: center;
+        }
+        .loc-compare-zone-row label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .loc-compare-zone-row select {
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text);
+            min-width: 120px;
+        }
+
+        .loc-compare-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.65rem;
+            margin-bottom: 1rem;
+        }
+        .loc-compare-chip {
+            padding: 0.75rem 0.85rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+        }
+        .loc-compare-chip strong {
+            display: block;
+            font-size: 1.35rem;
+            font-family: 'Kanit', sans-serif;
+            line-height: 1.2;
+        }
+        .loc-compare-chip span {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        .loc-compare-chip.warn strong { color: #fbbf24; }
+        .loc-compare-chip.ok strong { color: #34d399; }
+        .loc-compare-chip.mute strong { color: #94a3b8; }
+        .loc-compare-chip.fix strong { color: #f472b6; }
+
+        .loc-compare-table-wrap {
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: auto;
+            max-height: 340px;
+        }
+        .loc-compare-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+        .loc-compare-table th {
+            position: sticky;
+            top: 0;
+            background: #252830;
+            text-align: left;
+            padding: 0.55rem 0.65rem;
+            font-weight: 500;
+            color: #e2e8f0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .loc-compare-table td {
+            padding: 0.5rem 0.65rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+        }
+        .loc-compare-table tr:hover td {
+            background: rgba(168, 85, 247, 0.06);
+        }
+        .loc-arrow {
+            color: #a78bfa;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .loc-old {
+            color: #f87171;
+            text-decoration: line-through;
+            opacity: 0.85;
+        }
+        .loc-new {
+            color: #4ade80;
+            font-weight: 500;
+        }
+
+        .loc-compare-note {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-top: 0.75rem;
+        }
+        .loc-compare-missing {
+            margin-top: 0.75rem;
+            font-size: 0.8rem;
+            color: #94a3b8;
+        }
+        .loc-compare-missing summary {
+            cursor: pointer;
+            color: #cbd5e1;
+        }
+
+        .loc-compare-footer {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            justify-content: flex-end;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(0, 0, 0, 0.2);
+        }
+        .loc-compare-confirm-banner {
+            display: none;
+            padding: 0.65rem 1rem;
+            margin-bottom: 0.75rem;
+            border-radius: 8px;
+            background: rgba(251, 191, 36, 0.12);
+            border: 1px solid rgba(251, 191, 36, 0.35);
+            color: #fde68a;
+            font-size: 0.85rem;
+        }
+        .loc-compare-confirm-banner.show {
+            display: block;
+        }
     </style>
 </head>
 <body class="has-sidebar">
@@ -466,7 +803,7 @@
                 <header class="dashboard-header">
                     <div class="header-content">
                         <h1 style="font-family: 'Kanit', sans-serif;">ตรวจสอบความถูกต้อง</h1>
-                        <p>เปรียบเทียบรหัสสินค้า + ตำแหน่ง + จำนวน กับข้อมูลใน inventory_counts</p>
+                        <p>เปรียบเทียบกับ inventory_counts — เลือกคลังและเดือนก่อนโหลดอ้างอิง (ไม่ดึงรอบเก่าปนเมื่อเริ่มเดือนใหม่)</p>
                     </div>
                     <div class="header-stats">
                         <div class="header-stats-actions">
@@ -498,9 +835,21 @@
                             <i data-lucide="upload" style="width:16px;height:16px"></i>
                             นำเข้า Excel
                         </button>
+                        <button type="button" class="btn-gs btn-loc-compare" id="btnImportLocCompare" title="นำเข้า Excel เทียบตำแหน่งกับ Supabase ตามโซน">
+                            <i data-lucide="file-diff" style="width:16px;height:16px"></i>
+                            Import เทียบตำแหน่ง
+                        </button>
                         <button type="button" class="btn-gs" id="btnExport">
                             <i data-lucide="file-spreadsheet" style="width:16px;height:16px"></i>
                             Export Excel
+                        </button>
+                        <button type="button" class="btn-gs btn-edit-loc" id="btnEditLocMode" title="เปิดโหมดแก้ไขตำแหน่งใน Supabase">
+                            <i data-lucide="map-pin" style="width:16px;height:16px"></i>
+                            โหมดแก้ไขตำแหน่ง
+                        </button>
+                        <button type="button" class="btn-gs btn-save-loc" id="btnSaveLocChanges" style="display:none;" disabled>
+                            <i data-lucide="save" style="width:16px;height:16px"></i>
+                            บันทึกตำแหน่ง (<span id="locDirtyCount">0</span>)
                         </button>
                         <button type="button" class="btn-gs" id="btnReloadRef">
                             <i data-lucide="refresh-cw" style="width:16px;height:16px"></i>
@@ -511,8 +860,34 @@
                             ใส่รายการลงตาราง
                         </button>
                         <input type="file" id="fileImport" accept=".xlsx,.xls,.csv">
+                        <input type="file" id="fileLocCompare" accept=".xlsx,.xls,.csv">
                     </div>
                     <span class="ref-badge" id="refBadge">ข้อมูลอ้างอิง: <strong>0</strong> รายการ</span>
+                </div>
+
+                <div class="audit-filter audit-data-scope">
+                    <label>
+                        <i data-lucide="warehouse" style="width:14px;height:14px"></i>
+                        คลัง (ข้อมูลอ้างอิง)
+                        <select id="auditFilterWarehouse">
+                            <option value="">ทุกคลัง</option>
+                            <option value="ตึกกันตนา">ตึกกันตนา</option>
+                            <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                            <option value="คลังอะไหล่">คลังอะไหล่</option>
+                        </select>
+                    </label>
+                    <label>
+                        <i data-lucide="calendar" style="width:14px;height:14px"></i>
+                        เดือนที่นับ
+                        <select id="auditFilterMonth" title="เลือกเดือนที่ต้องการตรวจสอบ">
+                            <option value="">กำลังโหลด...</option>
+                        </select>
+                    </label>
+                    <label style="cursor:pointer;">
+                        <input type="checkbox" id="auditFilterAllTime">
+                        ทุกช่วงเวลา (รวมรอบเก่า)
+                    </label>
+                    <span class="audit-scope-hint" id="auditScopeHint">แสดงเฉพาะเดือนที่มีข้อมูลการนับในระบบ — เปลี่ยนคลังแล้วรายการเดือนจะอัปเดต</span>
                 </div>
 
                 <div class="audit-stats">
@@ -553,10 +928,14 @@
                     <span class="filter-hint" id="filterHint">กรอกข้อมูลได้ตามปกติ · เลือกโซน/เรียงแล้วทำงานทันที</span>
                 </div>
 
+                <div class="edit-loc-banner" id="editLocBanner">
+                    <strong>โหมดแก้ไขตำแหน่ง</strong> — แก้เฉพาะแถวที่โหลดจากระบบ (มี ID) · ไม่แสดงสถานะ/หมายเหตุ · กด「บันทึกตำแหน่ง」แล้วยืนยัน 2 ครั้ง
+                </div>
+
                 <div class="gs-wrap">
                     <div class="gs-toolbar">
                         <span class="sheet-name">ตรวจสอบการนับ</span>
-                        <span>· กรอกรหัสสินค้า | ตำแหน่ง | จำนวน แล้วกด Tab หรือปุ่มตรวจสอบ</span>
+                        <span id="sheetToolbarHint">· กรอกรหัสสินค้า | ตำแหน่ง | จำนวน แล้วกด Tab หรือปุ่มตรวจสอบ</span>
                     </div>
                     <div class="gs-scroll">
                         <table class="gs-table" id="auditSheet">
@@ -590,6 +969,98 @@
         </main>
     </div>
 
+    <div class="loc-compare-backdrop" id="locCompareBackdrop" aria-hidden="true">
+        <div class="loc-compare-dialog" role="dialog" aria-labelledby="locCompareTitle" aria-modal="true">
+            <div class="loc-compare-header">
+                <div>
+                    <h2 id="locCompareTitle">Import เทียบตำแหน่ง</h2>
+                    <p id="locCompareSubtitle">คอลัมน์ A = SKU · B = ตำแหน่ง · แก้เฉพาะ SKU ที่มีในระบบแล้ว (ไม่สร้าง/ไม่ลบรหัส)</p>
+                </div>
+                <button type="button" class="loc-compare-close" id="btnLocCompareClose" title="ปิด">
+                    <i data-lucide="x" style="width:22px;height:22px"></i>
+                </button>
+            </div>
+            <div class="loc-compare-body">
+                <div id="locCompareSetup" class="loc-compare-setup">
+                    <p style="margin:0;font-size:0.88rem;color:var(--text-muted);">
+                        ใช้ขอบเขตคลัง/เดือนตามแถบด้านบน · เทียบแล้ว<strong>อัปเดตตำแหน่งเฉพาะ SKU ที่ตรงกันในระบบ</strong> · SKU ใน Excel ที่ไม่มีในโซน = ไม่สร้างเข้า DB (Export ดูอย่างเดียว)
+                    </p>
+                    <div class="loc-compare-templates">
+                        <span class="template-label">แบบฟอร์ม:</span>
+                        <button type="button" class="btn-gs btn-loc-template" id="btnLocCompareTemplate" title="ดาวน์โหลด Template Excel (คอลัมน์ A=SKU, B=ตำแหน่ง)">
+                            <i data-lucide="download" style="width:16px;height:16px"></i>
+                            โหลด Template
+                        </button>
+                        <a class="loc-compare-gsheet-link" id="linkLocCompareGSheet" href="https://docs.google.com/spreadsheets/d/1DcjeLv6HptIi9pxYx38roExI3bxsXmK1X0Di8mn55o8/edit?gid=748873286" target="_blank" rel="noopener noreferrer" title="เปิด Google Sheets กรอกข้อมูล แล้วดาวน์โหลดเป็น .xlsx มาอัปโหลด">
+                            <i data-lucide="sheet" style="width:16px;height:16px"></i>
+                            กรอกผ่าน Google Sheets
+                            <i data-lucide="external-link" style="width:14px;height:14px;opacity:0.7"></i>
+                        </a>
+                    </div>
+                    <div class="loc-compare-file-zone">
+                        <button type="button" class="btn-gs btn-loc-compare" id="btnLocComparePickFile">
+                            <i data-lucide="file-up" style="width:16px;height:16px"></i>
+                            เลือกไฟล์ Excel
+                        </button>
+                        <span class="loc-compare-file-name" id="locCompareFileLabel">ยังไม่ได้เลือกไฟล์</span>
+                    </div>
+                    <div class="loc-compare-zone-row">
+                        <label>
+                            <i data-lucide="layout-grid" style="width:14px;height:14px"></i>
+                            โซนตำแหน่ง
+                            <select id="locCompareZone">
+                                <option value="">เลือกโซน A–Z</option>
+                            </select>
+                        </label>
+                        <button type="button" class="btn-gs primary" id="btnLocCompareRun" disabled>
+                            <i data-lucide="git-compare" style="width:16px;height:16px"></i>
+                            เทียบข้อมูล
+                        </button>
+                    </div>
+                    <p class="loc-compare-note" id="locCompareScopeNote"></p>
+                </div>
+                <div id="locCompareResults" style="display:none;">
+                    <div class="loc-compare-confirm-banner" id="locCompareConfirmBanner"></div>
+                    <div class="loc-compare-summary" id="locCompareSummary"></div>
+                    <div class="loc-compare-table-wrap">
+                        <table class="loc-compare-table">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>SKU</th>
+                                    <th>ตำแหน่งในระบบ</th>
+                                    <th></th>
+                                    <th>ตำแหน่งใหม่ (Excel)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="locCompareTableBody"></tbody>
+                        </table>
+                    </div>
+                    <details class="loc-compare-missing" id="locCompareMissingBlock" style="display:none;" open>
+                        <summary id="locCompareMissingSummary"></summary>
+                        <ul id="locCompareMissingList" style="margin:0.5rem 0 0 1.1rem;padding:0;"></ul>
+                        <button type="button" class="btn-gs btn-loc-template" id="btnLocCompareExportSkipped" style="display:none;margin-top:0.65rem;">
+                            <i data-lucide="file-spreadsheet" style="width:16px;height:16px"></i>
+                            Export Excel รายการที่ไม่อัปเดต
+                        </button>
+                    </details>
+                </div>
+            </div>
+            <div class="loc-compare-footer">
+                <button type="button" class="btn-gs" id="btnLocCompareBack" style="display:none;">กลับไปเลือกไฟล์</button>
+                <button type="button" class="btn-gs btn-loc-template" id="btnLocCompareExportSkippedFooter" style="display:none;">
+                    <i data-lucide="file-spreadsheet" style="width:16px;height:16px"></i>
+                    Export รายการที่ไม่อัปเดต
+                </button>
+                <button type="button" class="btn-gs" id="btnLocCompareCancel">ปิด</button>
+                <button type="button" class="btn-gs primary" id="btnLocCompareApply" style="display:none;" disabled>
+                    <i data-lucide="check-check" style="width:16px;height:16px"></i>
+                    ยืนยันแก้ไข (1/2)
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast-container" id="toastContainer"></div>
 
     <div class="audit-loading-overlay" id="loadingOverlay" aria-hidden="true" role="alertdialog" aria-busy="true" aria-labelledby="loadingText">
@@ -610,6 +1081,9 @@
 
         let supabaseClient = null;
         let activeStatusFilter = null;
+        let editLocationMode = false;
+
+        const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
         /** @type {Map<string, { sku_id, location, counted_qty, warehouse, counter_name, record_count }>} */
         let refBySkuLoc = new Map();
         /** @type {Map<string, Array>} key = normalized sku */
@@ -624,8 +1098,24 @@
             return (s || '').toString().trim().toUpperCase();
         }
 
+        function refEntryKey(sku, loc, warehouse) {
+            return norm(sku) + '|' + norm(loc) + '|' + norm(warehouse || '');
+        }
+
         function skuLocKey(sku, loc) {
-            return norm(sku) + '|' + norm(loc);
+            return refEntryKey(sku, loc, getAuditFilters().warehouse);
+        }
+
+        function getScopedRefEntriesForSku(skuN) {
+            const list = refBySku.get(skuN) || [];
+            const wh = getAuditFilters().warehouse;
+            if (!wh) return list;
+            return list.filter(e => norm(e.warehouse) === norm(wh));
+        }
+
+        function isLooseAuditScope() {
+            const f = getAuditFilters();
+            return !f.warehouse || f.allTime;
         }
 
         /** แยกตำแหน่งเป็นส่วน ตัวอักษร/ตัวเลข สำหรับเรียง A1, A2, A10 */
@@ -669,6 +1159,12 @@
             const loc = tr.querySelector('[data-field="loc"]')?.value.trim() || '';
             const qty = tr.querySelector('[data-field="qty"]')?.value.trim() || '';
             return !!(sku || loc || qty);
+        }
+
+        function escapeHtml(s) {
+            const d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
         }
 
         function showToast(message, type = 'success') {
@@ -834,20 +1330,39 @@
             }
         }
 
-        /** ดึง inventory_counts ทุกแถว (หลายรอบ ละ 1000) */
-        async function fetchAllInventoryCounts(selectCols) {
+        function getCurrentYearMonthBangkok() {
+            return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
+        }
+
+        function formatMonthLabelThai(yearMonth) {
+            if (!yearMonth) return '-';
+            const [y, m] = yearMonth.split('-').map(Number);
+            const d = new Date(y, m - 1, 1);
+            const monthName = d.toLocaleDateString('th-TH', { month: 'long', timeZone: 'Asia/Bangkok' });
+            return `${monthName} ${y + 543}`;
+        }
+
+        function getThailandYearMonth(isoString) {
+            if (!isoString) return null;
+            const key = new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+            return key && key.length >= 7 ? key.slice(0, 7) : null;
+        }
+
+        /** ดึงเฉพาะเดือนที่มีข้อมูลการนับจริง */
+        async function fetchAvailableMonths(warehouse) {
             let allRows = [];
             let from = 0;
             const PAGE = 1000;
-            let rounds = 0;
 
             while (true) {
-                rounds += 1;
-                const { data, error } = await supabaseClient
+                let query = supabaseClient
                     .from('inventory_counts')
-                    .select(selectCols)
-                    .order('created_at', { ascending: false })
-                    .range(from, from + PAGE - 1);
+                    .select('created_at')
+                    .order('created_at', { ascending: false });
+
+                if (warehouse) query = query.eq('warehouse', warehouse);
+
+                const { data, error } = await query.range(from, from + PAGE - 1);
                 if (error) throw error;
                 const batch = data || [];
                 allRows = allRows.concat(batch);
@@ -855,7 +1370,168 @@
                 from += PAGE;
             }
 
-            return { rows: allRows, rounds };
+            const months = new Set();
+            allRows.forEach(row => {
+                const ym = getThailandYearMonth(row.created_at);
+                if (ym) months.add(ym);
+            });
+            return [...months].sort().reverse();
+        }
+
+        async function refreshAuditMonthSelect(preferredMonth) {
+            const monthEl = document.getElementById('auditFilterMonth');
+            const warehouseEl = document.getElementById('auditFilterWarehouse');
+            const allTimeEl = document.getElementById('auditFilterAllTime');
+            if (!monthEl) return;
+
+            if (allTimeEl && allTimeEl.checked) {
+                monthEl.innerHTML = '<option value="">ทุกช่วงเวลา</option>';
+                monthEl.disabled = true;
+                return;
+            }
+
+            if (!supabaseClient) {
+                monthEl.innerHTML = '<option value="">ยังไม่ได้เชื่อมต่อ</option>';
+                monthEl.disabled = true;
+                return;
+            }
+
+            const warehouse = warehouseEl ? warehouseEl.value.trim() : '';
+            let months = [];
+            try {
+                months = await fetchAvailableMonths(warehouse);
+            } catch (err) {
+                console.error(err);
+                monthEl.innerHTML = '<option value="">โหลดเดือนไม่สำเร็จ</option>';
+                monthEl.disabled = true;
+                return;
+            }
+
+            if (!months.length) {
+                const whLabel = warehouse || 'ทุกคลัง';
+                monthEl.innerHTML = `<option value="">ไม่มีข้อมูลการนับ (${whLabel})</option>`;
+                monthEl.disabled = true;
+                return;
+            }
+
+            monthEl.disabled = false;
+            monthEl.innerHTML = months.map(m =>
+                `<option value="${m}">${formatMonthLabelThai(m)}</option>`
+            ).join('');
+
+            const saved = preferredMonth || localStorage.getItem('audit_check_year_month') || '';
+            monthEl.value = months.includes(saved) ? saved : months[0];
+            if (monthEl.value) localStorage.setItem('audit_check_year_month', monthEl.value);
+        }
+
+        function getAuditFilters() {
+            const warehouseEl = document.getElementById('auditFilterWarehouse');
+            const monthEl = document.getElementById('auditFilterMonth');
+            const allTimeEl = document.getElementById('auditFilterAllTime');
+            const warehouse = warehouseEl ? warehouseEl.value.trim() : '';
+            const allTime = allTimeEl ? allTimeEl.checked : false;
+            const yearMonth = (!allTime && monthEl) ? monthEl.value : '';
+            return { warehouse, yearMonth, allTime };
+        }
+
+        function getMonthBoundsIso(yearMonth) {
+            if (!yearMonth) return { start: null, end: null };
+            const [y, m] = yearMonth.split('-').map(Number);
+            const lastDay = new Date(y, m, 0).getDate();
+            const pad = n => String(n).padStart(2, '0');
+            return {
+                start: `${yearMonth}-01T00:00:00+07:00`,
+                end: `${yearMonth}-${pad(lastDay)}T23:59:59.999+07:00`
+            };
+        }
+
+        function formatAuditScopeLabel(filters) {
+            const wh = filters.warehouse || 'ทุกคลัง';
+            const period = filters.allTime
+                ? 'ทุกช่วงเวลา'
+                : (filters.yearMonth ? filters.yearMonth : 'ไม่ระบุเดือน');
+            return `${wh} · ${period}`;
+        }
+
+        function updateAuditScopeHint() {
+            const hint = document.getElementById('auditScopeHint');
+            if (!hint) return;
+            const f = getAuditFilters();
+            const parts = [];
+            if (!f.warehouse) parts.push('เลือกคลังเพื่อความแม่นยำ');
+            if (f.allTime) parts.push('ทุกช่วงเวลา — อาจรวมรอบเก่า');
+            if (parts.length) {
+                hint.textContent = `⚠ ${parts.join(' · ')} — bulk แก้ตำแหน่ง/Import เทียบควรระบุคลังและเดือน`;
+                hint.style.color = '#fbbf24';
+            } else {
+                hint.textContent = `ใช้เฉพาะ ${formatAuditScopeLabel(f)} — เปลี่ยนเดือนแล้วระบบโหลดอ้างอิงใหม่อัตโนมัติ`;
+                hint.style.color = '#93c5fd';
+            }
+        }
+
+        function saveAuditFilters() {
+            const f = getAuditFilters();
+            localStorage.setItem('audit_check_warehouse', f.warehouse);
+            localStorage.setItem('audit_check_all_time', f.allTime ? '1' : '0');
+            if (f.yearMonth) localStorage.setItem('audit_check_year_month', f.yearMonth);
+            updateAuditScopeHint();
+        }
+
+        function initAuditFilters() {
+            const warehouseEl = document.getElementById('auditFilterWarehouse');
+            const monthEl = document.getElementById('auditFilterMonth');
+            const allTimeEl = document.getElementById('auditFilterAllTime');
+            if (!warehouseEl || !monthEl || !allTimeEl) return;
+
+            const savedWh = localStorage.getItem('audit_check_warehouse') || '';
+            const savedMonth = localStorage.getItem('audit_check_year_month') || '';
+            const allTime = localStorage.getItem('audit_check_all_time') === '1';
+
+            if (STANDARD_WAREHOUSES.includes(savedWh)) {
+                warehouseEl.value = savedWh;
+            } else if (savedWh === '') {
+                warehouseEl.value = 'ตึกกันตนา';
+                localStorage.setItem('audit_check_warehouse', 'ตึกกันตนา');
+            } else {
+                warehouseEl.value = savedWh;
+            }
+            allTimeEl.checked = allTime;
+            monthEl.innerHTML = '<option value="">กำลังโหลดเดือน...</option>';
+            monthEl.disabled = true;
+
+            updateAuditScopeHint();
+        }
+
+        /** ดึง inventory_counts ตามตัวกรองคลัง/เดือน (หลายรอบ ละ 1000) */
+        async function fetchAllInventoryCounts(selectCols, filters) {
+            const f = filters || getAuditFilters();
+            const bounds = getMonthBoundsIso(f.yearMonth);
+            let allRows = [];
+            let from = 0;
+            const PAGE = 1000;
+            let rounds = 0;
+
+            while (true) {
+                rounds += 1;
+                let query = supabaseClient
+                    .from('inventory_counts')
+                    .select(selectCols)
+                    .order('created_at', { ascending: false });
+
+                if (f.warehouse) query = query.eq('warehouse', f.warehouse);
+                if (bounds.start && bounds.end) {
+                    query = query.gte('created_at', bounds.start).lte('created_at', bounds.end);
+                }
+
+                const { data, error } = await query.range(from, from + PAGE - 1);
+                if (error) throw error;
+                const batch = data || [];
+                allRows = allRows.concat(batch);
+                if (batch.length < PAGE) break;
+                from += PAGE;
+            }
+
+            return { rows: allRows, rounds, filters: f };
         }
 
         function collectZonesFromTable() {
@@ -1083,24 +1759,35 @@
         }
 
         function mergeRefEntry(map, sku, loc, row) {
-            const key = skuLocKey(sku, loc);
+            const key = refEntryKey(sku, loc, row.warehouse);
             const qty = Number(row.counted_qty) || 0;
+            const created = row.created_at || '';
+            const rowId = row.id != null ? String(row.id) : null;
             const existing = map.get(key);
 
-            if (existing) {
-                existing.counted_qty += qty;
-                existing.record_count += 1;
+            if (!existing) {
+                map.set(key, {
+                    sku_id: row.sku_id,
+                    location: row.location,
+                    counted_qty: qty,
+                    warehouse: row.warehouse || '',
+                    counter_name: row.counter_name || '',
+                    record_count: 1,
+                    record_ids: rowId ? [rowId] : [],
+                    duplicate: false,
+                    created_at: created
+                });
                 return;
             }
 
-            map.set(key, {
-                sku_id: row.sku_id,
-                location: row.location,
-                counted_qty: qty,
-                warehouse: row.warehouse || '',
-                counter_name: row.counter_name || '',
-                record_count: 1
-            });
+            existing.record_count += 1;
+            existing.duplicate = true;
+            if (rowId) existing.record_ids.push(rowId);
+            if (created && (!existing.created_at || created > existing.created_at)) {
+                existing.counted_qty = qty;
+                existing.counter_name = row.counter_name || existing.counter_name;
+                existing.created_at = created;
+            }
         }
 
         function rebuildRefBySku() {
@@ -1114,13 +1801,15 @@
 
         async function loadReferenceData() {
             if (!supabaseClient) return;
-            setLoading(true, 'กำลังโหลดข้อมูลอ้างอิง...', 'ดึงจาก Supabase');
+            const filters = getAuditFilters();
+            setLoading(true, 'กำลังโหลดข้อมูลอ้างอิง...', formatAuditScopeLabel(filters));
             refBySkuLoc.clear();
             refBySku.clear();
 
             try {
                 const { rows: allRows, rounds } = await fetchAllInventoryCounts(
-                    'sku_id, location, counted_qty, warehouse, counter_name'
+                    'id, sku_id, location, counted_qty, warehouse, counter_name, created_at',
+                    filters
                 );
 
                 setLoadingMessage('กำลังประมวลผลข้อมูลอ้างอิง...', `${allRows.length.toLocaleString()} แถว (${rounds} รอบ)`);
@@ -1135,9 +1824,10 @@
                 rebuildRefBySku();
 
                 const totalRows = allRows.length;
+                const scope = formatAuditScopeLabel(filters);
                 document.getElementById('refBadge').innerHTML =
-                    `ข้อมูลอ้างอิง: <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ SKU+ตำแหน่ง จาก <strong>${totalRows.toLocaleString()}</strong> แถว (${rounds} รอบ)`;
-                showToast(`โหลดอ้างอิง ${totalRows.toLocaleString()} แถว (${rounds} รอบ)`);
+                    `อ้างอิง <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ · <strong>${totalRows.toLocaleString()}</strong> แถว · <span style="color:#93c5fd">${scope}</span>`;
+                showToast(`โหลดอ้างอิง ${totalRows.toLocaleString()} แถว · ${scope}`);
             } catch (err) {
                 console.error(err);
                 showToast(`โหลดข้อมูลอ้างอิงล้มเหลว: ${err.message}`, 'error');
@@ -1152,7 +1842,9 @@
             ];
             if (entry.warehouse) parts.push(entry.warehouse);
             if (entry.counter_name) parts.push(`ผู้นับ: ${entry.counter_name}`);
-            if (entry.record_count > 1) parts.push(`รวม ${entry.record_count} บันทึก`);
+            if (entry.duplicate || entry.record_count > 1) {
+                parts.push(`ข้อมูลซ้ำ ${entry.record_count} แถว — ต้องลบ/รวมใน DB ก่อนตรวจ`);
+            }
             return parts.join(' · ');
         }
 
@@ -1179,7 +1871,7 @@
         }
 
         function buildSuggestions(sku, inputLoc, inputQty) {
-            const list = refBySku.get(norm(sku)) || [];
+            const list = getScopedRefEntriesForSku(norm(sku));
             if (!list.length) return [];
 
             const scored = list.map(entry => {
@@ -1222,9 +1914,36 @@
                 };
             }
 
-            const exact = refBySkuLoc.get(skuLocKey(skuN, locN));
+            const filters = getAuditFilters();
+            let exact = null;
+            if (filters.warehouse) {
+                exact = refBySkuLoc.get(refEntryKey(skuN, locN, filters.warehouse));
+            } else {
+                const matches = [];
+                const keyPrefix = skuN + '|' + locN + '|';
+                for (const [k, entry] of refBySkuLoc) {
+                    if (k.startsWith(keyPrefix)) matches.push(entry);
+                }
+                if (matches.length === 1) {
+                    exact = matches[0];
+                } else if (matches.length > 1) {
+                    exact = {
+                        ...matches[0],
+                        duplicate: true,
+                        record_count: matches.reduce((s, e) => s + (e.record_count || 1), 0)
+                    };
+                }
+            }
 
             if (exact) {
+                if (exact.duplicate || exact.record_count > 1) {
+                    return {
+                        status: 'error',
+                        message: 'ข้อมูลซ้ำในระบบ',
+                        note: `มี ${exact.record_count} แถวใน inventory_counts สำหรับ SKU+ตำแหน่งนี้ — ต้องลบ/รวมใน DB ก่อนตรวจ · ${formatRefNote(exact)}`,
+                        rowClass: 'row-error'
+                    };
+                }
                 const expected = Number(exact.counted_qty);
                 if (expected === qty) {
                     return {
@@ -1242,7 +1961,7 @@
                 };
             }
 
-            const skuEntries = refBySku.get(skuN);
+            const skuEntries = getScopedRefEntriesForSku(skuN);
             if (!skuEntries || !skuEntries.length) {
                 return {
                     status: 'error',
@@ -1301,6 +2020,7 @@
         }
 
         function verifyRowElement(tr) {
+            if (editLocationMode) return { status: 'empty', message: '', note: '', rowClass: '' };
             const sku = tr.querySelector('[data-field="sku"]').value;
             const loc = tr.querySelector('[data-field="loc"]').value;
             const qty = tr.querySelector('[data-field="qty"]').value;
@@ -1330,6 +2050,10 @@
         }
 
         async function verifyAll() {
+            if (editLocationMode) {
+                showToast('ปิดโหมดแก้ไขตำแหน่งก่อนตรวจสอบ', 'error');
+                return;
+            }
             if (!refBySkuLoc.size) {
                 showToast('ยังไม่มีข้อมูลอ้างอิง — ตรวจสอบการเชื่อมต่อ Supabase', 'error');
                 return;
@@ -1479,6 +2203,194 @@
             }
         }
 
+        function clearRowAuditUI(tr) {
+            tr.classList.remove('row-ok', 'row-warn', 'row-error', 'loc-dirty');
+            const statusTd = tr.querySelector('.col-status');
+            const noteTd = tr.querySelector('.col-note');
+            if (statusTd) {
+                statusTd.className = 'col-status status-cell status-empty';
+                statusTd.textContent = '';
+            }
+            if (noteTd) {
+                noteTd.className = 'col-note note-cell';
+                noteTd.innerHTML = '';
+            }
+        }
+
+        function syncRowEditLocState(tr) {
+            const skuInput = tr.querySelector('[data-field="sku"]');
+            const locInput = tr.querySelector('[data-field="loc"]');
+            const qtyInput = tr.querySelector('[data-field="qty"]');
+            if (!skuInput || !locInput || !qtyInput) return;
+
+            if (editLocationMode && tr.dataset.recordId) {
+                if (!tr.dataset.originalLoc) {
+                    tr.dataset.originalLoc = locInput.value.trim();
+                }
+                skuInput.readOnly = true;
+                qtyInput.readOnly = true;
+                locInput.readOnly = false;
+                markLocDirty(tr);
+                return;
+            }
+
+            skuInput.readOnly = false;
+            qtyInput.readOnly = false;
+            locInput.readOnly = false;
+            tr.classList.remove('loc-dirty');
+        }
+
+        function markLocDirty(tr) {
+            if (!editLocationMode || !tr.dataset.recordId) return;
+            const locInput = tr.querySelector('[data-field="loc"]');
+            const current = locInput ? locInput.value.trim() : '';
+            const original = tr.dataset.originalLoc || '';
+            const dirty = current && norm(current) !== norm(original);
+            tr.classList.toggle('loc-dirty', dirty);
+            updateLocDirtyUI();
+        }
+
+        function updateLocDirtyUI() {
+            const dirtyRows = getDirtyLocationRows();
+            const countEl = document.getElementById('locDirtyCount');
+            const saveBtn = document.getElementById('btnSaveLocChanges');
+            if (countEl) countEl.textContent = String(dirtyRows.length);
+            if (saveBtn) saveBtn.disabled = dirtyRows.length === 0;
+        }
+
+        function getDirtyLocationRows() {
+            return Array.from(sheetBody.querySelectorAll('tr')).filter(tr => {
+                if (!tr.dataset.recordId) return false;
+                const locInput = tr.querySelector('[data-field="loc"]');
+                const current = locInput ? locInput.value.trim() : '';
+                const original = tr.dataset.originalLoc || '';
+                return current && norm(current) !== norm(original);
+            });
+        }
+
+        function applyEditLocationModeToAllRows() {
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (editLocationMode) {
+                    clearRowAuditUI(tr);
+                    syncRowEditLocState(tr);
+                } else {
+                    syncRowEditLocState(tr);
+                }
+            });
+            updateLocDirtyUI();
+        }
+
+        function setEditLocationMode(enabled) {
+            if (enabled && isLooseAuditScope()) {
+                const ok = confirm(
+                    'ขอบเขตข้อมูลกว้าง (ทุกคลัง หรือทุกช่วงเวลา)\n\nแนะนำเลือกคลังและเดือนก่อนแก้ตำแหน่ง\n\nเปิดโหมดแก้ไขต่อหรือไม่?'
+                );
+                if (!ok) return;
+            }
+            editLocationMode = !!enabled;
+            const table = document.getElementById('auditSheet');
+            const btnMode = document.getElementById('btnEditLocMode');
+            const btnSave = document.getElementById('btnSaveLocChanges');
+            const btnVerify = document.getElementById('btnVerifyAll');
+            const banner = document.getElementById('editLocBanner');
+            const hint = document.getElementById('sheetToolbarHint');
+
+            if (table) table.classList.toggle('edit-loc-mode', editLocationMode);
+            if (btnMode) btnMode.classList.toggle('active-mode', editLocationMode);
+            if (btnSave) btnSave.style.display = editLocationMode ? '' : 'none';
+            if (banner) banner.classList.toggle('active', editLocationMode);
+            if (btnVerify) btnVerify.disabled = editLocationMode;
+
+            if (hint) {
+                hint.textContent = editLocationMode
+                    ? '· แก้ตำแหน่งในแถวที่โหลดจากระบบ · SKU/จำนวนล็อก · กดบันทึกแล้วยืนยัน 2 ครั้ง'
+                    : '· กรอกรหัสสินค้า | ตำแหน่ง | จำนวน แล้วกด Tab หรือปุ่มตรวจสอบ';
+            }
+
+            applyEditLocationModeToAllRows();
+
+            if (!editLocationMode) {
+                const rows = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
+                rows.forEach(tr => verifyRowElement(tr));
+                updateStats();
+                applyTableView();
+            }
+        }
+
+        async function saveLocationChanges() {
+            const dirtyRows = getDirtyLocationRows();
+            if (!dirtyRows.length) {
+                showToast('ไม่มีตำแหน่งที่เปลี่ยนแปลง', 'error');
+                return;
+            }
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+
+            const lines = dirtyRows.slice(0, 10).map(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim() || '-';
+                const oldLoc = tr.dataset.originalLoc || '-';
+                const newLoc = tr.querySelector('[data-field="loc"]').value.trim() || '-';
+                return `• ${sku}: ${oldLoc} → ${newLoc}`;
+            });
+            const more = dirtyRows.length > 10 ? `\n... และอีก ${dirtyRows.length - 10} รายการ` : '';
+
+            const msg1 = `ยืนยันครั้งที่ 1\n\nบันทึกตำแหน่งใหม่ ${dirtyRows.length} รายการใน Supabase?\n\n${lines.join('\n')}${more}`;
+            if (!confirm(msg1)) return;
+
+            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nอัปเดต inventory_counts ${dirtyRows.length} แถว\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
+            if (!confirm(msg2)) return;
+
+            const btnSave = document.getElementById('btnSaveLocChanges');
+            if (btnSave) btnSave.disabled = true;
+            setLoading(true, 'กำลังบันทึกตำแหน่ง...', `0 / ${dirtyRows.length}`);
+
+            let ok = 0;
+            let fail = 0;
+
+            try {
+                for (let i = 0; i < dirtyRows.length; i++) {
+                    const tr = dirtyRows[i];
+                    const newLoc = tr.querySelector('[data-field="loc"]').value.trim();
+                    const id = tr.dataset.recordId;
+
+                    const { error } = await supabaseClient
+                        .from('inventory_counts')
+                        .update({ location: newLoc })
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error(error);
+                        fail += 1;
+                    } else {
+                        tr.dataset.originalLoc = newLoc;
+                        tr.classList.remove('loc-dirty');
+                        ok += 1;
+                    }
+
+                    setLoadingProgress(i + 1, dirtyRows.length, 'กำลังบันทึกตำแหน่ง...');
+                    if ((i + 1) % 20 === 0) await yieldToBrowser();
+                }
+
+                await loadReferenceData();
+
+                showToast(
+                    `บันทึกสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
+                    fail > 0 ? 'error' : 'success'
+                );
+            } catch (err) {
+                console.error(err);
+                showToast(`บันทึกล้มเหลว: ${err.message}`, 'error');
+                await loadReferenceData();
+            } finally {
+                setLoading(false);
+                updateLocDirtyUI();
+                refreshLocationFilterOptions();
+                applyTableView();
+            }
+        }
+
         function createRow(rowNum) {
             const tr = document.createElement('tr');
             tr.innerHTML = `
@@ -1494,6 +2406,11 @@
             const rowCb = tr.querySelector('.row-select-cb');
             if (rowCb) rowCb.addEventListener('change', updateSelectionUI);
 
+            const locInput = tr.querySelector('[data-field="loc"]');
+            if (locInput) {
+                locInput.addEventListener('input', () => markLocDirty(tr));
+            }
+
             const inputs = tr.querySelectorAll('.gs-cell');
             inputs.forEach((input, idx) => {
                 input.addEventListener('keydown', (e) => {
@@ -1503,10 +2420,14 @@
                     if (e.key === 'Enter') {
                         const next = inputs[idx + 1] || tr.nextElementSibling?.querySelector('[data-field="sku"]');
                         if (next) { next.focus(); next.select?.(); }
-                        else if (idx === inputs.length - 1) verifyRowElement(tr);
+                        else if (idx === inputs.length - 1 && !editLocationMode) verifyRowElement(tr);
                     }
                 });
                 input.addEventListener('blur', () => {
+                    if (editLocationMode) {
+                        markLocDirty(tr);
+                        return;
+                    }
                     const sku = tr.querySelector('[data-field="sku"]').value.trim();
                     const loc = tr.querySelector('[data-field="loc"]').value.trim();
                     const qty = tr.querySelector('[data-field="qty"]').value.trim();
@@ -1517,6 +2438,7 @@
                 });
             });
 
+            syncRowEditLocState(tr);
             return tr;
         }
 
@@ -1555,23 +2477,55 @@
             items.forEach((item, i) => {
                 const tr = sheetBody.children[i];
                 if (!tr) return;
-                if (item.id) tr.dataset.recordId = String(item.id);
-                else tr.removeAttribute('data-record-id');
+                if (item.id) {
+                    tr.dataset.recordId = String(item.id);
+                    tr.dataset.originalLoc = item.loc || '';
+                } else {
+                    tr.removeAttribute('data-record-id');
+                    tr.removeAttribute('data-original-loc');
+                }
                 tr.querySelector('[data-field="sku"]').value = item.sku || '';
                 tr.querySelector('[data-field="loc"]').value = item.loc || '';
                 tr.querySelector('[data-field="qty"]').value = item.qty ?? '';
+                syncRowEditLocState(tr);
                 trList.push(tr);
             });
 
+            for (let i = items.length; i < sheetBody.children.length; i++) {
+                const tr = sheetBody.children[i];
+                if (!tr) continue;
+                tr.removeAttribute('data-record-id');
+                tr.removeAttribute('data-original-loc');
+                tr.classList.remove('loc-dirty', 'row-ok', 'row-warn', 'row-error');
+                const skuIn = tr.querySelector('[data-field="sku"]');
+                const locIn = tr.querySelector('[data-field="loc"]');
+                const qtyIn = tr.querySelector('[data-field="qty"]');
+                if (skuIn) skuIn.value = '';
+                if (locIn) locIn.value = '';
+                if (qtyIn) qtyIn.value = '';
+                clearRowAuditUI(tr);
+                syncRowEditLocState(tr);
+            }
+
             renumberRows();
-            setLoadingMessage('กำลังตรวจสอบรายการ...', `0 / ${trList.length.toLocaleString()} แถว`);
-            await verifyRowsInBatches(trList);
+            if (editLocationMode) {
+                trList.forEach(tr => clearRowAuditUI(tr));
+                updateLocDirtyUI();
+            } else {
+                setLoadingMessage('กำลังตรวจสอบรายการ...', `0 / ${trList.length.toLocaleString()} แถว`);
+                await verifyRowsInBatches(trList);
+            }
             refreshLocationFilterOptions();
             applyTableView();
             updateStats();
         }
 
         document.getElementById('btnVerifyAll').addEventListener('click', () => verifyAll());
+        document.getElementById('btnEditLocMode').addEventListener('click', () => {
+            setEditLocationMode(!editLocationMode);
+            showToast(editLocationMode ? 'เปิดโหมดแก้ไขตำแหน่ง' : 'ปิดโหมดแก้ไขตำแหน่ง — กลับโหมดตรวจสอบ');
+        });
+        document.getElementById('btnSaveLocChanges').addEventListener('click', saveLocationChanges);
         document.getElementById('btnAddRows').addEventListener('click', () => {
             addRows();
             renumberRows();
@@ -1587,6 +2541,611 @@
                 if (cb) cb.checked = checked;
             });
             updateSelectionUI();
+        });
+
+        const LOC_COMPARE_TEMPLATE_URL =
+            'https://nfhfuybqhskzlllkgmyi.supabase.co/storage/v1/object/public/Template_AuditNew/TemplateMATH.xlsx';
+        const LOC_COMPARE_TEMPLATE_FILENAME = 'TemplateMATH.xlsx';
+
+        async function downloadLocCompareTemplate() {
+            setLoading(true, 'กำลังดาวน์โหลด Template...', LOC_COMPARE_TEMPLATE_FILENAME);
+            try {
+                const res = await fetch(LOC_COMPARE_TEMPLATE_URL);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = LOC_COMPARE_TEMPLATE_FILENAME;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                showToast('ดาวน์โหลด Template แล้ว — กรอกคอลัมน์ A (SKU) และ B (ตำแหน่ง)');
+            } catch (err) {
+                console.warn(err);
+                window.open(LOC_COMPARE_TEMPLATE_URL, '_blank', 'noopener,noreferrer');
+                showToast('เปิด Template ในแท็บใหม่ — กด Save หรือดาวน์โหลดจากเบราว์เซอร์', 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        /** @type {{ excelRows: Array<{sku:string,loc:string}>, fileName: string, zone: string, mismatches: Array, matchedOk: number, notInSystem: Array }} */
+        let locCompareState = {
+            excelRows: [],
+            fileName: '',
+            zone: '',
+            mismatches: [],
+            matchedOk: 0,
+            notInSystem: [],
+            dbAmbiguous: []
+        };
+        let locCompareConfirmStep = 0;
+
+        function populateLocCompareZones() {
+            const sel = document.getElementById('locCompareZone');
+            if (!sel) return;
+            const cur = sel.value;
+            sel.innerHTML = '<option value="">เลือกโซน A–Z</option>';
+            for (let i = 0; i < 26; i++) {
+                const z = String.fromCharCode(65 + i);
+                const opt = document.createElement('option');
+                opt.value = z;
+                opt.textContent = `โซน ${z}`;
+                sel.appendChild(opt);
+            }
+            if (cur && cur.length === 1) sel.value = cur;
+        }
+
+        function updateLocCompareRunButton() {
+            const btn = document.getElementById('btnLocCompareRun');
+            if (!btn) return;
+            const zone = document.getElementById('locCompareZone')?.value || '';
+            btn.disabled = !locCompareState.excelRows.length || !zone || !supabaseClient;
+        }
+
+        function openLocCompareModal() {
+            const backdrop = document.getElementById('locCompareBackdrop');
+            if (!backdrop) return;
+            locCompareConfirmStep = 0;
+            resetLocCompareResultsView();
+            document.getElementById('locCompareSetup').style.display = '';
+            document.getElementById('locCompareResults').style.display = 'none';
+            document.getElementById('btnLocCompareBack').style.display = 'none';
+            document.getElementById('btnLocCompareApply').style.display = 'none';
+            document.getElementById('btnLocCompareApply').disabled = true;
+            document.getElementById('btnLocCompareApply').innerHTML =
+                '<i data-lucide="check-check" style="width:16px;height:16px"></i> ยืนยันแก้ไข (1/2)';
+            const scopeNote = document.getElementById('locCompareScopeNote');
+            if (scopeNote) {
+                scopeNote.textContent = supabaseClient
+                    ? `ขอบเขต: ${formatAuditScopeLabel(getAuditFilters())}`
+                    : 'ยังไม่ได้เชื่อมต่อ Supabase — ตั้งค่าในหน้าตั้งค่าก่อน';
+            }
+            backdrop.classList.add('open');
+            backdrop.setAttribute('aria-hidden', 'false');
+            lucide.createIcons();
+            updateLocCompareRunButton();
+        }
+
+        function closeLocCompareModal() {
+            const backdrop = document.getElementById('locCompareBackdrop');
+            if (!backdrop) return;
+            backdrop.classList.remove('open');
+            backdrop.setAttribute('aria-hidden', 'true');
+            locCompareConfirmStep = 0;
+        }
+
+        function resetLocCompareResultsView() {
+            const banner = document.getElementById('locCompareConfirmBanner');
+            if (banner) {
+                banner.classList.remove('show');
+                banner.textContent = '';
+            }
+            locCompareState.mismatches = [];
+            locCompareState.matchedOk = 0;
+            locCompareState.notInSystem = [];
+            locCompareState.dbAmbiguous = [];
+            const exportBtn = document.getElementById('btnLocCompareExportSkipped');
+            const exportFooterBtn = document.getElementById('btnLocCompareExportSkippedFooter');
+            if (exportBtn) exportBtn.style.display = 'none';
+            if (exportFooterBtn) exportFooterBtn.style.display = 'none';
+        }
+
+        function parseExcelSkuLocRows(rows) {
+            const items = [];
+            for (const row of rows) {
+                const sku = (row[0] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
+                const loc = (row[1] ?? row['location'] ?? row['ตำแหน่ง'] ?? '').toString().trim();
+                if (!sku && !loc) continue;
+                if (/^(sku|รหัส|#|คอลัมน์)/i.test(sku)) continue;
+                items.push({ sku, loc });
+            }
+            return items;
+        }
+
+        function buildExcelSkuMap(excelRows) {
+            const map = new Map();
+            const conflicts = [];
+            excelRows.forEach(r => {
+                const sku = norm(r.sku);
+                if (!sku) return;
+                const loc = (r.loc || '').trim();
+                if (map.has(sku)) {
+                    const prev = map.get(sku);
+                    if (norm(prev) !== norm(loc)) {
+                        conflicts.push({ sku, locs: [prev, loc] });
+                    }
+                }
+                map.set(sku, loc);
+            });
+            return { map, conflicts };
+        }
+
+        function buildLocComparePlan(dbRows, zone, excelBySku) {
+            const mismatches = [];
+            let matchedOk = 0;
+            const skusInZoneDb = new Set();
+            const dbAmbiguous = [];
+            const filters = getAuditFilters();
+            const scopeWh = filters.warehouse ? norm(filters.warehouse) : '';
+
+            const bySkuInZone = new Map();
+            dbRows.forEach(rec => {
+                const loc = (rec.location || '').trim();
+                if (getLocationZone(loc) !== zone) return;
+                if (scopeWh && norm(rec.warehouse) !== scopeWh) return;
+
+                const sku = norm(rec.sku_id);
+                if (!sku) return;
+                skusInZoneDb.add(sku);
+                if (!bySkuInZone.has(sku)) bySkuInZone.set(sku, []);
+                bySkuInZone.get(sku).push(rec);
+            });
+
+            bySkuInZone.forEach((recs, sku) => {
+                const distinctLocs = new Set(recs.map(r => norm(r.location)));
+                if (distinctLocs.size > 1) {
+                    dbAmbiguous.push({
+                        sku: recs[0].sku_id,
+                        locations: [...distinctLocs]
+                    });
+                    return;
+                }
+
+                const excelLoc = excelBySku.get(sku);
+                if (excelLoc === undefined) return;
+
+                recs.forEach(rec => {
+                    const dbLoc = (rec.location || '').trim();
+                    if (norm(dbLoc) === norm(excelLoc)) {
+                        matchedOk += 1;
+                    } else {
+                        mismatches.push({
+                            id: rec.id,
+                            sku: rec.sku_id,
+                            dbLocation: dbLoc,
+                            newLocation: excelLoc,
+                            warehouse: rec.warehouse || ''
+                        });
+                    }
+                });
+            });
+
+            const notInSystem = [];
+            excelBySku.forEach((excelLoc, sku) => {
+                if (!skusInZoneDb.has(sku)) {
+                    notInSystem.push({ sku, excelLocation: excelLoc });
+                }
+            });
+
+            return { mismatches, matchedOk, notInSystem, dbAmbiguous };
+        }
+
+        function renderLocCompareResults(plan, zone) {
+            const setup = document.getElementById('locCompareSetup');
+            const results = document.getElementById('locCompareResults');
+            const summary = document.getElementById('locCompareSummary');
+            const tbody = document.getElementById('locCompareTableBody');
+            const applyBtn = document.getElementById('btnLocCompareApply');
+            const backBtn = document.getElementById('btnLocCompareBack');
+            const missingBlock = document.getElementById('locCompareMissingBlock');
+            const missingList = document.getElementById('locCompareMissingList');
+            const missingSummary = document.getElementById('locCompareMissingSummary');
+
+            locCompareState.mismatches = plan.mismatches;
+            locCompareState.matchedOk = plan.matchedOk;
+            locCompareState.notInSystem = plan.notInSystem;
+            locCompareState.dbAmbiguous = plan.dbAmbiguous || [];
+            locCompareState.zone = zone;
+
+            if (setup) setup.style.display = 'none';
+            if (results) results.style.display = '';
+            if (backBtn) backBtn.style.display = '';
+
+            const ambCount = (plan.dbAmbiguous || []).length;
+            if (summary) {
+                summary.innerHTML = `
+                    <div class="loc-compare-chip fix"><strong>${plan.mismatches.length}</strong><span>ต้องแก้ตำแหน่ง</span></div>
+                    <div class="loc-compare-chip ok"><strong>${plan.matchedOk}</strong><span>ตรงกันแล้ว</span></div>
+                    <div class="loc-compare-chip mute"><strong>${plan.notInSystem.length}</strong><span>SKU ใน Excel ไม่พบในโซน ${zone}</span></div>
+                    <div class="loc-compare-chip warn"><strong>${ambCount}</strong><span>SKU ซ้ำหลายตำแหน่งใน DB</span></div>
+                `;
+            }
+
+            if (tbody) {
+                if (!plan.mismatches.length) {
+                    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:1.25rem;color:var(--text-muted);">ไม่มีรายการที่ตำแหน่งไม่ตรงในโซน ${escapeHtml(zone)} — ไม่ต้องแก้ไข</td></tr>`;
+                } else {
+                    tbody.innerHTML = plan.mismatches.map((m, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td><strong>${escapeHtml(m.sku)}</strong></td>
+                            <td class="loc-old">${escapeHtml(m.dbLocation)}</td>
+                            <td class="loc-arrow">→</td>
+                            <td class="loc-new">${escapeHtml(m.newLocation)}</td>
+                        </tr>
+                    `).join('');
+                }
+            }
+
+            if (missingBlock && missingList && missingSummary) {
+                const items = [];
+                if (plan.notInSystem.length) {
+                    items.push(`<li><strong>ไม่พบในโซน (${plan.notInSystem.length})</strong> — ไม่สร้าง/ไม่ลบ · ใช้ Export ตรวจด้วยมือ</li>`);
+                    plan.notInSystem.forEach(x => {
+                        items.push(`<li>${escapeHtml(x.sku)} → ${escapeHtml(x.excelLocation)}</li>`);
+                    });
+                }
+                if (ambCount > 0) {
+                    items.push(`<li><strong>ซ้ำหลายตำแหน่งใน DB (${ambCount})</strong></li>`);
+                    (plan.dbAmbiguous || []).forEach(x => {
+                        items.push(`<li>${escapeHtml(x.sku)}: ${x.locations.map(escapeHtml).join(' / ')}</li>`);
+                    });
+                }
+                if (items.length) {
+                    missingBlock.style.display = '';
+                    missingSummary.textContent = 'รายการที่ไม่อัปเดตอัตโนมัติ';
+                    missingList.innerHTML = items.join('');
+                } else {
+                    missingBlock.style.display = 'none';
+                }
+            }
+
+            const skippedCount = plan.notInSystem.length + ambCount;
+            const exportBtn = document.getElementById('btnLocCompareExportSkipped');
+            const exportFooterBtn = document.getElementById('btnLocCompareExportSkippedFooter');
+            if (exportBtn) exportBtn.style.display = skippedCount > 0 ? '' : 'none';
+            if (exportFooterBtn) exportFooterBtn.style.display = skippedCount > 0 ? '' : 'none';
+
+            if (applyBtn) {
+                applyBtn.style.display = '';
+                applyBtn.disabled = plan.mismatches.length === 0 || ambCount > 0;
+            }
+
+            document.getElementById('locCompareSubtitle').textContent =
+                `โซน ${zone} · ${formatAuditScopeLabel(getAuditFilters())} · ยึด Excel เป็นหลัก`;
+            lucide.createIcons();
+        }
+
+        function getLocCompareSkippedExportRows() {
+            const zone = locCompareState.zone || '';
+            const f = getAuditFilters();
+            const rows = [];
+            (locCompareState.notInSystem || []).forEach(x => {
+                rows.push({
+                    SKU: x.sku,
+                    'ตำแหน่ง (Excel)': x.excelLocation || '',
+                    'ตำแหน่งในระบบ': '',
+                    เหตุผล: `ไม่พบในโซน ${zone} — ไม่สร้างเข้าระบบ (คลัง/เดือนที่เลือก)`,
+                    คลัง: f.warehouse || '',
+                    เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
+                });
+            });
+            (locCompareState.dbAmbiguous || []).forEach(x => {
+                rows.push({
+                    SKU: x.sku,
+                    'ตำแหน่ง (Excel)': '',
+                    'ตำแหน่งในระบบ': (x.locations || []).join(' / '),
+                    เหตุผล: 'ซ้ำหลายตำแหน่งใน DB — ต้องแก้ด้วยมือ',
+                    คลัง: f.warehouse || '',
+                    เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
+                });
+            });
+            return rows;
+        }
+
+        function exportLocCompareSkippedToExcel() {
+            const rows = getLocCompareSkippedExportRows();
+            if (!rows.length) {
+                showToast('ไม่มีรายการที่ไม่อัปเดตให้ส่งออก', 'error');
+                return;
+            }
+            try {
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'ไม่อัปเดต');
+                const zone = locCompareState.zone || 'zone';
+                const wh = (getAuditFilters().warehouse || 'all').replace(/[^\w\u0E00-\u0E7F]+/g, '_');
+                const dateStr = new Date().toISOString().slice(0, 10);
+                XLSX.writeFile(wb, `loc_compare_skipped_${zone}_${wh}_${dateStr}.xlsx`);
+                showToast(`ส่งออก ${rows.length} รายการที่ไม่อัปเดตอัตโนมัติ`);
+            } catch (err) {
+                showToast('ส่งออกล้มเหลว: ' + err.message, 'error');
+            }
+        }
+
+        function renderLocCompareResultsAfterApply() {
+            const plan = {
+                mismatches: [],
+                matchedOk: locCompareState.matchedOk,
+                notInSystem: locCompareState.notInSystem || [],
+                dbAmbiguous: locCompareState.dbAmbiguous || []
+            };
+            renderLocCompareResults(plan, locCompareState.zone);
+            const banner = document.getElementById('locCompareConfirmBanner');
+            if (banner) {
+                const n = plan.notInSystem.length + (plan.dbAmbiguous || []).length;
+                if (n > 0) {
+                    banner.classList.add('show');
+                    banner.textContent =
+                        `บันทึกรายการที่แก้ได้แล้ว — เหลือ ${n} รายการที่ไม่อัปเดต (ดูด้านล่าง · กด Export Excel ได้)`;
+                }
+            }
+        }
+
+        async function runLocCompare() {
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+            const zone = document.getElementById('locCompareZone')?.value || '';
+            if (!zone) {
+                showToast('กรุณาเลือกโซน A–Z', 'error');
+                return;
+            }
+            if (!locCompareState.excelRows.length) {
+                showToast('กรุณาเลือกไฟล์ Excel ก่อน', 'error');
+                return;
+            }
+
+            const filters = getAuditFilters();
+            if (!filters.warehouse) {
+                showToast('กรุณาเลือกคลังก่อนเทียบตำแหน่ง', 'error');
+                return;
+            }
+            if (!filters.allTime && !filters.yearMonth) {
+                showToast('กรุณาเลือกเดือนที่มีข้อมูลการนับ หรือติ๊ก「ทุกช่วงเวลา」', 'error');
+                return;
+            }
+            if (filters.allTime) {
+                const ok = confirm('กำลังใช้「ทุกช่วงเวลา」 — อาจรวมรอบเก่า\n\nต้องการเทียบต่อหรือไม่?');
+                if (!ok) return;
+            }
+
+            locCompareConfirmStep = 0;
+            const banner = document.getElementById('locCompareConfirmBanner');
+            if (banner) banner.classList.remove('show');
+
+            setLoading(true, 'กำลังเทียบข้อมูล...', `โซน ${zone} · ${formatAuditScopeLabel(filters)}`);
+
+            try {
+                const { map: excelBySku, conflicts: excelConflicts } = buildExcelSkuMap(locCompareState.excelRows);
+                if (excelConflicts.length) {
+                    showToast(`Excel มี SKU ซ้ำตำแหน่งต่างกัน ${excelConflicts.length} รายการ — แก้ไฟล์ก่อน`, 'error');
+                    return;
+                }
+                const { rows } = await fetchAllInventoryCounts(
+                    'id, sku_id, location, warehouse',
+                    filters
+                );
+                setLoadingMessage('กำลังวิเคราะห์ความต่าง...', `${rows.length.toLocaleString()} แถวในระบบ`);
+                await yieldToBrowser();
+
+                const plan = buildLocComparePlan(rows, zone, excelBySku);
+                locCompareState.dbAmbiguous = plan.dbAmbiguous || [];
+                renderLocCompareResults(plan, zone);
+
+                if (plan.mismatches.length) {
+                    showToast(`พบ ${plan.mismatches.length} รายการที่ตำแหน่งไม่ตรง — ตรวจสอบแล้วกดยืนยัน`);
+                } else {
+                    showToast(`โซน ${zone}: ตำแหน่งตรงกันทั้งหมดที่เทียบได้ (${plan.matchedOk} รายการ)`);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(`เทียบข้อมูลล้มเหลว: ${err.message}`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function syncTableRowsAfterLocCompare(updates) {
+            if (!updates.length) return;
+            const byId = new Map(updates.map(u => [String(u.id), u.newLocation]));
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                const id = tr.dataset.recordId;
+                if (!id || !byId.has(String(id))) return;
+                const locInput = tr.querySelector('[data-field="loc"]');
+                if (locInput) {
+                    locInput.value = byId.get(String(id));
+                    if (tr.dataset.originalLoc !== undefined) {
+                        tr.dataset.originalLoc = byId.get(String(id));
+                    }
+                    tr.classList.remove('loc-dirty');
+                }
+            });
+            updateLocDirtyUI();
+            refreshLocationFilterOptions();
+            applyTableView();
+        }
+
+        /** อัปเดตตำแหน่งเท่านั้น — ไม่ insert รายการใหม่ ไม่ delete SKU */
+        async function applyLocCompareUpdates() {
+            const items = locCompareState.mismatches;
+            if (locCompareState.dbAmbiguous && locCompareState.dbAmbiguous.length) {
+                showToast('มี SKU ที่ตำแหน่งซ้ำใน DB — แก้ในฐานข้อมูลก่อน', 'error');
+                return;
+            }
+            if (!items.length) return;
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+
+            const applyBtn = document.getElementById('btnLocCompareApply');
+            const banner = document.getElementById('locCompareConfirmBanner');
+
+            if (locCompareConfirmStep === 0) {
+                const preview = items.slice(0, 8).map(m =>
+                    `• ${m.sku}: ${m.dbLocation} → ${m.newLocation}`
+                ).join('\n');
+                const more = items.length > 8 ? `\n... และอีก ${items.length - 8} รายการ` : '';
+                const ok = confirm(
+                    `ยืนยันครั้งที่ 1\n\nอัปเดตตำแหน่ง ${items.length} รายการ (โซน ${locCompareState.zone})\n` +
+                    `· เฉพาะ SKU ที่มีในระบบแล้ว\n` +
+                    `· ไม่สร้างรายการใหม่ · ไม่ลบรหัส\n\n${preview}${more}\n\nยึดตำแหน่งจาก Excel เป็นหลัก`
+                );
+                if (!ok) return;
+                locCompareConfirmStep = 1;
+                if (banner) {
+                    banner.classList.add('show');
+                    banner.textContent =
+                        `ยืนยันครั้งที่ 2: กดปุ่ม「ยืนยันแก้ไข (2/2)」อีกครั้งเพื่อบันทึก ${items.length} รายการ — ไม่สามารถยกเลิกได้`;
+                }
+                if (applyBtn) {
+                    applyBtn.disabled = false;
+                    applyBtn.innerHTML =
+                        '<i data-lucide="shield-alert" style="width:16px;height:16px"></i> ยืนยันแก้ไข (2/2)';
+                    lucide.createIcons();
+                }
+                return;
+            }
+
+            const ok2 = confirm(
+                `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nอัปเดตตำแหน่ง ${items.length} แถว (แก้เท่านั้น — ไม่สร้าง/ไม่ลบ SKU)\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`
+            );
+            if (!ok2) return;
+
+            if (applyBtn) applyBtn.disabled = true;
+            setLoading(true, 'กำลังบันทึกตำแหน่ง...', `0 / ${items.length}`);
+
+            let ok = 0;
+            let fail = 0;
+
+            try {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    const { error } = await supabaseClient
+                        .from('inventory_counts')
+                        .update({ location: item.newLocation })
+                        .eq('id', item.id);
+
+                    if (error) {
+                        console.error(error);
+                        fail += 1;
+                    } else {
+                        ok += 1;
+                    }
+
+                    setLoadingProgress(i + 1, items.length, 'กำลังบันทึกตำแหน่งจาก Excel...');
+                    if ((i + 1) % 20 === 0) await yieldToBrowser();
+                }
+
+                syncTableRowsAfterLocCompare(items);
+                await loadReferenceData();
+
+                locCompareState.mismatches = [];
+                locCompareConfirmStep = 0;
+
+                const skippedLeft =
+                    (locCompareState.notInSystem || []).length +
+                    (locCompareState.dbAmbiguous || []).length;
+
+                showToast(
+                    `อัปเดตตำแหน่งสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}` +
+                    (skippedLeft ? ` · เหลือไม่อัปเดต ${skippedLeft} รายการ (ยังแสดงในรายการด้านล่าง)` : ''),
+                    fail > 0 ? 'error' : 'success'
+                );
+
+                if (skippedLeft > 0) {
+                    renderLocCompareResultsAfterApply();
+                } else {
+                    closeLocCompareModal();
+                }
+            } catch (err) {
+                console.error(err);
+                showToast(`บันทึกล้มเหลว: ${err.message}`, 'error');
+                await loadReferenceData();
+            } finally {
+                setLoading(false);
+                locCompareConfirmStep = 0;
+                if (applyBtn) {
+                    applyBtn.innerHTML =
+                        '<i data-lucide="check-check" style="width:16px;height:16px"></i> ยืนยันแก้ไข (1/2)';
+                    lucide.createIcons();
+                }
+            }
+        }
+
+        populateLocCompareZones();
+
+        document.getElementById('btnImportLocCompare').addEventListener('click', openLocCompareModal);
+        document.getElementById('btnLocCompareTemplate').addEventListener('click', downloadLocCompareTemplate);
+        document.getElementById('btnLocComparePickFile').addEventListener('click', () => {
+            document.getElementById('fileLocCompare').click();
+        });
+        document.getElementById('btnLocCompareClose').addEventListener('click', closeLocCompareModal);
+        document.getElementById('btnLocCompareCancel').addEventListener('click', closeLocCompareModal);
+        document.getElementById('locCompareBackdrop').addEventListener('click', (e) => {
+            if (e.target.id === 'locCompareBackdrop') closeLocCompareModal();
+        });
+        document.getElementById('locCompareZone').addEventListener('change', updateLocCompareRunButton);
+
+        document.getElementById('btnLocCompareBack').addEventListener('click', () => {
+            locCompareConfirmStep = 0;
+            resetLocCompareResultsView();
+            document.getElementById('locCompareSetup').style.display = '';
+            document.getElementById('locCompareResults').style.display = 'none';
+            document.getElementById('btnLocCompareBack').style.display = 'none';
+            document.getElementById('btnLocCompareApply').style.display = 'none';
+            document.getElementById('locCompareSubtitle').textContent =
+                'คอลัมน์ A = SKU · B = ตำแหน่ง · แก้เฉพาะ SKU ที่มีในระบบ (ไม่สร้าง/ไม่ลบ)';
+        });
+
+        document.getElementById('btnLocCompareRun').addEventListener('click', runLocCompare);
+        document.getElementById('btnLocCompareApply').addEventListener('click', applyLocCompareUpdates);
+        document.getElementById('btnLocCompareExportSkipped').addEventListener('click', exportLocCompareSkippedToExcel);
+        document.getElementById('btnLocCompareExportSkippedFooter').addEventListener('click', exportLocCompareSkippedToExcel);
+
+        document.getElementById('fileLocCompare').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const wb = XLSX.read(ev.target.result, { type: 'binary' });
+                    const sheet = wb.Sheets[wb.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                    const items = parseExcelSkuLocRows(rows);
+                    if (!items.length) {
+                        showToast('ไม่พบข้อมูล SKU/ตำแหน่งในไฟล์ (คอลัมน์ A และ B)', 'error');
+                        return;
+                    }
+                    locCompareState.excelRows = items;
+                    locCompareState.fileName = file.name;
+                    const label = document.getElementById('locCompareFileLabel');
+                    if (label) {
+                        label.textContent = `${file.name} · ${items.length.toLocaleString()} แถว`;
+                    }
+                    updateLocCompareRunButton();
+                    showToast(`โหลดไฟล์แล้ว ${items.length.toLocaleString()} แถว — เลือกโซนแล้วกดเทียบข้อมูล`);
+                } catch (err) {
+                    showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error');
+                }
+                e.target.value = '';
+            };
+            reader.readAsBinaryString(file);
         });
 
         document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
@@ -1637,8 +3196,13 @@
             setLoading(true, 'กำลังดึงข้อมูลจาก Supabase...', 'รอสักครู่');
 
             try {
-                const { rows, rounds } = await fetchAllInventoryCounts('id, sku_id, location, counted_qty');
-                setLoadingMessage('กำลังใส่รายการลงตาราง...', `${rows.length.toLocaleString()} แถว (${rounds} รอบ)`);
+                const filters = getAuditFilters();
+                const { rows, rounds } = await fetchAllInventoryCounts(
+                    'id, sku_id, location, counted_qty, warehouse, created_at',
+                    filters
+                );
+                const scope = formatAuditScopeLabel(filters);
+                setLoadingMessage('กำลังใส่รายการลงตาราง...', `${rows.length.toLocaleString()} แถว · ${scope}`);
                 await yieldToBrowser();
 
                 const items = rows.map(r => ({
@@ -1657,7 +3221,7 @@
                 await fillRows(items);
                 document.getElementById('sortLocation').value = 'num-asc';
                 applyTableView();
-                showToast(`ดึงข้อมูล ${items.length.toLocaleString()} แถว (${rounds} รอบ) · เรียง 1→10`);
+                showToast(`ดึง ${items.length.toLocaleString()} แถว · ${scope} · เรียง 1→10`);
             } catch (err) {
                 showToast(err.message, 'error');
             } finally {
@@ -1718,13 +3282,49 @@
         seedExample();
         updateSortOptionLabels();
         applyTableView();
+        initAuditFilters();
+
+        const auditFilterWarehouse = document.getElementById('auditFilterWarehouse');
+        const auditFilterMonth = document.getElementById('auditFilterMonth');
+        const auditFilterAllTime = document.getElementById('auditFilterAllTime');
+
+        async function onAuditWarehouseChange() {
+            saveAuditFilters();
+            if (!supabaseClient) return;
+            await refreshAuditMonthSelect();
+            await loadReferenceData();
+        }
+
+        async function onAuditMonthChange() {
+            saveAuditFilters();
+            if (supabaseClient) await loadReferenceData();
+        }
+
+        async function onAuditAllTimeChange() {
+            if (auditFilterMonth) auditFilterMonth.disabled = auditFilterAllTime.checked;
+            saveAuditFilters();
+            if (!supabaseClient) return;
+            if (auditFilterAllTime.checked) {
+                await loadReferenceData();
+                return;
+            }
+            await refreshAuditMonthSelect();
+            await loadReferenceData();
+        }
+
+        if (auditFilterWarehouse) auditFilterWarehouse.addEventListener('change', onAuditWarehouseChange);
+        if (auditFilterMonth) auditFilterMonth.addEventListener('change', onAuditMonthChange);
+        if (auditFilterAllTime) auditFilterAllTime.addEventListener('change', onAuditAllTimeChange);
 
         supabaseClient = window.apiService ? window.apiService.getClient() : null;
         if (typeof initConnectionBadge === 'function') {
             initConnectionBadge(supabaseClient);
         }
         if (supabaseClient) {
-            loadReferenceData();
+            (async () => {
+                await refreshAuditMonthSelect(localStorage.getItem('audit_check_year_month') || '');
+                await loadReferenceData();
+            })();
         } else {
             document.getElementById('refBadge').innerHTML =
                 'ข้อมูลอ้างอิง: <span style="color:#f87171">กรุณาตั้งค่า Supabase ใน <a href="settings.html" style="color:#93c5fd">หน้าตั้งค่า</a></span>';

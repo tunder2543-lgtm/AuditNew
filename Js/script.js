@@ -11,9 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
     //  SUPABASE INIT
     // =============================================
     let supabaseClient = null;
-    let skuMasterList  = []; // Cache SKU list { SKU_NAME, NAME_PRO }
+    let skuMasterList  = []; // Cache SKU list { sku_name, name_pro, warehouse } ตามคลังที่เลือก
     let allRecords     = []; // Cache inventory_counts records for audit log context
     let supabaseDataLoaded = false;
+
+    const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
     function initSupabase() {
         if (!window.apiService) {
@@ -92,41 +94,73 @@ document.addEventListener('DOMContentLoaded', () => {
         await loadExistingRecords();
     }
 
+    function getActiveWarehouse() {
+        if (!warehouseInput) return '';
+        if (warehouseInput.value === 'custom') {
+            return warehouseCustom ? warehouseCustom.value.trim() : '';
+        }
+        return (warehouseInput.value || '').trim();
+    }
+
+    function filterRecordsByWarehouse(records) {
+        const wh = getActiveWarehouse();
+        if (!wh) return records || [];
+        return (records || []).filter(r => String(r.warehouse || '').trim() === wh);
+    }
+
+    function getWarehouseScopedRecords() {
+        return filterRecordsByWarehouse(allRecords);
+    }
+
     async function loadSkuMaster() {
         if (!supabaseClient) return;
+        const wh = getActiveWarehouse();
         try {
-            // ดึงทั้งหมดในครั้งเดียว (cache ไว้ใน memory)
             let allRows = [];
             let from = 0;
             const PAGE = 1000;
             while (true) {
-                const { data, error } = await supabaseClient
+                let query = supabaseClient
                     .from('sku_master')
-                    .select('sku_name, name_pro')
-                    .range(from, from + PAGE - 1);
+                    .select('sku_name, name_pro, warehouse')
+                    .order('sku_name', { ascending: true });
+                if (wh) query = query.eq('warehouse', wh);
+                const { data, error } = await query.range(from, from + PAGE - 1);
                 if (error) throw error;
                 allRows = allRows.concat(data || []);
                 if (!data || data.length < PAGE) break;
                 from += PAGE;
             }
             skuMasterList = allRows;
-            console.log(`[SKU Master] Loaded ${skuMasterList.length} items ✓`);
+            console.log(`[SKU Master] Loaded ${skuMasterList.length} items (${wh || 'ทุกคลัง'}) ✓`);
         } catch (err) {
             console.warn('[SKU Master] Load failed:', err.message);
+            skuMasterList = [];
         }
+    }
+
+    async function onWarehouseContextChanged() {
+        hideSkuInfo();
+        if (skuDropdown) skuDropdown.style.display = 'none';
+        activeDropIdx = -1;
+        await loadSkuMaster();
+        await loadExistingRecords();
+        updateStats();
     }
 
     async function loadPagedInventoryCounts() {
         if (!supabaseClient) return [];
+        const wh = getActiveWarehouse();
         let rows = [];
         let from = 0;
         const PAGE = 1000;
         while (true) {
-            const { data, error } = await supabaseClient
+            let query = supabaseClient
                 .from('inventory_counts')
                 .select('*')
-                .order('created_at', { ascending: false })
-                .range(from, from + PAGE - 1);
+                .order('created_at', { ascending: false });
+            if (wh) query = query.eq('warehouse', wh);
+            const { data, error } = await query.range(from, from + PAGE - 1);
             if (error) throw error;
             rows = rows.concat(data || []);
             if (!data || data.length < PAGE) break;
@@ -135,8 +169,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return rows;
     }
 
+    function recordBelongsToActiveWarehouse(rec) {
+        const wh = getActiveWarehouse();
+        if (!wh) return true;
+        return String(rec?.warehouse || '').trim() === wh;
+    }
+
     function normalizeSkuKey(value) {
         return String(value || '').toLowerCase().trim();
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
     function isTodayInThailand(isoString) {
@@ -167,14 +215,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="record-main">
                         <span class="record-sku">${row.sku_id}</span>
                         ${proName ? `<span class="record-pro-name">${proName}</span>` : ''}
-                        <span class="record-loc">
-                            <i data-lucide="warehouse"></i> ${row.warehouse} &nbsp;|&nbsp;
-                            <i data-lucide="map-pin"></i> ${row.location}
+                        <span class="record-loc" id="loc-${row.id}">
+                            <i data-lucide="warehouse"></i> ${escapeHtml(row.warehouse || '-')} &nbsp;|&nbsp;
+                            <i data-lucide="map-pin"></i> ${escapeHtml(row.location || '-')}
                         </span>
                     </div>
                     <div class="record-actions" style="display: flex; gap: 0.5rem; align-items: center;">
                         <span class="record-qty" id="qty-${row.id}">+${row.counted_qty}</span>
-                        <button class="icon-btn" onclick="openEditModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="แก้ไขจำนวน" style="padding: 0.25rem; color: var(--text-muted);">
+                        <button class="icon-btn" onclick="openEditModal('${row.id}')" title="แก้ไขรายการ" style="padding: 0.25rem; color: var(--text-muted);">
                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                         </button>
                         <button class="icon-btn" onclick="openDeleteModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
@@ -192,7 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await loadPagedInventoryCounts();
             allRecords = data;
             console.log(`[Inventory Counts] Loaded ${allRecords.length} records ✓`);
-            renderRecentRecordsList(allRecords.slice(0, MAX_RECENT_RECORDS));
+            renderRecentRecordsList(getWarehouseScopedRecords().slice(0, MAX_RECENT_RECORDS));
             updateStats();
         } catch (err) {
             console.warn('[Existing Records] Load failed:', err.message);
@@ -249,13 +297,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (warehouseInput && warehouseCustomContainer) {
             warehouseCustomContainer.style.display = 'none';
             warehouseInput.style.display = 'block';
-            warehouseInput.value = 'หน้าไลฟ์(บางกรวย)';
+            warehouseInput.value = 'ตึกกันตนา';
             if (warehouseCustom) warehouseCustom.value = '';
+            onWarehouseContextChanged();
         }
     };
 
     if (savedWarehouse && warehouseInput) {
-        if (savedWarehouse === 'หน้าไลฟ์(บางกรวย)' || savedWarehouse === 'ตึกกันตนา') {
+        if (STANDARD_WAREHOUSES.includes(savedWarehouse)) {
             warehouseInput.value = savedWarehouse;
             if (warehouseCustomContainer) warehouseCustomContainer.style.display = 'none';
             warehouseInput.style.display = 'block';
@@ -270,15 +319,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (warehouseInput) {
-        warehouseInput.addEventListener('change', () => {
+        warehouseInput.addEventListener('change', async () => {
             if (warehouseInput.value === 'custom') {
                 warehouseInput.style.display = 'none';
                 if (warehouseCustomContainer) {
                     warehouseCustomContainer.style.display = 'block';
                     if (warehouseCustom) warehouseCustom.focus();
                 }
+                return;
             }
+            localStorage.setItem('saved_warehouse', warehouseInput.value);
+            await onWarehouseContextChanged();
         });
+    }
+
+    if (warehouseCustom) {
+        warehouseCustom.addEventListener('change', async () => {
+            const wh = warehouseCustom.value.trim();
+            if (wh) {
+                if (!STANDARD_WAREHOUSES.includes(wh)) {
+                    showToast('ชื่อคลังไม่ตรง 3 คลังมาตรฐาน — ข้อมูลอาจแยกจากรายงานหลัก', 'error');
+                }
+                localStorage.setItem('saved_warehouse', wh);
+            }
+            await onWarehouseContextChanged();
+        });
+    }
+
+    if (savedWarehouse && !STANDARD_WAREHOUSES.includes(savedWarehouse) && warehouseInput?.value === 'custom') {
+        console.warn('[Warehouse] ใช้ชื่อคลังนอกมาตรฐาน:', savedWarehouse);
     }
 
     // Smart focus
@@ -447,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 new_qty: newQty,
                 warehouse: warehouse || '',
                 location: location || '',
-                counter_name: counterName || document.getElementById('counterName')?.value || 'Unknown'
+                counter_name: counterName || document.getElementById('counter_name')?.value || 'Unknown'
             }]);
         } catch (err) {
             console.warn('[Audit Log] Failed to log action:', err.message);
@@ -591,9 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const submitGroupBtn = document.getElementById('submitGroupBtn');
         const itemCount = snapshot.length;
 
-        groupItems = [];
-        renderGroupList();
-
         groupSubmitPromise = (async () => {
             isGroupSubmitting = true;
             submitGroupBtn.disabled = true;
@@ -619,16 +685,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (error) throw error;
 
+                groupItems = [];
+                renderGroupList();
+
                 let totalQtyInGroup = 0;
-                const insertedRows = (data && data.length > 0) ? data : reversedItems.map((_, i) => ({ id: Date.now() + i }));
+                const insertedRows = data && data.length > 0 ? data : [];
+                const bySku = new Map();
+                insertedRows.forEach(row => {
+                    const key = normalizeSkuKey(row.sku_id);
+                    if (!bySku.has(key)) bySku.set(key, []);
+                    bySku.get(key).push(row);
+                });
 
                 const groupSkuDetails = reversedItems.map(item => `${item.sku} (x${item.quantity})`).join(', ');
 
-                insertedRows.forEach((row, idx) => {
-                    const insertedId = row.id;
-                    const originalItem = reversedItems[idx];
+                reversedItems.forEach(originalItem => {
+                    const key = normalizeSkuKey(originalItem.sku);
+                    const queue = bySku.get(key);
+                    const row = queue && queue.length ? queue.shift() : null;
+                    const insertedId = row ? row.id : null;
+                    if (!insertedId) return;
 
-                    const rowData = data && data[idx] ? data[idx] : {};
                     allRecords.unshift({
                         id: insertedId,
                         sku_id: originalItem.sku,
@@ -636,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         warehouse: warehouse,
                         location: location,
                         counter_name: counter_name,
-                        created_at: rowData.created_at || new Date().toISOString()
+                        created_at: row.created_at || new Date().toISOString()
                     });
 
                     addRecord(insertedId, originalItem.sku, originalItem.name, originalItem.quantity, location, warehouse);
@@ -795,14 +872,14 @@ document.addEventListener('DOMContentLoaded', () => {
             <div class="record-main">
                 <span class="record-sku">${sku}</span>
                 ${proName ? `<span class="record-pro-name">${proName}</span>` : ''}
-                <span class="record-loc">
-                    <i data-lucide="warehouse"></i> ${warehouse} &nbsp;|&nbsp;
-                    <i data-lucide="map-pin"></i> ${location}
+                <span class="record-loc" id="loc-${id}">
+                    <i data-lucide="warehouse"></i> ${escapeHtml(warehouse || '-')} &nbsp;|&nbsp;
+                    <i data-lucide="map-pin"></i> ${escapeHtml(location || '-')}
                 </span>
             </div>
             <div class="record-actions" style="display: flex; gap: 0.5rem; align-items: center;">
                 <span class="record-qty" id="qty-${id}">+${quantity}</span>
-                <button class="icon-btn" onclick="openEditModal('${id}', '${sku}', ${quantity})" title="แก้ไขจำนวน" style="padding: 0.25rem; color: var(--text-muted);">
+                <button class="icon-btn" onclick="openEditModal('${id}')" title="แก้ไขรายการ" style="padding: 0.25rem; color: var(--text-muted);">
                     <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                 </button>
                 <button class="icon-btn" onclick="openDeleteModal('${id}', '${sku}', ${quantity})" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
@@ -815,9 +892,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateStats() {
-        const allCountedSkus = new Set(allRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
+        const scopedRecords = getWarehouseScopedRecords();
+        const allCountedSkus = new Set(scopedRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
 
-        const todayRecords = allRecords.filter(r => isTodayInThailand(r.created_at));
+        const todayRecords = scopedRecords.filter(r => isTodayInThailand(r.created_at));
         const todaySkus = new Set(todayRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
         const todayQty = todayRecords.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
 
@@ -883,15 +961,58 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     //  EDIT / DELETE 2-STEP CONFIRMATION MODAL
     // =============================================
-    let edState = { mode: '', id: null, sku: '', oldQty: 0, step: 1, warehouse: '', location: '', counterName: '' };
+    let edState = {
+        mode: '', id: null, sku: '', oldQty: 0, newQty: 0,
+        oldLocation: '', newLocation: '', step: 1,
+        warehouse: '', location: '', counterName: ''
+    };
 
-    window.openEditModal = function(id, sku, oldQty) {
+    function updateRecordRowDom(state) {
+        const liEl = document.getElementById(`record-${state.id}`);
+        if (!liEl) return;
+        const qtyEl = document.getElementById(`qty-${state.id}`);
+        const locEl = document.getElementById(`loc-${state.id}`);
+        const wh = state.warehouse || '-';
+        const loc = state.location || '-';
+        if (qtyEl) qtyEl.textContent = `+${state.qty}`;
+        if (locEl) {
+            locEl.innerHTML = `
+                <i data-lucide="warehouse"></i> ${escapeHtml(wh)} &nbsp;|&nbsp;
+                <i data-lucide="map-pin"></i> ${escapeHtml(loc)}`;
+        }
+        const editBtn = liEl.querySelector('button[title="แก้ไขรายการ"]');
+        const delBtn = liEl.querySelector('button[title="ลบรายการ"]');
+        if (editBtn) editBtn.setAttribute('onclick', `openEditModal('${state.id}')`);
+        if (delBtn) delBtn.setAttribute('onclick', `openDeleteModal('${state.id}', '${state.sku}', ${state.qty})`);
+        lucide.createIcons();
+    }
+
+    window.openEditModal = function(id) {
         const rec = allRecords.find(r => String(r.id) === String(id));
-        edState = { mode: 'edit', id, sku, oldQty, step: 1, warehouse: rec?.warehouse, location: rec?.location, counterName: rec?.counter_name };
-        document.getElementById('edModalTitle').innerHTML = `<i data-lucide="edit"></i> แก้ไขจำนวนสินค้า (ขั้นที่ 1/2)`;
-        document.getElementById('edModalDesc').innerHTML = `ระบุจำนวนใหม่สำหรับรหัสสินค้า <strong>${sku}</strong> (จำนวนเดิม: ${oldQty})`;
+        if (!rec) {
+            showToast('ไม่พบรายการในระบบ', 'error');
+            return;
+        }
+        if (!recordBelongsToActiveWarehouse(rec)) {
+            showToast('รายการนี้อยู่คลังอื่น — เปลี่ยนคลังให้ตรงก่อนแก้ไข', 'error');
+            return;
+        }
+        const sku = rec.sku_id || '';
+        const oldQty = Number(rec.counted_qty) || 0;
+        const oldLocation = rec.location || '';
+        edState = {
+            mode: 'edit', id, sku, oldQty, newQty: oldQty,
+            oldLocation, newLocation: oldLocation, step: 1,
+            warehouse: rec.warehouse || '', location: oldLocation,
+            counterName: rec.counter_name || ''
+        };
+        document.getElementById('edModalTitle').innerHTML = `<i data-lucide="edit"></i> แก้ไขรายการ (ขั้นที่ 1/2)`;
+        document.getElementById('edModalDesc').innerHTML =
+            `แก้ไขจำนวนและตำแหน่งสำหรับ <strong>${escapeHtml(sku)}</strong><br>` +
+            `<span style="color:var(--text-muted);font-size:0.9rem;">จำนวนเดิม: ${oldQty} · ตำแหน่งเดิม: ${escapeHtml(oldLocation || '-')}</span>`;
         document.getElementById('edInputGroup').style.display = 'block';
         document.getElementById('edNewQty').value = oldQty;
+        document.getElementById('edNewLoc').value = oldLocation;
         document.getElementById('edWarningBox').style.display = 'none';
         document.getElementById('edConfirmBtn').innerHTML = `ยืนยันขั้นที่ 1`;
         document.getElementById('edConfirmBtn').className = `cs-btn-save`;
@@ -901,6 +1022,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.openDeleteModal = function(id, sku, qty) {
         const rec = allRecords.find(r => String(r.id) === String(id));
+        if (rec && !recordBelongsToActiveWarehouse(rec)) {
+            showToast('รายการนี้อยู่คลังอื่น — เปลี่ยนคลังให้ตรงก่อนลบ', 'error');
+            return;
+        }
         edState = { mode: 'delete', id, sku, oldQty: qty, step: 1, warehouse: rec?.warehouse, location: rec?.location, counterName: rec?.counter_name };
         document.getElementById('edModalTitle').innerHTML = `<i data-lucide="trash-2"></i> ยืนยันการลบรายการ (ขั้นที่ 1/2)`;
         document.getElementById('edModalDesc').innerHTML = `คุณต้องการลบรายการสแกน <strong>${sku}</strong> (จำนวน: ${qty} ชิ้น) ใช่หรือไม่?`;
@@ -914,7 +1039,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.closeEdModal = function() {
         document.getElementById('editDeleteModal').classList.remove('open');
-        edState = { mode: '', id: null, sku: '', oldQty: 0, step: 1, warehouse: '', location: '', counterName: '' };
+        edState = {
+            mode: '', id: null, sku: '', oldQty: 0, newQty: 0,
+            oldLocation: '', newLocation: '', step: 1,
+            warehouse: '', location: '', counterName: ''
+        };
     };
 
     window.handleEdConfirm = async function() {
@@ -923,14 +1052,32 @@ document.addEventListener('DOMContentLoaded', () => {
         if (edState.mode === 'edit') {
             if (edState.step === 1) {
                 const newQty = parseInt(document.getElementById('edNewQty').value, 10);
+                const newLocation = (document.getElementById('edNewLoc').value || '').trim();
                 if (Number.isNaN(newQty) || newQty < 0) {
                     showToast('กรุณาระบุจำนวนที่ถูกต้อง (0 ขึ้นไป)', 'error');
                     return;
                 }
+                if (!newLocation) {
+                    showToast('กรุณาระบุตำแหน่ง', 'error');
+                    return;
+                }
+                const qtyChanged = newQty !== edState.oldQty;
+                const locChanged = newLocation.toUpperCase() !== String(edState.oldLocation || '').trim().toUpperCase();
+                if (!qtyChanged && !locChanged) {
+                    showToast('ไม่มีการเปลี่ยนแปลง', 'error');
+                    return;
+                }
                 edState.newQty = newQty;
+                edState.newLocation = newLocation;
                 edState.step = 2;
+
+                const changes = [];
+                if (qtyChanged) changes.push(`จำนวน: <strong>${edState.oldQty}</strong> → <strong>${newQty}</strong> ชิ้น`);
+                if (locChanged) changes.push(`ตำแหน่ง: <strong>${escapeHtml(edState.oldLocation || '-')}</strong> → <strong>${escapeHtml(newLocation)}</strong>`);
+
                 document.getElementById('edModalTitle').innerHTML = `<i data-lucide="edit"></i> ยืนยันการแก้ไข (ขั้นที่ 2/2)`;
-                document.getElementById('edModalDesc').innerHTML = `คุณต้องการเปลี่ยนจำนวน <strong>${edState.sku}</strong> จาก <strong>${edState.oldQty}</strong> เป็น <strong>${newQty}</strong> ชิ้น ใช่หรือไม่?`;
+                document.getElementById('edModalDesc').innerHTML =
+                    `ยืนยันการแก้ไข <strong>${escapeHtml(edState.sku)}</strong><br>${changes.join('<br>')}`;
                 document.getElementById('edInputGroup').style.display = 'none';
                 document.getElementById('edWarningText').textContent = `ข้อมูลในฐานข้อมูล Supabase จะถูกอัปเดตทันที`;
                 document.getElementById('edWarningBox').style.display = 'flex';
@@ -938,35 +1085,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 lucide.createIcons();
             } else if (edState.step === 2) {
                 try {
-                    const { error } = await supabaseClient
-                        .from('inventory_counts')
-                        .update({ counted_qty: edState.newQty })
-                        .eq('id', edState.id);
-                    if (error) throw error;
-
-                    // Update DOM
-                    const qtyEl = document.getElementById(`qty-${edState.id}`);
-                    if (qtyEl) qtyEl.textContent = `+${edState.newQty}`;
-                    
-                    // Update button onclick to reflect new oldQty
-                    const liEl = document.getElementById(`record-${edState.id}`);
-                    if (liEl) {
-                        const editBtn = liEl.querySelector('button[title="แก้ไขจำนวน"]');
-                        const delBtn = liEl.querySelector('button[title="ลบรายการ"]');
-                        if (editBtn) editBtn.setAttribute('onclick', `openEditModal('${edState.id}', '${edState.sku}', ${edState.newQty})`);
-                        if (delBtn) delBtn.setAttribute('onclick', `openDeleteModal('${edState.id}', '${edState.sku}', ${edState.newQty})`);
+                    const payload = {};
+                    if (edState.newQty !== edState.oldQty) payload.counted_qty = edState.newQty;
+                    if (edState.newLocation.toUpperCase() !== String(edState.oldLocation || '').trim().toUpperCase()) {
+                        payload.location = edState.newLocation;
                     }
 
-                    // Update allRecords cache
+                    let updateQuery = supabaseClient
+                        .from('inventory_counts')
+                        .update(payload)
+                        .eq('id', edState.id);
+                    if (edState.warehouse) {
+                        updateQuery = updateQuery.eq('warehouse', edState.warehouse);
+                    }
+                    const { error } = await updateQuery;
+                    if (error) throw error;
+
                     const rec = allRecords.find(r => String(r.id) === String(edState.id));
-                    if (rec) rec.counted_qty = edState.newQty;
+                    if (rec) {
+                        if (payload.counted_qty !== undefined) rec.counted_qty = edState.newQty;
+                        if (payload.location !== undefined) rec.location = edState.newLocation;
+                    }
 
-                    logAudit('UPDATE', edState.id, edState.sku, edState.oldQty, edState.newQty, edState.warehouse, edState.location, edState.counterName);
+                    updateRecordRowDom({
+                        id: edState.id,
+                        sku: edState.sku,
+                        qty: edState.newQty,
+                        warehouse: edState.warehouse,
+                        location: edState.newLocation
+                    });
 
-                    // Update stats
+                    logAudit(
+                        'UPDATE', edState.id, edState.sku,
+                        edState.oldQty, edState.newQty,
+                        edState.warehouse, edState.newLocation, edState.counterName
+                    );
+
                     updateStats();
 
-                    showToast(`✓ อัปเดตจำนวน ${edState.sku} เป็น ${edState.newQty} ชิ้นเรียบร้อย`, 'success');
+                    const parts = [];
+                    if (payload.counted_qty !== undefined) parts.push(`จำนวน ${edState.newQty}`);
+                    if (payload.location !== undefined) parts.push(`ตำแหน่ง ${edState.newLocation}`);
+                    showToast(`✓ อัปเดต ${edState.sku}: ${parts.join(' · ')}`, 'success');
                     closeEdModal();
                 } catch (err) {
                     console.error('[Update Error]', err);
@@ -985,10 +1145,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 lucide.createIcons();
             } else if (edState.step === 2) {
                 try {
-                    const { error } = await supabaseClient
+                    let deleteQuery = supabaseClient
                         .from('inventory_counts')
                         .delete()
                         .eq('id', edState.id);
+                    if (edState.warehouse) {
+                        deleteQuery = deleteQuery.eq('warehouse', edState.warehouse);
+                    }
+                    const { error } = await deleteQuery;
                     if (error) throw error;
 
                     // Remove DOM
@@ -1263,7 +1427,8 @@ document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
         }
         
-        const allCountedSkus = new Set(allRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
+        const scopedRecords = getWarehouseScopedRecords();
+        const allCountedSkus = new Set(scopedRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
         uncountedItemsCache = skuMasterList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name)));
         
         // Update badge
@@ -1350,7 +1515,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const startDate = parseDateStart(dashboardFilters.startDate);
         const endDate = parseDateEnd(dashboardFilters.endDate);
 
-        return allRecords.filter(row => {
+        return getWarehouseScopedRecords().filter(row => {
             const rowCounter = String(row.counter_name || '').trim().toLowerCase();
             const rowDate = row.created_at ? new Date(row.created_at) : null;
 
@@ -1376,7 +1541,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function getCounterOptions() {
         const counters = new Set();
-        allRecords.forEach(row => {
+        getWarehouseScopedRecords().forEach(row => {
             const value = String(row.counter_name || '').trim();
             if (value) counters.add(value);
         });
@@ -1533,7 +1698,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const uncountedCount = getUncountedCountFromRows(rows);
         const progressPercent = totalSkus > 0 ? Math.floor((countedSkus.size / totalSkus) * 100) : 0;
         const remainingPercent = totalSkus > 0 ? Math.max(0, 100 - progressPercent) : 0;
-        const totalRecords = allRecords.length;
+        const totalRecords = getWarehouseScopedRecords().length;
         const sendRate = totalRecords > 0 ? Math.floor((rows.length / totalRecords) * 100) : 0;
 
         const countedSkuEl = document.getElementById('dashboardCountedSku');
@@ -1570,12 +1735,13 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     window.exportInventory = function(format) {
-        if (!allRecords.length) {
-            showToast('ไม่มีข้อมูล inventory_counts สำหรับส่งออก', 'error');
+        const scopedExport = getWarehouseScopedRecords();
+        if (!scopedExport.length) {
+            showToast('ไม่มีข้อมูล inventory_counts สำหรับส่งออก (คลังที่เลือก)', 'error');
             return;
         }
 
-        const exportRows = allRecords.map((row, index) => {
+        const exportRows = scopedExport.map((row, index) => {
             const skuName = skuMasterList.find(s => String(s.sku_name || '').toLowerCase().trim() === String(row.sku_id || '').toLowerCase().trim())?.name_pro || '';
             return {
                 '#': index + 1,
@@ -1589,7 +1755,8 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
 
-        const baseName = `inventory_counts_${new Date().toISOString().split('T')[0]}`;
+        const whSuffix = escapeFileName(getActiveWarehouse()) || 'all';
+        const baseName = `inventory_counts_${whSuffix}_${new Date().toISOString().split('T')[0]}`;
 
         try {
             if (format === 'csv') {
@@ -1689,8 +1856,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 { wch: 50 }
             ];
 
+            const whSuffix = escapeFileName(getActiveWarehouse()) || 'all';
             const dateStr = new Date().toISOString().split('T')[0];
-            XLSX.writeFile(wb, `Uncounted_Items_${dateStr}.xlsx`);
+            XLSX.writeFile(wb, `Uncounted_Items_${whSuffix}_${dateStr}.xlsx`);
             showToast(`ดาวน์โหลดไฟล์ Excel สำเร็จ (${uncountedItemsCache.length} รายการ)`);
 
         } catch (err) {

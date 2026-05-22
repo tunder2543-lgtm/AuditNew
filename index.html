@@ -59,11 +59,11 @@
                         <span class="stat-value" id="totalScanned">0 / 0</span>
                     </div>
                     <div class="stat-box" style="cursor: pointer; border-color: rgba(239, 68, 68, 0.3); transition: all 0.2s;" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ" onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='var(--card)'">
-                        <span class="stat-label">ยังไม่ได้นับ (SKU)</span>
+                        <span class="stat-label">ยังไม่ได้นับ (SKU ใน Master)</span>
                         <span class="stat-value" id="totalUncounted" style="color: #fca5a5;">0</span>
                     </div>
                     <div class="stat-box">
-                        <span class="stat-label">ความคืบหน้า</span>
+                        <span class="stat-label">SKU ที่มีการนับแล้ว</span>
                         <span class="stat-value" id="progressPercent" style="color: #34d399;">0%</span>
                     </div>
                 </div>
@@ -100,12 +100,13 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="warehouse">คลัง (Warehouse)</label>
+                        <label for="warehouse">หมวดคลัง (Warehouse)</label>
                         <div class="input-wrapper has-icon" id="warehouseWrapper">
                             <i data-lucide="warehouse" class="input-icon"></i>
-                            <select id="warehouse" name="warehouse" required>
-                                <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                            <select id="warehouse" name="warehouse" required title="เลือกหมวดคลัง — ระบบจะโหลด SKU และคำนวณสถิติเฉพาะคลังนี้">
                                 <option value="ตึกกันตนา">ตึกกันตนา</option>
+                                <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                                <option value="คลังอะไหล่">คลังอะไหล่</option>
                                 <option value="custom">ระบุเอง (พิมพ์ใหม่)</option>
                             </select>
                             <div id="warehouseCustomContainer" style="display: none; width: 100%; position: relative;">
@@ -215,9 +216,15 @@
             </div>
             <p class="cs-modal-desc" id="edModalDesc"></p>
 
-            <div id="edInputGroup" class="cs-form-group" style="display: none;">
-                <label for="edNewQty">จำนวนใหม่</label>
-                <input type="number" id="edNewQty" min="0" placeholder="ระบุจำนวนใหม่">
+            <div id="edInputGroup" style="display: none;">
+                <div class="cs-form-group">
+                    <label for="edNewQty">จำนวนใหม่</label>
+                    <input type="number" id="edNewQty" min="0" placeholder="ระบุจำนวนใหม่">
+                </div>
+                <div class="cs-form-group" style="margin-top: 0.75rem;">
+                    <label for="edNewLoc">ตำแหน่งใหม่</label>
+                    <input type="text" id="edNewLoc" placeholder="เช่น F4-05" autocomplete="off" spellcheck="false">
+                </div>
             </div>
 
             <div id="edWarningBox" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem 1rem; border-radius: 10px; display: none; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem;">

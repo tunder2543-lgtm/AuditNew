@@ -8,15 +8,6 @@
     /** หน้าเหล่านี้ใช้เมนูแบน (ไม่มีกลุ่มย่อย) */
     const FLAT_PAGES = new Set(['index', 'import_counts', 'sku_master', 'settings']);
 
-    const FLAT_MENU = [
-        { id: 'index', label: 'นับสต็อก', icon: 'clipboard-list', title: 'หน้านับสต็อก' },
-        { id: 'import_counts', label: 'Import นับ', icon: 'file-input', title: 'นำเข้าผลการนับจาก Excel' },
-        { id: 'audit_check', label: 'ตรวจสอบ', icon: 'shield-check', title: 'ตรวจสอบความถูกต้อง' },
-        { id: 'sku_master', label: 'SKU Master', icon: 'database', title: 'จัดการ SKU' },
-        { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard', title: 'ภาพรวมและรายงาน' },
-        { id: 'settings', label: 'ตั้งค่า', icon: 'settings', title: 'ตั้งค่าและเชื่อมต่อ' }
-    ];
-
     const GROUPS = [
         {
             id: 'stock',
@@ -122,15 +113,25 @@
         return FLAT_PAGES.has(activePage);
     }
 
+    /** เมนูแบน: แสดงรายการย่อยทั้งหมดตลอดเวลา (ไม่พับ) — ใช้บน index / import / sku_master / settings */
     function renderFlatSidebar(aside, activePage) {
-        let html = '<div class="sidebar-brand">เมนู</div><nav class="sidebar-nav" aria-label="เมนูหลัก">';
-        FLAT_MENU.forEach(function (item) {
-            const href = pageHref(item.id);
-            const isActive = item.id === activePage;
-            html += '<a href="' + href + '" class="sidebar-nav-item' + (isActive ? ' active' : '') + '"';
-            if (item.title) html += ' title="' + item.title.replace(/"/g, '&quot;') + '"';
-            html += '><i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span></a>';
+        let html = '<div class="sidebar-brand">เมนู</div><nav class="sidebar-nav sidebar-nav-flat" aria-label="เมนูหลัก">';
+
+        GROUPS.forEach(function (group) {
+            const multi = group.items.length > 1;
+            if (multi) {
+                html += '<div class="sidebar-flat-label"><i data-lucide="' + group.icon + '"></i><span>' + group.label + '</span></div>';
+            }
+
+            group.items.forEach(function (item) {
+                const href = pageHref(item.id);
+                const isActive = item.id === activePage;
+                const cls = 'sidebar-nav-item' + (multi ? ' sidebar-nav-flat-item' : '') + (isActive ? ' active' : '');
+                html += '<a href="' + href + '" class="' + cls + '">';
+                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span></a>';
+            });
         });
+
         html += '</nav>';
         aside.innerHTML = html;
         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -196,7 +197,6 @@
     window.sidebarShared = {
         init: renderSidebar,
         GROUPS: GROUPS,
-        FLAT_MENU: FLAT_MENU,
         FLAT_PAGES: FLAT_PAGES,
         pageHref: pageHref
     };

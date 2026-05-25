@@ -413,6 +413,7 @@
     let linesCache = [];
     let skuNameMap = {};
     let adjustmentsCache = [];
+    let skuCountPresence = new Map();
     let currentCycle = null;
     let activeStatusFilter = '';
     let adjustViewMode = 'all';
@@ -500,14 +501,20 @@
         return Number(line.adjustment_applied) + getDraftAdjustmentSum(line.sku_id);
     }
 
+    function skuHasInventoryCount(skuId) {
+        const k = RS.normalizeSku(skuId);
+        return k && (skuCountPresence.get(k) || 0) > 0;
+    }
+
     function resolveDisplayStatus(line) {
         const book = Number(line.book_qty);
         const counted = Number(line.counted_qty);
         const adj = getTotalAdjustment(line);
         const effective = book + adj;
+        const hasCountRecord = skuHasInventoryCount(line.sku_id);
 
         if (effective === 0 && counted > 0) return 'count_only';
-        if (effective > 0 && counted === 0) return 'book_only';
+        if (effective > 0 && counted === 0 && !hasCountRecord) return 'book_only';
         if (Math.abs(effective - counted) < 1e-6) return 'match';
         if (counted < effective) return 'short';
         if (counted > effective) return 'over';
@@ -744,6 +751,7 @@
             linesCache = await RS.fetchReconciliationLines(id, {
                 onProgress: ({ loaded }) => { loadingText.textContent = `กำลังโหลดรายการ... ${loaded.toLocaleString()} SKU`; }
             });
+            skuCountPresence = await RS.fetchInventoryCountPresenceBySku(currentCycle);
             skuNameMap = await RS.fetchBookSkuNames(id);
             adjustmentsCache = await RS.fetchAdjustments(id);
 

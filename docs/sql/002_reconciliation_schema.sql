@@ -170,7 +170,9 @@ BEGIN
         GROUP BY sku_id
     ),
     counted AS (
-        SELECT sku_id, SUM(counted_qty) AS counted_qty
+        SELECT sku_id,
+               SUM(counted_qty) AS counted_qty,
+               COUNT(*)::int AS count_row_count
         FROM inventory_counts
         WHERE cycle_id = p_cycle_id
         GROUP BY sku_id
@@ -189,6 +191,7 @@ BEGIN
             COALESCE(a.adjustment_applied, 0) AS adjustment_applied,
             COALESCE(b.book_qty, 0) + COALESCE(a.adjustment_applied, 0) AS effective_book_qty,
             COALESCE(c.counted_qty, 0) AS counted_qty,
+            COALESCE(c.count_row_count, 0) AS count_row_count,
             COALESCE(c.counted_qty, 0)
                 - (COALESCE(b.book_qty, 0) + COALESCE(a.adjustment_applied, 0)) AS variance_qty
         FROM union_sku u
@@ -206,7 +209,7 @@ BEGIN
         m.variance_qty,
         CASE
             WHEN m.effective_book_qty = 0 AND m.counted_qty > 0 THEN 'count_only'
-            WHEN m.effective_book_qty > 0 AND m.counted_qty = 0 THEN 'book_only'
+            WHEN m.effective_book_qty > 0 AND m.counted_qty = 0 AND m.count_row_count = 0 THEN 'book_only'
             WHEN m.variance_qty = 0 THEN 'match'
             WHEN m.variance_qty < 0 THEN 'short'
             ELSE 'over'

@@ -1278,6 +1278,106 @@
 
 
 
+    /**
+     * SKU ที่มีอย่างน้อย 1 แถวใน inventory_counts (ผูกรอบแล้ว หรือยังไม่ผูกแต่อยู่ในช่วงรอบ)
+     * ใช้กำหนดว่า "นับแล้ว" แม้ SUM(counted_qty) = 0
+     */
+    async function fetchInventoryCountPresenceBySku(cycle) {
+
+        const client = getClient();
+
+        if (!client || !cycle?.id) return new Map();
+
+        const presence = new Map();
+
+        const mark = (skuId) => {
+
+            const k = normalizeSku(skuId);
+
+            if (!k) return;
+
+            presence.set(k, (presence.get(k) || 0) + 1);
+
+        };
+
+
+
+        async function pageSkuIds(buildQuery) {
+
+            let from = 0;
+
+            while (true) {
+
+                const to = from + COUNT_PAGE_SIZE - 1;
+
+                const { data, error } = await buildQuery(from, to);
+
+                if (error) throw error;
+
+                const chunk = data || [];
+
+                chunk.forEach(r => mark(r.sku_id));
+
+                if (chunk.length < COUNT_PAGE_SIZE) break;
+
+                from += COUNT_PAGE_SIZE;
+
+            }
+
+        }
+
+
+
+        await pageSkuIds((from, to) =>
+
+            client
+
+                .from('inventory_counts')
+
+                .select('sku_id')
+
+                .eq('cycle_id', cycle.id)
+
+                .range(from, to)
+
+        );
+
+
+
+        const range = getCycleLinkRange(cycle);
+
+        if (range) {
+
+            await pageSkuIds((from, to) => {
+
+                let query = client
+
+                    .from('inventory_counts')
+
+                    .select('sku_id')
+
+                    .is('cycle_id', null)
+
+                    .gte('created_at', range.start)
+
+                    .lt('created_at', range.end);
+
+                query = applyWarehouseFilter(query, cycle);
+
+                return query.range(from, to);
+
+            });
+
+        }
+
+
+
+        return presence;
+
+    }
+
+
+
     async function refreshReconciliation(cycleId) {
 
         const client = getClient();
@@ -1957,6 +2057,10 @@
         linkInventoryCountsToCycle,
 
         importBookStockLines,
+
+        normalizeSku,
+
+        fetchInventoryCountPresenceBySku,
 
         refreshReconciliation,
 

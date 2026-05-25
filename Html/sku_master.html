@@ -181,6 +181,50 @@
             border-radius: 16px;
             display: none;
         }
+
+        .sku-actions-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.65rem;
+            margin-top: 0.75rem;
+            padding: 0.65rem 0.85rem;
+            border-radius: 10px;
+            border: 1px solid rgba(239,68,68,0.25);
+            background: rgba(239,68,68,0.06);
+        }
+        .sku-actions-bar[hidden] { display: none !important; }
+        .sku-actions-bar span { font-size: 0.85rem; color: #fecaca; flex: 1; min-width: 140px; }
+        .sku-btn-danger {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            padding: 0.45rem 0.85rem; border-radius: 8px; border: none; cursor: pointer;
+            font-family: 'Kanit', sans-serif; font-size: 0.84rem;
+            background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff;
+            box-shadow: 0 2px 10px rgba(239,68,68,0.3); transition: 0.2s;
+        }
+        .sku-btn-danger:hover { filter: brightness(1.08); }
+        .sku-btn-danger:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
+        .sku-btn-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 32px; height: 32px; padding: 0; border-radius: 8px;
+            border: 1px solid rgba(239,68,68,0.35); background: rgba(239,68,68,0.1);
+            color: #fca5a5; cursor: pointer; transition: 0.2s;
+        }
+        .sku-btn-icon:hover { background: rgba(239,68,68,0.22); color: #fecaca; }
+        .sku-row-chk { width: 16px; height: 16px; cursor: pointer; accent-color: #3b82f6; }
+        th .sku-row-chk { vertical-align: middle; }
+        #deleteSkuModal.cs-modal { z-index: 12000; }
+        .sku-del-modal-list {
+            margin: 0; padding: 0.65rem 0.85rem; max-height: 180px; overflow-y: auto;
+            border-radius: 10px; background: rgba(0,0,0,0.25);
+            border: 1px solid var(--card-border); list-style: none;
+            font-size: 0.84rem; line-height: 1.55;
+        }
+        .sku-del-modal-list li { padding: 0.2rem 0; color: var(--text-muted); }
+        .sku-del-modal-list strong { color: var(--primary); font-family: 'Outfit', sans-serif; }
+        .sku-del-modal-actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
+        .sku-del-modal-actions .cs-btn-test,
+        .sku-del-modal-actions .sku-btn-danger { flex: 1; justify-content: center; }
     </style>
 </head>
 <body class="has-sidebar">
@@ -272,20 +316,34 @@
                 </div>
             </div>
 
+            <div class="sku-actions-bar" id="skuBulkBar" hidden>
+                <span id="skuSelectionLabel">เลือก 0 รายการ</span>
+                <button type="button" class="sku-btn-danger" id="btnDeleteSelected" disabled onclick="openDeleteModalForSelection()">
+                    <i data-lucide="trash-2" style="width:15px;height:15px;"></i> ลบออกจากคลัง
+                </button>
+                <button type="button" class="submit-btn" style="height:36px;padding:0 0.85rem;font-size:0.82rem;background:transparent;border:1px solid var(--card-border);" onclick="clearSkuSelection()">
+                    ยกเลิกการเลือก
+                </button>
+            </div>
+
             <div class="table-wrapper">
                 <table id="skuTable">
                     <thead>
                         <tr>
-                            <th style="width: 60px;">#</th>
-                            <th style="width: 250px;">รหัสสินค้า (SKU_NAME)</th>
+                            <th style="width:44px;">
+                                <input type="checkbox" class="sku-row-chk" id="chkSelectPage" title="เลือกทั้งหน้านี้" onchange="toggleSelectCurrentPage(this.checked)">
+                            </th>
+                            <th style="width: 52px;">#</th>
+                            <th style="width: 220px;">รหัสสินค้า (SKU_NAME)</th>
                             <th>ชื่อสินค้า (NAME_PRO)</th>
-                            <th style="width: 180px;">หมวดคลัง</th>
-                            <th style="width: 200px;">อัปเดตล่าสุด</th>
+                            <th style="width: 150px;">หมวดคลัง</th>
+                            <th style="width: 170px;">อัปเดตล่าสุด</th>
+                            <th style="width: 72px;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody id="tableBody">
                         <tr>
-                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">กำลังโหลดข้อมูล...</td>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">กำลังโหลดข้อมูล...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -348,6 +406,31 @@
         </div>
     </div>
 
+    <!-- ยืนยันลบ SKU ออกจากคลัง -->
+    <div class="cs-modal" id="deleteSkuModal" role="dialog" aria-labelledby="deleteSkuModalTitle" aria-modal="true">
+        <div class="cs-modal-content" style="max-width: 520px;">
+            <div class="cs-modal-header">
+                <h2 id="deleteSkuModalTitle" style="color:#fca5a5;">
+                    <i data-lucide="trash-2"></i> ลบออกจากคลัง
+                </h2>
+                <button type="button" class="settings-btn-cs" onclick="closeDeleteSkuModal(false)" style="border:none;background:transparent;" aria-label="ปิด">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <p class="cs-modal-desc" id="deleteSkuModalDesc">—</p>
+            <ul class="sku-del-modal-list" id="deleteSkuModalList"></ul>
+            <p class="cs-modal-desc" style="margin-top:0.85rem;color:#fca5a5;font-size:0.8rem;">
+                ลบเฉพาะใน <strong id="deleteSkuModalWh">—</strong> — ไม่กระทบรายการ SKU เดียวกันในคลังอื่น · ไม่ลบประวัติการนับใน inventory_counts
+            </p>
+            <div class="sku-del-modal-actions">
+                <button type="button" class="cs-btn-test" onclick="closeDeleteSkuModal(false)">ยกเลิก</button>
+                <button type="button" class="sku-btn-danger" onclick="closeDeleteSkuModal(true)">
+                    <i data-lucide="trash-2" style="width:16px;height:16px;"></i> ยืนยันลบ
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div class="toast-container" id="toastContainer"></div>
 
@@ -371,6 +454,17 @@
         let filteredData = [];
         let currentPage = 1;
         const rowsPerPage = 50;
+        const selectedSkuIds = new Set();
+        let pendingDeleteItems = [];
+        let deleteSkuModalResolve = null;
+
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
 
         function getSelectedWarehouse() {
             const el = document.getElementById('warehouseFilter');
@@ -394,7 +488,7 @@
         if (supabaseClient) {
             loadData();
         } else {
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
+            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
         }
 
         async function loadData() {
@@ -429,6 +523,7 @@
                 document.getElementById('searchInput').value = '';
                 filteredData = [...allSkuData];
                 currentPage = 1;
+                clearSkuSelection();
                 
                 renderTable();
                 showToast(`โหลด ${warehouse} สำเร็จ ${allSkuData.length} รายการ`);
@@ -436,7 +531,7 @@
             } catch (err) {
                 console.error(err);
                 showToast(`โหลดข้อมูลล้มเหลว: ${err.message}`, 'error');
-                document.getElementById('tableBody').innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--danger); padding: 2rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 2rem;">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
             } finally {
                 hideLoading();
             }
@@ -458,12 +553,179 @@
             renderTable();
         }
 
+        function updateSelectionUi() {
+            const n = selectedSkuIds.size;
+            const bar = document.getElementById('skuBulkBar');
+            const btn = document.getElementById('btnDeleteSelected');
+            const label = document.getElementById('skuSelectionLabel');
+            if (n > 0) {
+                bar.hidden = false;
+                btn.disabled = false;
+                label.textContent = `เลือก ${n.toLocaleString()} รายการ — จะลบออกจากคลัง ${getSelectedWarehouse()}`;
+            } else {
+                bar.hidden = true;
+                btn.disabled = true;
+                label.textContent = 'เลือก 0 รายการ';
+            }
+            syncPageCheckbox();
+        }
+
+        function clearSkuSelection() {
+            selectedSkuIds.clear();
+            const pageChk = document.getElementById('chkSelectPage');
+            if (pageChk) {
+                pageChk.checked = false;
+                pageChk.indeterminate = false;
+            }
+            updateSelectionUi();
+        }
+
+        function syncPageCheckbox() {
+            const start = (currentPage - 1) * rowsPerPage;
+            const pageRows = filteredData.slice(start, start + rowsPerPage);
+            const pageChk = document.getElementById('chkSelectPage');
+            if (!pageChk || pageRows.length === 0) {
+                if (pageChk) pageChk.checked = false;
+                return;
+            }
+            const allOnPage = pageRows.every(r => selectedSkuIds.has(String(r.id)));
+            const someOnPage = pageRows.some(r => selectedSkuIds.has(String(r.id)));
+            pageChk.checked = allOnPage;
+            pageChk.indeterminate = !allOnPage && someOnPage;
+        }
+
+        function toggleSelectCurrentPage(checked) {
+            const start = (currentPage - 1) * rowsPerPage;
+            const pageRows = filteredData.slice(start, start + rowsPerPage);
+            pageRows.forEach(r => {
+                if (r.id == null) return;
+                const key = String(r.id);
+                if (checked) selectedSkuIds.add(key);
+                else selectedSkuIds.delete(key);
+            });
+            updateSelectionUi();
+            renderTable();
+        }
+
+        function toggleSkuRowSelection(id, checked) {
+            if (id == null || id === '') return;
+            const key = String(id);
+            if (checked) selectedSkuIds.add(key);
+            else selectedSkuIds.delete(key);
+            updateSelectionUi();
+            syncPageCheckbox();
+        }
+
+        function getItemsByIds(ids) {
+            const idSet = new Set(ids.map(String));
+            return allSkuData.filter(r => idSet.has(String(r.id)));
+        }
+
+        function showDeleteSkuModal(items) {
+            return new Promise(resolve => {
+                deleteSkuModalResolve = resolve;
+                pendingDeleteItems = items;
+                const wh = getSelectedWarehouse();
+                const n = items.length;
+                document.getElementById('deleteSkuModalWh').textContent = wh;
+                document.getElementById('deleteSkuModalDesc').innerHTML =
+                    n === 1
+                        ? `ยืนยันลบ SKU <strong>${escapeHtml(items[0].sku_name)}</strong> ออกจากหมวดคลังนี้?`
+                        : `ยืนยันลบ <strong>${n.toLocaleString()}</strong> รายการออกจากหมวดคลังนี้?`;
+                const listEl = document.getElementById('deleteSkuModalList');
+                const preview = items.slice(0, 12);
+                listEl.innerHTML = preview.map(it =>
+                    `<li><strong>${escapeHtml(it.sku_name)}</strong>${it.name_pro ? ' — ' + escapeHtml(it.name_pro) : ''}</li>`
+                ).join('') + (n > 12 ? `<li style="color:var(--text-muted);">… และอีก ${(n - 12).toLocaleString()} รายการ</li>` : '');
+                document.getElementById('deleteSkuModal').classList.add('open');
+                lucide.createIcons();
+            });
+        }
+
+        function closeDeleteSkuModal(confirmed) {
+            document.getElementById('deleteSkuModal').classList.remove('open');
+            const items = pendingDeleteItems;
+            pendingDeleteItems = [];
+            if (deleteSkuModalResolve) {
+                deleteSkuModalResolve({ confirmed, items });
+                deleteSkuModalResolve = null;
+            }
+        }
+
+        document.getElementById('deleteSkuModal').addEventListener('click', e => {
+            if (e.target.id === 'deleteSkuModal') closeDeleteSkuModal(false);
+        });
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Escape' && document.getElementById('deleteSkuModal').classList.contains('open')) {
+                closeDeleteSkuModal(false);
+            }
+        });
+
+        async function deleteSkuFromWarehouse(items) {
+            if (!supabaseClient || !items.length) return;
+            const warehouse = getSelectedWarehouse();
+            const ids = items.map(r => r.id).filter(id => id != null);
+            if (!ids.length) {
+                showToast('ไม่พบรหัสแถวสำหรับลบ', 'error');
+                return;
+            }
+
+            showLoading(`กำลังลบ 0 / ${ids.length}`);
+            const progressFill = document.getElementById('progressFill');
+            const CHUNK = 200;
+            let deleted = 0;
+            let failed = 0;
+
+            try {
+                for (let i = 0; i < ids.length; i += CHUNK) {
+                    const chunk = ids.slice(i, i + CHUNK);
+                    const { error } = await supabaseClient
+                        .from('sku_master')
+                        .delete()
+                        .in('id', chunk)
+                        .eq('warehouse', warehouse);
+                    if (error) throw error;
+                    deleted += chunk.length;
+                    progressFill.style.width = `${Math.round((deleted / ids.length) * 100)}%`;
+                    document.getElementById('loadingText').textContent =
+                        `กำลังลบ ${deleted} / ${ids.length}`;
+                }
+                selectedSkuIds.clear();
+                updateSelectionUi();
+                showToast(`ลบออกจาก ${warehouse} สำเร็จ ${deleted.toLocaleString()} รายการ`);
+                await loadData();
+            } catch (err) {
+                console.error(err);
+                showToast(`ลบไม่สำเร็จ: ${err.message}`, 'error');
+            } finally {
+                hideLoading();
+                progressFill.style.width = '0%';
+            }
+        }
+
+        async function openDeleteModalForSelection() {
+            const items = getItemsByIds([...selectedSkuIds]);
+            if (!items.length) return showToast('กรุณาเลือกรายการที่จะลบ', 'error');
+            const result = await showDeleteSkuModal(items);
+            if (!result?.confirmed) return;
+            await deleteSkuFromWarehouse(result.items || items);
+        }
+
+        async function openDeleteModalForOne(id) {
+            const item = allSkuData.find(r => String(r.id) === String(id));
+            if (!item) return showToast('ไม่พบรายการ', 'error');
+            const result = await showDeleteSkuModal([item]);
+            if (!result?.confirmed) return;
+            await deleteSkuFromWarehouse(result.items || [item]);
+        }
+
         function renderTable() {
             const tbody = document.getElementById('tableBody');
             
             if (filteredData.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2rem;">ไม่พบข้อมูลในหมวดคลังนี้</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2rem;">ไม่พบข้อมูลในหมวดคลังนี้</td></tr>';
                 updatePagination();
+                syncPageCheckbox();
                 return;
             }
             
@@ -473,18 +735,33 @@
             
             tbody.innerHTML = paginatedData.map((item, index) => {
                 const date = item.created_at ? new Date(item.created_at).toLocaleString('th-TH') : '-';
+                const checked = item.id != null && selectedSkuIds.has(String(item.id));
+                const idAttr = item.id != null ? String(item.id) : '';
                 return `
                     <tr>
+                        <td>
+                            <input type="checkbox" class="sku-row-chk" data-id="${escapeHtml(idAttr)}"
+                                ${checked ? 'checked' : ''} ${item.id == null ? 'disabled' : ''}
+                                onchange="toggleSkuRowSelection('${escapeHtml(idAttr)}', this.checked)">
+                        </td>
                         <td style="color: var(--text-muted);">${start + index + 1}</td>
-                        <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${item.sku_name}</td>
-                        <td>${item.name_pro || '-'}</td>
-                        <td style="font-size: 0.9rem;">${item.warehouse || '-'}</td>
-                        <td style="font-size: 0.85rem; color: var(--text-muted);">${date}</td>
+                        <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${escapeHtml(item.sku_name)}</td>
+                        <td>${escapeHtml(item.name_pro || '-')}</td>
+                        <td style="font-size: 0.9rem;">${escapeHtml(item.warehouse || '-')}</td>
+                        <td style="font-size: 0.85rem; color: var(--text-muted);">${escapeHtml(date)}</td>
+                        <td>
+                            <button type="button" class="sku-btn-icon" title="ลบออกจากคลังนี้"
+                                onclick="openDeleteModalForOne('${escapeHtml(idAttr)}')" ${item.id == null ? 'disabled' : ''}>
+                                <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
             
+            lucide.createIcons();
             updatePagination();
+            syncPageCheckbox();
         }
 
         function updatePagination() {

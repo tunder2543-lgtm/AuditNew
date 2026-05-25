@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../Css/style.css">
+    <link rel="stylesheet" href="../Css/ui-confirm.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -1118,6 +1119,7 @@
     <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
     <script src="../Js/settings-shared.js"></script>
+    <script src="../Js/ui-confirm-modal.js"></script>
     <script>
         lucide.createIcons();
 
@@ -2200,20 +2202,28 @@
                 const idHint = tr.dataset.recordId ? ` [ID: ${tr.dataset.recordId.slice(0, 8)}…]` : ' [ไม่มีใน DB]';
                 return `• ${sku} | ${loc} | ${qty}${idHint}`;
             });
-            const more = checked.length > 8 ? `\n... และอีก ${checked.length - 8} รายการ` : '';
-            const listText = lines.join('\n') + more;
-
-            let dbNote = '';
-            if (withDb.length) dbNote += `\n\n🗄️ ลบจาก Supabase: ${withDb.length} รายการ (ตาม ID)`;
-            if (localOnly.length) dbNote += `\n📋 ลบเฉพาะในตาราง: ${localOnly.length} รายการ (นำเข้า/พิมพ์เอง ไม่มี ID)`;
-
-            const msg1 = `ยืนยันครั้งที่ 1\n\nลบ ${checked.length} รายการที่เลือก?${dbNote}\n\n${listText}`;
-            if (!confirm(msg1)) return;
-
-            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nลบถาวร ${checked.length} รายการ` +
-                (withDb.length ? `\nรวม ${withDb.length} แถวใน inventory_counts (Supabase)` : '') +
-                `\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
-            if (!confirm(msg2)) return;
+            const deleteBullets = lines.map(l => l.replace(/^•\s*/, ''));
+            if (checked.length > 8) deleteBullets.push(`… และอีก ${checked.length - 8} รายการ`);
+            if (withDb.length) deleteBullets.unshift(`ลบจาก Supabase: ${withDb.length} รายการ`);
+            if (localOnly.length) deleteBullets.unshift(`ลบเฉพาะในตาราง: ${localOnly.length} รายการ`);
+            const okDel = await uiConfirm.twoStep({
+                title: 'ลบรายการที่เลือก',
+                variant: 'danger',
+                step1: {
+                    intro: `ลบ ${checked.length.toLocaleString()} รายการที่เลือก?`,
+                    bullets: deleteBullets.slice(0, 12),
+                    confirmLabel: 'ดำเนินการต่อ'
+                },
+                step2: {
+                    intro: `ลบถาวร ${checked.length.toLocaleString()} รายการ` +
+                        (withDb.length ? ` (รวม ${withDb.length} แถวใน Supabase)` : ''),
+                    note: 'ไม่สามารถยกเลิกได้',
+                    noteVariant: 'danger',
+                    confirmLabel: 'ลบถาวร',
+                    confirmIcon: 'trash-2'
+                }
+            });
+            if (!okDel) return;
 
             if (withDb.length && !supabaseClient) {
                 showToast('ยังไม่ได้เชื่อมต่อ Supabase — ลบในฐานข้อมูลไม่ได้', 'error');
@@ -2402,13 +2412,24 @@
                 const idShort = String(tr.dataset.recordId).slice(0, 8);
                 return `• [${idShort}…] SKU: ${sku} → ${loc} · ตำแหน่ง: ${loc} → ${sku}`;
             });
-            const more = rows.length > 12 ? `\n... และอีก ${rows.length - 12} รายการ` : '';
-
-            const msg1 = `ยืนยันครั้งที่ 1\n\nสลับ SKU ↔ ตำแหน่ง ${rows.length} รายการใน Supabase?\n\n${previews.join('\n')}${more}`;
-            if (!confirm(msg1)) return;
-
-            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nอัปเดต inventory_counts ${rows.length} แถว\n(sku_id ↔ location สลับกัน)\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
-            if (!confirm(msg2)) return;
+            const swapBullets = previews.map(p => p.replace(/^•\s*/, ''));
+            if (rows.length > 12) swapBullets.push(`… และอีก ${rows.length - 12} รายการ`);
+            const okSwap = await uiConfirm.twoStep({
+                title: 'สลับ SKU ↔ ตำแหน่ง',
+                variant: 'amber',
+                step1: {
+                    intro: `สลับ ${rows.length.toLocaleString()} รายการใน Supabase`,
+                    bullets: swapBullets,
+                    confirmLabel: 'ดำเนินการต่อ'
+                },
+                step2: {
+                    intro: `อัปเดต inventory_counts ${rows.length.toLocaleString()} แถว (sku_id ↔ location)`,
+                    note: 'ไม่สามารถยกเลิกได้',
+                    noteVariant: 'danger',
+                    confirmLabel: 'สลับเลย'
+                }
+            });
+            if (!okSwap) return;
 
             const btnApply = document.getElementById('btnApplySwapSkuLoc');
             if (btnApply) btnApply.disabled = true;
@@ -2470,12 +2491,16 @@
             }
         }
 
-        function setEditLocationMode(enabled) {
+        async function setEditLocationMode(enabled) {
             if (enabled && swapSkuLocMode) setSwapSkuLocMode(false);
             if (enabled && isLooseAuditScope()) {
-                const ok = confirm(
-                    'ขอบเขตข้อมูลกว้าง (ทุกคลัง หรือทุกช่วงเวลา)\n\nแนะนำเลือกคลังและเดือนก่อนแก้ตำแหน่ง\n\nเปิดโหมดแก้ไขต่อหรือไม่?'
-                );
+                const ok = await uiConfirm.show({
+                    title: 'เปิดโหมดแก้ตำแหน่ง',
+                    variant: 'amber',
+                    intro: 'ขอบเขตข้อมูลกว้าง (ทุกคลัง หรือทุกช่วงเวลา)',
+                    bullets: ['แนะนำเลือกคลังและเดือนก่อนแก้ตำแหน่ง'],
+                    confirmLabel: 'เปิดโหมดแก้ไข'
+                });
                 if (!ok) return;
             }
             editLocationMode = !!enabled;
@@ -2525,13 +2550,24 @@
                 const newLoc = tr.querySelector('[data-field="loc"]').value.trim() || '-';
                 return `• ${sku}: ${oldLoc} → ${newLoc}`;
             });
-            const more = dirtyRows.length > 10 ? `\n... และอีก ${dirtyRows.length - 10} รายการ` : '';
-
-            const msg1 = `ยืนยันครั้งที่ 1\n\nบันทึกตำแหน่งใหม่ ${dirtyRows.length} รายการใน Supabase?\n\n${lines.join('\n')}${more}`;
-            if (!confirm(msg1)) return;
-
-            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nอัปเดต inventory_counts ${dirtyRows.length} แถว\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
-            if (!confirm(msg2)) return;
+            const locBullets = lines.map(l => l.replace(/^•\s*/, ''));
+            if (dirtyRows.length > 10) locBullets.push(`… และอีก ${dirtyRows.length - 10} รายการ`);
+            const okLoc = await uiConfirm.twoStep({
+                title: 'บันทึกตำแหน่งใหม่',
+                variant: 'primary',
+                step1: {
+                    intro: `บันทึก ${dirtyRows.length.toLocaleString()} รายการใน Supabase`,
+                    bullets: locBullets,
+                    confirmLabel: 'ดำเนินการต่อ'
+                },
+                step2: {
+                    intro: `อัปเดต inventory_counts ${dirtyRows.length.toLocaleString()} แถว`,
+                    note: 'ไม่สามารถยกเลิกได้',
+                    noteVariant: 'danger',
+                    confirmLabel: 'บันทึก'
+                }
+            });
+            if (!okLoc) return;
 
             const btnSave = document.getElementById('btnSaveLocChanges');
             if (btnSave) btnSave.disabled = true;
@@ -3138,7 +3174,14 @@
                 return;
             }
             if (filters.allTime) {
-                const ok = confirm('กำลังใช้「ทุกช่วงเวลา」 — อาจรวมรอบเก่า\n\nต้องการเทียบต่อหรือไม่?');
+                const ok = await uiConfirm.show({
+                    title: 'เทียบตำแหน่ง',
+                    variant: 'amber',
+                    intro: 'กำลังใช้「ทุกช่วงเวลา」',
+                    bullets: ['อาจรวมข้อมูลจากรอบเก่า'],
+                    hideBulletsBox: false,
+                    confirmLabel: 'เทียบต่อ'
+                });
                 if (!ok) return;
             }
 
@@ -3217,18 +3260,26 @@
             const banner = document.getElementById('locCompareConfirmBanner');
 
             if (locCompareConfirmStep === 0) {
-                const preview = items.slice(0, 8).map(m =>
-                    `• ${m.sku}: ${m.dbLocation} → ${m.newLocation}`
-                ).join('\n');
-                const more = items.length > 8 ? `\n... และอีก ${items.length - 8} รายการ` : '';
-                const ambNote = ambCount > 0
-                    ? `\n· ข้าม SKU ซ้ำหลายตำแหน่งใน DB ${ambCount} รายการ (ไม่อัปเดตอัตโนมัติ)\n`
-                    : '';
-                const ok = confirm(
-                    `ยืนยันครั้งที่ 1\n\nอัปเดตตำแหน่ง ${items.length} รายการ (โซน ${locCompareState.zone})\n` +
-                    `· เฉพาะ SKU ที่มีในระบบแล้ว\n` +
-                    `· ไม่สร้างรายการใหม่ · ไม่ลบรหัส${ambNote}\n${preview}${more}\n\nยึดตำแหน่งจาก Excel เป็นหลัก`
+                const cmpBullets = items.slice(0, 8).map(m =>
+                    `${m.sku}: ${m.dbLocation} → ${m.newLocation}`
                 );
+                if (items.length > 8) cmpBullets.push(`… และอีก ${items.length - 8} รายการ`);
+                if (ambCount > 0) {
+                    cmpBullets.push(`ข้าม SKU ซ้ำหลายตำแหน่งใน DB ${ambCount} รายการ`);
+                }
+                cmpBullets.push('เฉพาะ SKU ที่มีในระบบแล้ว — ไม่สร้าง/ไม่ลบรหัส');
+                const ok = await uiConfirm.show({
+                    title: 'ยืนยันแก้ตำแหน่งจาก Excel',
+                    variant: 'primary',
+                    step: 1,
+                    stepTotal: 2,
+                    intro: `อัปเดต ${items.length.toLocaleString()} รายการ (โซน ${locCompareState.zone})`,
+                    bullets: cmpBullets,
+                    note: 'ยึดตำแหน่งจาก Excel เป็นหลัก',
+                    noteVariant: 'safe',
+                    confirmLabel: 'ดำเนินการต่อ',
+                    confirmIcon: 'arrow-right'
+                });
                 if (!ok) return;
                 locCompareConfirmStep = 1;
                 if (banner) {
@@ -3245,9 +3296,18 @@
                 return;
             }
 
-            const ok2 = confirm(
-                `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nอัปเดตตำแหน่ง ${items.length} แถว (แก้เท่านั้น — ไม่สร้าง/ไม่ลบ SKU)\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`
-            );
+            const ok2 = await uiConfirm.show({
+                title: 'ยืนยันแก้ตำแหน่งจาก Excel',
+                variant: 'primary',
+                step: 2,
+                stepTotal: 2,
+                intro: `อัปเดตตำแหน่ง ${items.length.toLocaleString()} แถว (แก้เท่านั้น)`,
+                hideBulletsBox: true,
+                note: 'ไม่สามารถยกเลิกได้',
+                noteVariant: 'danger',
+                confirmLabel: 'ยืนยันแก้ไข',
+                confirmIcon: 'check'
+            });
             if (!ok2) return;
 
             if (applyBtn) applyBtn.disabled = true;

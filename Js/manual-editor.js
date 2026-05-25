@@ -183,8 +183,17 @@
         });
     }
 
-    function resetManual() {
-        if (!confirm('ล้างการแก้ไขและรูปที่บันทึกไว้ กลับเป็นคู่มือเริ่มต้น?')) return;
+    async function resetManual() {
+        const ok = await (window.uiConfirm?.show({
+            title: 'รีเซ็ตคู่มือ',
+            variant: 'danger',
+            intro: 'ล้างการแก้ไขและรูปที่บันทึกไว้',
+            note: 'กลับเป็นคู่มือเริ่มต้น — ไม่สามารถยกเลิกได้',
+            noteVariant: 'danger',
+            hideBulletsBox: true,
+            confirmLabel: 'รีเซ็ต'
+        }) ?? Promise.resolve(false));
+        if (!ok) return;
         localStorage.removeItem(STORAGE_KEY);
         location.reload();
     }

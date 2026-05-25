@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../Css/style.css">
+    <link rel="stylesheet" href="../Css/ui-confirm.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -19,14 +20,93 @@
             gap: 1.25rem;
         }
 
-        .import-meta-card {
-            background: var(--card);
+        .ic-panel {
+            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
             border: 1px solid var(--card-border);
-            border-radius: 12px;
+            border-radius: 14px;
             padding: 1.25rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+
+        .ic-panel-head {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0 0 1rem;
+            font-family: 'Kanit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+        }
+
+        .ic-panel-head svg { width: 18px; height: 18px; flex-shrink: 0; color: #60a5fa; }
+
+        .import-meta-card {
             display: grid;
             gap: 1rem;
         }
+
+        .ic-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            border-radius: 9px;
+            border: none;
+            font-size: 0.85rem;
+            font-family: 'Kanit', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            transition: filter 0.15s, transform 0.12s;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .ic-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .ic-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+        .ic-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        .ic-btn-ghost {
+            background: rgba(255,255,255,0.06);
+            color: var(--text);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+
+        .ic-btn-primary {
+            background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(59,130,246,0.35);
+        }
+
+        .ic-btn-amber {
+            background: linear-gradient(135deg, #92400e, #f59e0b);
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+        }
+
+        .ic-template-banner {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            margin-top: 0.85rem;
+            padding: 0.85rem 1.1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .ic-template-banner .ic-template-text {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .ic-template-banner .ic-template-text svg { color: #f59e0b; width: 24px; height: 24px; flex-shrink: 0; }
+        .ic-template-banner strong { display: block; font-size: 0.92rem; margin-bottom: 0.15rem; }
+        .ic-template-banner span { font-size: 0.8rem; color: var(--text-muted); }
 
         .import-meta-grid {
             display: grid;
@@ -254,8 +334,8 @@
                     </div>
                 </header>
 
-                <div class="import-meta-card">
-                    <h3 style="margin:0;font-family:'Kanit',sans-serif;font-size:1rem;">ข้อมูลรอบการนับ (ใช้กับทุกแถวในไฟล์)</h3>
+                <div class="ic-panel import-meta-card">
+                    <h3 class="ic-panel-head"><i data-lucide="settings-2"></i> ข้อมูลรอบการนับ (ใช้กับทุกแถวในไฟล์)</h3>
                     <div class="import-meta-grid">
                         <label>
                             คลัง
@@ -275,7 +355,8 @@
                     </p>
                 </div>
 
-                <div class="import-meta-card">
+                <div class="ic-panel import-meta-card">
+                    <h3 class="ic-panel-head"><i data-lucide="upload-cloud"></i> อัปโหลด Excel</h3>
                     <div class="import-upload-zone" id="uploadZone">
                         <i data-lucide="upload-cloud" style="width:40px;height:40px;color:#60a5fa;margin-bottom:0.5rem"></i>
                         <h3 style="margin:0 0 0.35rem;font-family:'Kanit',sans-serif;">เลือกไฟล์ Excel (.xlsx)</h3>
@@ -283,26 +364,35 @@
                         <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
                     </div>
 
-                    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.75rem;align-items:center;">
-                        <button type="button" class="btn-gs" id="btnDownloadTemplate">
-                            <i data-lucide="download" style="width:16px;height:16px"></i>
-                            โหลด Template
+                    <div class="ic-template-banner">
+                        <div class="ic-template-text">
+                            <i data-lucide="file-spreadsheet"></i>
+                            <div>
+                                <strong>ไฟล์ต้นแบบสำหรับนำเข้า</strong>
+                                <span>คอลัมน์ A=ตำแหน่ง · B=SKU · C=จำนวน</span>
+                            </div>
+                        </div>
+                        <button type="button" class="ic-btn ic-btn-amber" id="btnDownloadTemplate">
+                            <i data-lucide="download"></i> โหลด Template
                         </button>
-                        <a class="btn-gs" href="audit_check.html" style="text-decoration:none;color:inherit;">
-                            <i data-lucide="shield-check" style="width:16px;height:16px"></i>
-                            ไปหน้าตรวจสอบ
+                    </div>
+
+                    <div class="import-actions" style="margin-top:0.85rem;">
+                        <a class="ic-btn ic-btn-ghost" href="audit_check.html">
+                            <i data-lucide="shield-check"></i> ไปหน้าตรวจสอบ
                         </a>
                     </div>
                 </div>
 
-                <div class="import-meta-card" id="previewCard" style="display:none;">
+                <div class="ic-panel import-meta-card" id="previewCard" style="display:none;">
+                    <h3 class="ic-panel-head"><i data-lucide="table-2"></i> ตัวอย่างก่อนนำเข้า</h3>
                     <div class="import-summary" id="importSummary"></div>
                     <div class="import-actions" style="margin-top:1rem;">
-                        <button type="button" class="btn-gs primary" id="btnStartImport" disabled>
-                            <i data-lucide="database" style="width:16px;height:16px"></i>
+                        <button type="button" class="ic-btn ic-btn-primary" id="btnStartImport" disabled>
+                            <i data-lucide="database"></i>
                             นำเข้าข้อมูล (1/2)
                         </button>
-                        <button type="button" class="btn-gs" id="btnClearFile">ล้างไฟล์</button>
+                        <button type="button" class="ic-btn ic-btn-ghost" id="btnClearFile">ล้างไฟล์</button>
                     </div>
                     <div class="table-wrapper" style="margin-top:1rem;max-height:320px;overflow:auto;">
                         <table class="import-preview-table">
@@ -323,11 +413,11 @@
                     </p>
                 </div>
 
-                <div class="import-meta-card import-log-card">
+                <div class="ic-panel import-meta-card import-log-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-                        <h3><i data-lucide="history" style="width:18px;height:18px;color:#93c5fd;"></i> ประวัติการนำเข้า (Log)</h3>
-                        <button type="button" class="btn-gs" id="btnRefreshImportLog" style="font-size:0.82rem;">
-                            <i data-lucide="refresh-cw" style="width:14px;height:14px"></i> รีเฟรช
+                        <h3 class="ic-panel-head" style="margin:0;"><i data-lucide="history"></i> ประวัติการนำเข้า (Log)</h3>
+                        <button type="button" class="ic-btn ic-btn-ghost" id="btnRefreshImportLog" style="font-size:0.82rem;padding:0.4rem 0.75rem;">
+                            <i data-lucide="refresh-cw"></i> รีเฟรช
                         </button>
                     </div>
                     <p style="margin:0.35rem 0 0;font-size:0.78rem;color:var(--text-muted);">
@@ -354,6 +444,7 @@
     <script src="../Js/api.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
+    <script src="../Js/ui-confirm-modal.js"></script>
     <script>
         lucide.createIcons();
 
@@ -457,7 +548,7 @@
             if (btn) {
                 btn.disabled = valid.length === 0;
                 importConfirmStep = 0;
-                btn.innerHTML = '<i data-lucide="database" style="width:16px;height:16px"></i> นำเข้าข้อมูล (1/2)';
+                btn.innerHTML = '<i data-lucide="database"></i> นำเข้าข้อมูล (1/2)';
             }
             lucide.createIcons();
         }
@@ -609,25 +700,47 @@
             const btn = document.getElementById('btnStartImport');
 
             if (importConfirmStep === 0) {
-                const preview = rows.slice(0, 6).map(r =>
-                    `• ${r.sku} @ ${r.loc} = ${r.qty}`
-                ).join('\n');
-                const more = rows.length > 6 ? `\n... และอีก ${rows.length - 6} แถว` : '';
-                const ok = confirm(
-                    `ยืนยันครั้งที่ 1\n\nบันทึก ${rows.length} แถวเข้า inventory_counts\nคลัง: ${warehouse}\nผู้นับ: ${counter_name}\n\n${preview}${more}\n\nต้องการดำเนินการต่อหรือไม่?`
+                const bullets = rows.slice(0, 6).map(r =>
+                    `${r.sku} @ ${r.loc} = ${r.qty}`
                 );
+                if (rows.length > 6) {
+                    bullets.push(`… และอีก ${rows.length - 6} แถว`);
+                }
+                const ok = await uiConfirm.show({
+                    title: 'ยืนยันนำเข้าผลการนับ',
+                    variant: 'primary',
+                    step: 1,
+                    stepTotal: 2,
+                    intro: `บันทึก ${rows.length.toLocaleString()} แถวเข้า inventory_counts`,
+                    bullets: [
+                        `คลัง: ${warehouse}`,
+                        `ผู้นับ: ${counter_name}`,
+                        ...bullets
+                    ],
+                    confirmLabel: 'ดำเนินการต่อ',
+                    confirmIcon: 'arrow-right'
+                });
                 if (!ok) return;
                 importConfirmStep = 1;
                 if (btn) {
-                    btn.innerHTML = '<i data-lucide="shield-alert" style="width:16px;height:16px"></i> นำเข้าข้อมูล (2/2)';
+                    btn.innerHTML = '<i data-lucide="shield-alert"></i> นำเข้าข้อมูล (2/2)';
                     lucide.createIcons();
                 }
                 return;
             }
 
-            const ok2 = confirm(
-                `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nเพิ่ม ${rows.length} รายการการนับใน Supabase\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`
-            );
+            const ok2 = await uiConfirm.show({
+                title: 'ยืนยันนำเข้าผลการนับ',
+                variant: 'primary',
+                step: 2,
+                stepTotal: 2,
+                intro: `เพิ่ม ${rows.length.toLocaleString()} รายการการนับใน Supabase`,
+                hideBulletsBox: true,
+                note: 'ไม่สามารถยกเลิกได้หลังยืนยันขั้นสุดท้าย',
+                noteVariant: 'danger',
+                confirmLabel: 'นำเข้าเลย',
+                confirmIcon: 'database'
+            });
             if (!ok2) return;
 
             if (btn) btn.disabled = true;
@@ -695,7 +808,7 @@
                 setLoading(false);
                 if (btn) {
                     btn.disabled = pendingValidRows.length === 0;
-                    btn.innerHTML = '<i data-lucide="database" style="width:16px;height:16px"></i> นำเข้าข้อมูล (1/2)';
+                    btn.innerHTML = '<i data-lucide="database"></i> นำเข้าข้อมูล (1/2)';
                     lucide.createIcons();
                 }
             }

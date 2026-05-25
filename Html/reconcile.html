@@ -6,6 +6,7 @@
     <title>Match ยอด — Stock Audit</title>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../Css/style.css">
+    <link rel="stylesheet" href="../Css/ui-confirm.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -404,6 +405,7 @@
 <script src="../Js/api.js"></script>
 <script src="../Js/settings-shared.js"></script>
 <script src="../Js/reconcile-shared.js"></script>
+<script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
     const RS = window.reconcileService;
@@ -832,11 +834,20 @@
             return showToast('ไม่มีรายการให้ปรับ (อาจมี Draft อยู่แล้ว)', 'error');
         }
 
-        const sample = toCreate.slice(0, 3).map(i => `${i.skuId} ${i.adjustmentQty > 0 ? '+' : ''}${i.adjustmentQty}`).join(', ');
-        const more = toCreate.length > 3 ? ` ... (+${toCreate.length - 3})` : '';
-        if (!confirm(`ปรับยอด Auto โหมด${modeLabel} ${toCreate.length} SKU?\n${sample}${more}\n\nบันทึกเป็น Draft — กด Apply ทั้งหมดเพื่อยืนยัน`)) {
-            return;
-        }
+        const bullets = toCreate.slice(0, 5).map(i =>
+            `${i.skuId} ${i.adjustmentQty > 0 ? '+' : ''}${i.adjustmentQty}`
+        );
+        if (toCreate.length > 5) bullets.push(`… และอีก ${toCreate.length - 5} SKU`);
+        const okAuto = await uiConfirm.show({
+            title: 'ปรับยอด Auto',
+            variant: 'amber',
+            intro: `โหมด${modeLabel} — สร้าง Draft ${toCreate.length.toLocaleString()} SKU`,
+            bullets,
+            note: 'บันทึกเป็น Draft — กด Apply ทั้งหมดเพื่อยืนยัน',
+            noteVariant: 'safe',
+            confirmLabel: 'สร้าง Draft'
+        });
+        if (!okAuto) return;
 
         const loadingEl = document.getElementById('loading');
         loadingEl.classList.add('active');

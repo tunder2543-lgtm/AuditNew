@@ -6,6 +6,7 @@
     <title>ตั้งค่ารอบนับ — Stock Audit</title>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../Css/style.css">
+    <link rel="stylesheet" href="../Css/ui-confirm.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -245,6 +246,24 @@
         }
         .cc-book-dup-panel ul { margin: 0.35rem 0 0; padding-left: 1.2rem; line-height: 1.55; }
 
+        /* ─── Link pending (รอผูก cycle_id) ─ */
+        .cc-link-pending-panel {
+            margin-top: 0.75rem;
+            border-radius: 10px;
+            border: 1px solid rgba(251,191,36,0.4);
+            background: rgba(251,191,36,0.07);
+            overflow: hidden;
+        }
+        .cc-link-pending-head {
+            display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+            padding: 0.65rem 0.85rem;
+            font-size: 0.84rem; color: #fde68a;
+            border-bottom: 1px solid rgba(251,191,36,0.22);
+        }
+        .cc-link-pending-head svg { width: 16px; height: 16px; flex-shrink: 0; color: #fbbf24; }
+        .cc-link-pending-head span { flex: 1; min-width: 0; }
+        .cc-link-pending-body { padding: 0.65rem 0.85rem 0.75rem; }
+
         /* ─── Badge ─────────────────────────────── */
         .cc-badge {
             display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem;
@@ -342,6 +361,49 @@
             box-shadow: 0 4px 14px rgba(239,68,68,0.35); transition: 0.2s;
         }
         .cc-del-modal-actions .cs-btn-danger:hover { filter: brightness(1.08); }
+
+        /* ─── Link counts confirm modal ─────────── */
+        #linkConfirmModal.cs-modal { z-index: 16000; }
+        .cc-link-modal-step {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.72rem;
+            background: rgba(251,191,36,0.15); border: 1px solid rgba(251,191,36,0.35);
+            color: #fde68a; margin-left: 0.35rem; vertical-align: middle;
+        }
+        .cc-link-modal-intro {
+            font-size: 0.86rem; color: var(--text-muted); margin: 0 0 0.85rem; line-height: 1.55;
+        }
+        .cc-link-modal-box {
+            border-radius: 11px; padding: 0.85rem 1rem; margin-bottom: 0.65rem;
+            background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.28);
+        }
+        .cc-link-modal-box h3 {
+            display: flex; align-items: center; gap: 0.4rem;
+            font-family: 'Kanit', sans-serif; font-size: 0.82rem; font-weight: 500;
+            margin: 0 0 0.5rem; color: #fde68a;
+        }
+        .cc-link-modal-box h3 svg { width: 15px; height: 15px; flex-shrink: 0; color: #fbbf24; }
+        .cc-link-modal-box ul {
+            margin: 0; padding-left: 0; list-style: none;
+            font-size: 0.86rem; line-height: 1.65; color: var(--text);
+        }
+        .cc-link-modal-box ul li {
+            display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.28rem 0;
+        }
+        .cc-link-modal-box ul li svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; color: #fbbf24; }
+        .cc-link-modal-note {
+            font-size: 0.8rem; color: #a3e635; margin: 0;
+            padding: 0.65rem 0.75rem; border-radius: 8px;
+            background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.22);
+        }
+        .cc-link-modal-actions .cs-btn-amber-confirm {
+            flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+            padding: 0.65rem 1rem; border-radius: 10px; font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem; cursor: pointer; border: none;
+            background: linear-gradient(135deg, #d97706, #f59e0b); color: #1c1917;
+            box-shadow: 0 4px 14px rgba(245,158,11,0.35); transition: 0.2s;
+        }
+        .cc-link-modal-actions .cs-btn-amber-confirm:hover { filter: brightness(1.08); }
     </style>
 </head>
 <body class="has-sidebar">
@@ -610,6 +672,40 @@
                     <p class="cc-note">ผูกแถวใน <code>inventory_counts</code> ตามคลัง + เดือน — <strong>ไม่แก้จำนวน</strong></p>
                     <p id="linkPreview" class="cc-note" style="margin-top:0.4rem;color:#fde68a;min-height:1.2em;"></p>
 
+                    <div id="linkPendingPanel" class="cc-link-pending-panel" style="display:none;" aria-live="polite">
+                        <div class="cc-link-pending-head">
+                            <i data-lucide="list"></i>
+                            <span id="linkPendingSummary">รายการรอผูก cycle_id</span>
+                            <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="btnExportLinkPending" title="ส่งออก Excel" disabled>
+                                <i data-lucide="download"></i> Export
+                            </button>
+                            <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="btnToggleLinkPending" title="ซ่อน/แสดงรายการ">
+                                <i data-lucide="chevron-up"></i> ซ่อน
+                            </button>
+                        </div>
+                        <div class="cc-link-pending-body" id="linkPendingBody">
+                            <p class="cc-note" style="margin:0 0 0.5rem;color:#fcd34d;">
+                                แถวในช่วงวัน + คลังของรอบที่ <code>cycle_id</code> ยังว่าง — ไม่จำเป็นต้องเป็นรายการที่เพิ่งเข้ามาวันนี้
+                            </p>
+                            <div class="cc-table-wrap" style="max-height:260px;">
+                                <table class="cc-table" id="linkPendingTable">
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>ตำแหน่ง</th>
+                                            <th>คลัง</th>
+                                            <th style="width:72px;text-align:right;">จำนวน</th>
+                                            <th>ผู้นับ</th>
+                                            <th style="width:130px;">วันที่บันทึก</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="linkPendingTbody"></tbody>
+                                </table>
+                            </div>
+                            <p id="linkPendingMore" class="cc-note" style="display:none;margin-top:0.5rem;color:#fde68a;"></p>
+                        </div>
+                    </div>
+
                     <div class="cc-actions">
                         <button type="button" class="cc-btn cc-btn-ghost" id="btnPreviewLink">
                             <i data-lucide="search"></i> ตรวจสอบจำนวน
@@ -673,12 +769,49 @@
     </div>
 </div>
 
+<!-- ยืนยันผูกผลนับ (แทน browser confirm) -->
+<div class="cs-modal" id="linkConfirmModal" role="dialog" aria-labelledby="linkConfirmModalTitle" aria-modal="true">
+    <div class="cs-modal-content" style="max-width: 520px;">
+        <div class="cs-modal-header">
+            <h2 id="linkConfirmModalTitle" style="color:#fde68a;">
+                <i data-lucide="link"></i>
+                <span id="linkConfirmTitleText">ยืนยันผูกผลนับ</span>
+                <span class="cc-link-modal-step" id="linkConfirmStepBadge">1/2</span>
+            </h2>
+            <button type="button" class="icon-btn" id="btnLinkConfirmClose" aria-label="ปิด">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <p class="cc-link-modal-intro" id="linkConfirmIntro">ตรวจสอบรายละเอียดก่อนผูก cycle_id ให้ผลนับ</p>
+        <div class="cc-link-modal-box" id="linkConfirmDetailBox">
+            <h3><i data-lucide="clipboard-list"></i> จะผูกให้รอบนี้</h3>
+            <ul id="linkConfirmDetailList">
+                <li><i data-lucide="warehouse"></i><span id="linkConfirmWh">—</span></li>
+                <li><i data-lucide="calendar-range"></i><span id="linkConfirmRange">—</span></li>
+                <li><i data-lucide="list-todo"></i><span>รอผูก <strong id="linkConfirmPendingN">0</strong> แถว</span></li>
+            </ul>
+        </div>
+        <p class="cc-link-modal-note" id="linkConfirmNote">
+            <i data-lucide="shield-check" style="width:14px;height:14px;vertical-align:-2px;margin-right:0.25rem;color:#86efac;"></i>
+            ไม่แก้ <code>counted_qty</code> — ตั้งค่าเฉพาะ <code>cycle_id</code>
+        </p>
+        <div class="cc-del-modal-actions cc-link-modal-actions" style="margin-top:1.1rem;">
+            <button type="button" class="cs-btn-test" id="btnLinkConfirmCancel">ยกเลิก</button>
+            <button type="button" class="cs-btn-amber-confirm" id="btnLinkConfirmOk">
+                <i data-lucide="arrow-right" id="linkConfirmOkIcon"></i>
+                <span id="linkConfirmOkLabel">ดำเนินการต่อ</span>
+            </button>
+        </div>
+    </div>
+</div>
+
 <div class="toast-container" id="toastContainer"></div>
 
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
 <script src="../Js/settings-shared.js"></script>
 <script src="../Js/reconcile-shared.js"></script>
+<script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
     const RS = window.reconcileService;
@@ -691,6 +824,8 @@
     let bookParsed = null;
     let bookFileName = '';
     let linkConfirmStep = 0;
+    let linkPendingRowsCache = [];
+    const LINK_PENDING_DISPLAY_MAX = 500;
 
     function getCreateWarehouseValue() {
         if (document.getElementById('whModeAll').checked) return RS.ALL_WAREHOUSES;
@@ -1087,7 +1222,11 @@
         try {
             const prev = await RS.previewLinkInventoryCounts(selectedCycle);
             document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
-        } catch { document.getElementById('linkPreview').textContent = ''; }
+            await refreshLinkPendingPanel(selectedCycle, prev);
+        } catch {
+            document.getElementById('linkPreview').textContent = '';
+            clearLinkPendingPanel();
+        }
 
         document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         await loadCycles();
@@ -1125,6 +1264,49 @@
         }
     }
 
+    let linkConfirmModalResolve = null;
+
+    function showLinkConfirmModal({ step, whLabel, rangeLabel, linkableNull }) {
+        return new Promise(resolve => {
+            linkConfirmModalResolve = resolve;
+            const isStep1 = step === 1;
+            document.getElementById('linkConfirmStepBadge').textContent = isStep1 ? '1/2' : '2/2';
+            document.getElementById('linkConfirmTitleText').textContent =
+                isStep1 ? 'ยืนยันผูกผลนับ' : 'ยืนยันครั้งสุดท้าย';
+            document.getElementById('linkConfirmIntro').textContent = isStep1
+                ? 'ตรวจสอบรายละเอียดก่อนผูก cycle_id ให้ผลนับ — ยังไม่บันทึกจนกดยืนยันครั้งที่ 2'
+                : 'กดยืนยันเพื่อผูกผลนับกับรอบนี้ — การดำเนินการนี้ไม่สามารถย้อนกลับจากหน้านี้ได้ในคลิกเดียว';
+            const detailBox = document.getElementById('linkConfirmDetailBox');
+            const noteEl = document.getElementById('linkConfirmNote');
+            if (isStep1) {
+                detailBox.style.display = '';
+                noteEl.style.display = '';
+                document.getElementById('linkConfirmWh').textContent = whLabel || '—';
+                document.getElementById('linkConfirmRange').textContent = rangeLabel ? `ช่วง ${rangeLabel}` : '—';
+                document.getElementById('linkConfirmPendingN').textContent =
+                    (linkableNull ?? 0).toLocaleString();
+            } else {
+                detailBox.style.display = 'none';
+                noteEl.style.display = 'none';
+            }
+            document.getElementById('linkConfirmOkLabel').textContent =
+                isStep1 ? 'ดำเนินการต่อ' : 'ผูกผลนับเลย';
+            document.getElementById('linkConfirmOkIcon').setAttribute('data-lucide', isStep1 ? 'arrow-right' : 'link');
+            const okBtn = document.getElementById('btnLinkConfirmOk');
+            document.getElementById('linkConfirmModal').classList.add('open');
+            lucide.createIcons();
+            setTimeout(() => okBtn.focus(), 80);
+        });
+    }
+
+    function closeLinkConfirmModal(confirmed) {
+        document.getElementById('linkConfirmModal').classList.remove('open');
+        if (linkConfirmModalResolve) {
+            linkConfirmModalResolve(confirmed);
+            linkConfirmModalResolve = null;
+        }
+    }
+
     async function deleteCycleById(id) {
         const c = cyclesCache.find(x => x.id === id) || await RS.fetchCycleById(id);
         if (!c) return showToast('ไม่พบรอบ', 'error');
@@ -1142,6 +1324,7 @@
             if (selectedCycle?.id === c.id) {
                 selectedCycle = null;
                 document.getElementById('detailPanel').style.display = 'none';
+                clearLinkPendingPanel();
             }
             updateActiveBanner();
             showToast(`ลบรอบ "${label}" แล้ว — คงข้อมูลการนับ ${res.preservedCountRows.toLocaleString()} แถว`);
@@ -1168,9 +1351,18 @@
     document.getElementById('deleteCycleModal').addEventListener('click', e => {
         if (e.target.id === 'deleteCycleModal') closeDeleteCycleModal(false);
     });
+    document.getElementById('btnLinkConfirmCancel').addEventListener('click', () => closeLinkConfirmModal(false));
+    document.getElementById('btnLinkConfirmClose').addEventListener('click', () => closeLinkConfirmModal(false));
+    document.getElementById('btnLinkConfirmOk').addEventListener('click', () => closeLinkConfirmModal(true));
+    document.getElementById('linkConfirmModal').addEventListener('click', e => {
+        if (e.target.id === 'linkConfirmModal') closeLinkConfirmModal(false);
+    });
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && document.getElementById('deleteCycleModal').classList.contains('open')) {
+        if (e.key !== 'Escape') return;
+        if (document.getElementById('deleteCycleModal').classList.contains('open')) {
             closeDeleteCycleModal(false);
+        } else if (document.getElementById('linkConfirmModal').classList.contains('open')) {
+            closeLinkConfirmModal(false);
         }
     });
 
@@ -1189,10 +1381,19 @@
             RS.countBookLines(selectedCycle.id).catch(() => 0),
             RS.countLinkedInventory(selectedCycle.id).catch(() => 0)
         ]);
-        const msg = bookN || countN
-            ? `รอบนี้มี Book ${bookN} แถว และผลนับผูกแล้ว ${countN} แถว\n\nเปลี่ยนคลังเป็น "${RS.formatWarehouseDisplay({ warehouse })}"?\n(ข้อมูลเดิมไม่ถูกลบ — การผูกครั้งถัดไปจะใช้คลังใหม่)`
-            : `เปลี่ยนคลังเป็น "${RS.formatWarehouseDisplay({ warehouse })}"?`;
-        if (!confirm(msg)) return;
+        const okWh = await uiConfirm.show({
+            title: 'เปลี่ยนคลังรอบ',
+            variant: 'amber',
+            intro: bookN || countN
+                ? `รอบนี้มี Book ${bookN.toLocaleString()} แถว และผลนับผูกแล้ว ${countN.toLocaleString()} แถว`
+                : 'ยืนยันเปลี่ยนหมวดคลังของรอบ',
+            bullets: [
+                `คลังใหม่: ${RS.formatWarehouseDisplay({ warehouse })}`,
+                'ข้อมูลเดิมไม่ถูกลบ — การผูกครั้งถัดไปจะใช้คลังใหม่'
+            ],
+            confirmLabel: 'บันทึกคลัง'
+        });
+        if (!okWh) return;
         setLoading(true, 'กำลังบันทึกคลัง...');
         try {
             selectedCycle = await RS.updateCycleWarehouses(selectedCycle.id, warehouse);
@@ -1205,6 +1406,7 @@
             fillEditWarehouseUi(selectedCycle);
             const prev = await RS.previewLinkInventoryCounts(selectedCycle);
             document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
+            await refreshLinkPendingPanel(selectedCycle, prev);
             await loadCycles();
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoading(false); }
@@ -1369,8 +1571,18 @@
 
     document.getElementById('btnImportBook').addEventListener('click', async () => {
         if (!selectedCycle || !bookParsed?.validRows.length) return;
-        const ok = confirm(
-            `นำเข้า Book ${bookParsed.validRows.length} แถว\nรอบ: ${RS.formatCycleLabel(selectedCycle)}\n\nจะแทนที่ Book เดิม — ต้องการดำเนินการต่อ?`);
+        const ok = await uiConfirm.show({
+            title: 'นำเข้า Book',
+            variant: 'green',
+            intro: `นำเข้า ${bookParsed.validRows.length.toLocaleString()} แถว`,
+            bullets: [
+                `รอบ: ${RS.formatCycleLabel(selectedCycle)}`,
+                'จะแทนที่ Book เดิมทั้งหมด'
+            ],
+            note: 'ตรวจสอบไฟล์ให้ครบก่อนยืนยัน',
+            noteVariant: 'warn',
+            confirmLabel: 'นำเข้า Book'
+        });
         if (!ok) return;
         setLoading(true, 'กำลังนำเข้า Book...');
         try {
@@ -1382,12 +1594,122 @@
         finally { setLoading(false); }
     });
 
+    function formatLinkPendingDatetime(iso) {
+        if (!iso) return '—';
+        try {
+            return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+        } catch { return String(iso); }
+    }
+
+    function clearLinkPendingPanel() {
+        linkPendingRowsCache = [];
+        document.getElementById('linkPendingPanel').style.display = 'none';
+        document.getElementById('linkPendingTbody').innerHTML = '';
+        document.getElementById('linkPendingMore').style.display = 'none';
+        document.getElementById('btnExportLinkPending').disabled = true;
+    }
+
+    function renderLinkPendingPanel(rows) {
+        const panel = document.getElementById('linkPendingPanel');
+        const tbody = document.getElementById('linkPendingTbody');
+        const moreEl = document.getElementById('linkPendingMore');
+        const exportBtn = document.getElementById('btnExportLinkPending');
+
+        if (!rows.length) {
+            panel.style.display = 'none';
+            tbody.innerHTML = '';
+            moreEl.style.display = 'none';
+            exportBtn.disabled = true;
+            return;
+        }
+
+        panel.style.display = '';
+        document.getElementById('linkPendingSummary').textContent =
+            `รายการรอผูก cycle_id — ${rows.length.toLocaleString()} แถว`;
+        exportBtn.disabled = false;
+
+        const shown = rows.slice(0, LINK_PENDING_DISPLAY_MAX);
+        tbody.innerHTML = shown.map(r => {
+            const qty = Number(r.counted_qty);
+            const qtyCell = Number.isFinite(qty)
+                ? RS.escapeHtml(qty.toLocaleString())
+                : '<span style="color:var(--text-muted);">—</span>';
+            return `<tr>
+                <td>${r.sku_id ? RS.escapeHtml(r.sku_id) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                <td>${r.location ? RS.escapeHtml(r.location) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                <td>${r.warehouse ? RS.escapeHtml(r.warehouse) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                <td style="text-align:right;font-weight:600;">${qtyCell}</td>
+                <td>${r.counter_name ? RS.escapeHtml(r.counter_name) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                <td>${RS.escapeHtml(formatLinkPendingDatetime(r.created_at))}</td>
+            </tr>`;
+        }).join('');
+
+        if (rows.length > LINK_PENDING_DISPLAY_MAX) {
+            moreEl.style.display = '';
+            moreEl.textContent =
+                `แสดง ${LINK_PENDING_DISPLAY_MAX.toLocaleString()} แถวแรกจากทั้งหมด ${rows.length.toLocaleString()} แถว — Export ได้ครบทุกแถว`;
+        } else {
+            moreEl.style.display = 'none';
+        }
+        lucide.createIcons();
+    }
+
+    async function refreshLinkPendingPanel(cycle, preview) {
+        if (!cycle) return clearLinkPendingPanel();
+        try {
+            if (preview && preview.linkableNull === 0) {
+                linkPendingRowsCache = [];
+                renderLinkPendingPanel([]);
+                return;
+            }
+            const rows = await RS.fetchLinkableInventoryRows(cycle);
+            linkPendingRowsCache = rows;
+            renderLinkPendingPanel(rows);
+        } catch {
+            clearLinkPendingPanel();
+        }
+    }
+
+    function exportLinkPendingExcel() {
+        if (!linkPendingRowsCache.length) return showToast('ไม่มีรายการรอผูกให้ส่งออก', 'error');
+        const cycleLabel = selectedCycle ? RS.formatCycleLabel(selectedCycle) : 'รอบ';
+        const rows = linkPendingRowsCache.map(r => ({
+            SKU: r.sku_id || '',
+            'ตำแหน่ง': r.location || '',
+            'คลัง': r.warehouse || '',
+            'จำนวน': Number(r.counted_qty),
+            'ผู้นับ': r.counter_name || '',
+            'วันที่บันทึก': formatLinkPendingDatetime(r.created_at),
+            id: r.id || ''
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'รอผูก');
+        const safeName = cycleLabel.replace(/[\\/:*?"<>|]/g, '_').slice(0, 40);
+        XLSX.writeFile(wb, `รอผูก_${safeName}.xlsx`);
+        showToast(`ส่งออก ${linkPendingRowsCache.length.toLocaleString()} แถวแล้ว`);
+    }
+
+    document.getElementById('btnToggleLinkPending').addEventListener('click', () => {
+        const body = document.getElementById('linkPendingBody');
+        const btn = document.getElementById('btnToggleLinkPending');
+        const hidden = body.style.display === 'none';
+        body.style.display = hidden ? '' : 'none';
+        btn.innerHTML = hidden
+            ? '<i data-lucide="chevron-up"></i> ซ่อน'
+            : '<i data-lucide="chevron-down"></i> แสดง';
+        lucide.createIcons();
+    });
+
+    document.getElementById('btnExportLinkPending').addEventListener('click', exportLinkPendingExcel);
+
     document.getElementById('btnPreviewLink').addEventListener('click', async () => {
         if (!selectedCycle) return;
         try {
             const prev = await RS.previewLinkInventoryCounts(selectedCycle);
             document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
-            showToast('อัปเดตตัวเลขแล้ว');
+            await refreshLinkPendingPanel(selectedCycle, prev);
+            showToast('อัปเดตตัวเลขและรายการรอผูกแล้ว');
         } catch (err) { showToast(err.message, 'error'); }
     });
 
@@ -1398,15 +1720,20 @@
             const prev = await RS.previewLinkInventoryCounts(selectedCycle);
             const whLabel = RS.isAllWarehousesCycle(selectedCycle) ? 'ทุกคลัง' : RS.formatWarehouseDisplay(selectedCycle);
             const rangeLabel = RS.formatDateRangeLabel(selectedCycle);
-            const ok = confirm(
-                `ยืนยันครั้งที่ 1\n\nผูก cycle_id ให้ผลนับ:\n· ${whLabel}\n· ช่วง ${rangeLabel}\n· รอผูก ${prev.linkableNull} แถว\n\nไม่แก้ counted_qty — ต้องการดำเนินการต่อ?`);
+            const ok = await showLinkConfirmModal({
+                step: 1,
+                whLabel,
+                rangeLabel,
+                linkableNull: prev.linkableNull
+            });
             if (!ok) return;
             linkConfirmStep = 1;
             lbtn.innerHTML = '<i data-lucide="shield-alert"></i> ผูกผลนับ (2/2)';
             lucide.createIcons();
             return;
         }
-        if (!confirm('ยืนยันครั้งที่ 2 — ผูกผลนับกับรอบนี้')) return;
+        const ok2 = await showLinkConfirmModal({ step: 2 });
+        if (!ok2) return;
         setLoading(true, 'กำลังผูก cycle_id...');
         try {
             const n = await RS.linkInventoryCountsToCycle(selectedCycle, { relinkOthers: false });

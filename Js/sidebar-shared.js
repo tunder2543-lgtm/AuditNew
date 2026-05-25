@@ -5,7 +5,7 @@
 (function () {
     const STORAGE_KEY = 'sidebar_groups_open_v1';
 
-    /** หน้าเหล่านี้ใช้เมนูแบน (ไม่มีกลุ่มย่อย) */
+    /** หน้าเหล่านี้: เปิดทุกกลุ่มเป็นค่าเริ่มต้น (ยังพับได้) — ไม่ซ่อนรายการย่อยแบบพับปิดตลอด */
     const FLAT_PAGES = new Set(['index', 'import_counts', 'sku_master', 'settings']);
 
     const GROUPS = [
@@ -113,38 +113,32 @@
         return FLAT_PAGES.has(activePage);
     }
 
-    /** เมนูแบน: แสดงรายการย่อยทั้งหมดตลอดเวลา (ไม่พับ) — ใช้บน index / import / sku_master / settings */
-    function renderFlatSidebar(aside, activePage) {
-        let html = '<div class="sidebar-brand">เมนู</div><nav class="sidebar-nav sidebar-nav-flat" aria-label="เมนูหลัก">';
-
-        GROUPS.forEach(function (group) {
-            const multi = group.items.length > 1;
-            if (multi) {
-                html += '<div class="sidebar-flat-label"><i data-lucide="' + group.icon + '"></i><span>' + group.label + '</span></div>';
-            }
-
-            group.items.forEach(function (item) {
-                const href = pageHref(item.id);
-                const isActive = item.id === activePage;
-                const cls = 'sidebar-nav-item' + (multi ? ' sidebar-nav-flat-item' : '') + (isActive ? ' active' : '');
-                html += '<a href="' + href + '" class="' + cls + '">';
-                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span></a>';
-            });
-        });
-
-        html += '</nav>';
-        aside.innerHTML = html;
-        if (typeof lucide !== 'undefined') lucide.createIcons();
+    function isGroupOpen(group, activeGroup, openState, defaultOpenAll) {
+        if (openState[group.id] === true) return true;
+        if (openState[group.id] === false) return false;
+        if (defaultOpenAll) return true;
+        return group.id === activeGroup;
     }
 
-    function renderGroupedSidebar(aside, activePage) {
+    function renderGroupedSidebar(aside, activePage, opts) {
+        opts = opts || {};
+        const defaultOpenAll = !!opts.defaultOpenAll;
         const activeGroup = findGroupForPage(activePage);
         const openState = loadOpenState();
 
         let html = '<div class="sidebar-brand">เมนู</div><nav class="sidebar-nav" aria-label="เมนูหลัก">';
 
         GROUPS.forEach(function (group) {
-            const isOpen = openState[group.id] !== false && (openState[group.id] === true || group.id === activeGroup);
+            if (group.items.length === 1) {
+                const item = group.items[0];
+                const href = pageHref(item.id);
+                const isActive = item.id === activePage;
+                html += '<a href="' + href + '" class="sidebar-nav-item' + (isActive ? ' active' : '') + '">';
+                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span></a>';
+                return;
+            }
+
+            const isOpen = isGroupOpen(group, activeGroup, openState, defaultOpenAll);
             html += '<div class="sidebar-group' + (isOpen ? ' open' : '') + '" data-group="' + group.id + '">';
             html += '<button type="button" class="sidebar-group-head" aria-expanded="' + (isOpen ? 'true' : 'false') + '">';
             html += '<span class="sidebar-group-left"><i data-lucide="' + group.icon + '"></i><span>' + group.label + '</span></span>';
@@ -187,11 +181,8 @@
         if (!aside.id) aside.id = 'appSidebar';
 
         const activePage = getActivePage();
-        if (usesFlatMenu(aside, activePage)) {
-            renderFlatSidebar(aside, activePage);
-            return;
-        }
-        renderGroupedSidebar(aside, activePage);
+        const defaultOpenAll = usesFlatMenu(aside, activePage);
+        renderGroupedSidebar(aside, activePage, { defaultOpenAll: defaultOpenAll });
     }
 
     window.sidebarShared = {

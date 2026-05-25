@@ -1080,6 +1080,70 @@
 
 
 
+    /** ดึงแถวรอผูก (ช่วงวัน + คลัง + cycle_id null) — ใช้แสดงรายการ / Export */
+
+    async function fetchLinkableInventoryRows(cycle, { maxRows = 50000 } = {}) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+        const range = getCycleLinkRange(cycle);
+
+        if (!range) throw new Error('year_month ไม่ถูกต้อง');
+
+
+
+        const selectCols = 'id, sku_id, location, warehouse, counted_qty, counter_name, created_at';
+
+        const all = [];
+
+        let from = 0;
+
+
+
+        while (all.length < maxRows) {
+
+            const to = from + COUNT_PAGE_SIZE - 1;
+
+            let query = client
+
+                .from('inventory_counts')
+
+                .select(selectCols)
+
+                .gte('created_at', range.start)
+
+                .lt('created_at', range.end)
+
+                .is('cycle_id', null)
+
+                .order('created_at', { ascending: false });
+
+            query = applyWarehouseFilter(query, cycle);
+
+            const { data, error } = await query.range(from, to);
+
+            if (error) throw error;
+
+            const chunk = data || [];
+
+            all.push(...chunk);
+
+            if (chunk.length < COUNT_PAGE_SIZE) break;
+
+            from += COUNT_PAGE_SIZE;
+
+        }
+
+
+
+        return all.slice(0, maxRows);
+
+    }
+
+
+
     /** ผูก cycle_id เท่านั้น — ไม่แก้ counted_qty */
 
     async function linkInventoryCountsToCycle(cycle, { relinkOthers = false } = {}) {
@@ -1887,6 +1951,8 @@
         countLinkedInventory,
 
         previewLinkInventoryCounts,
+
+        fetchLinkableInventoryRows,
 
         linkInventoryCountsToCycle,
 

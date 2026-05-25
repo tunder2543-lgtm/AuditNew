@@ -996,39 +996,115 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .dash-tabs {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        .dash-tab {
+            appearance: none;
+            border: 1px solid var(--line);
+            background: rgba(255,255,255,.03);
+            color: var(--muted);
+            border-radius: 14px;
+            padding: 11px 18px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.92rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: .18s ease;
+        }
+
+        .dash-tab:hover { border-color: rgba(79,140,255,.45); color: var(--text); }
+        .dash-tab.active {
+            border-color: rgba(79,140,255,.65);
+            background: linear-gradient(180deg, rgba(79,140,255,.22), rgba(79,140,255,.08));
+            color: #fff;
+        }
+
+        .dash-tab-panel { display: none; }
+        .dash-tab-panel.active { display: block; }
+
+        .cycle-filter-bar {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 14px;
+        }
+
+        @media (max-width: 768px) {
+            .cycle-filter-bar { grid-template-columns: 1fr; }
+        }
+
+        .match-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .match-kpi {
+            background: rgba(0,0,0,.2);
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            padding: 14px;
+            text-align: center;
+        }
+
+        .match-kpi .mk-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+        .match-kpi .mk-value { font-family: 'Outfit', sans-serif; font-size: 1.65rem; font-weight: 800; margin-top: 6px; }
+        .match-kpi.match .mk-value { color: #1ec98a; }
+        .match-kpi.short .mk-value { color: #ff5b6e; }
+        .match-kpi.over .mk-value { color: #ffb020; }
+        .match-kpi.other .mk-value { color: #94a3b8; }
+
+        .dash-banner {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,176,32,.35);
+            background: rgba(255,176,32,.08);
+            color: #ffd586;
+            font-size: 0.86rem;
+            margin-bottom: 14px;
+        }
+
+        .dash-banner.info {
+            border-color: rgba(79,140,255,.35);
+            background: rgba(79,140,255,.08);
+            color: #9cc0ff;
+        }
+
+        .interval-select-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .interval-select-wrap select {
+            height: 40px;
+            border-radius: 10px;
+            border: 1px solid var(--line);
+            background: #08090c;
+            color: var(--text);
+            padding: 0 12px;
+            font-family: inherit;
+        }
     </style>
 </head>
 <body class="has-sidebar">
     <div class="app-layout">
-        <aside class="sidebar" aria-label="เมนูหลัก">
-            <div class="sidebar-brand">เมนู</div>
-            <nav class="sidebar-nav">
-                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>นับสต็อก</span>
-                </a>
-                <a href="import_counts.html" class="sidebar-nav-item" title="นำเข้าผลการนับจาก Excel">
-                    <i data-lucide="file-input"></i>
-                    <span>Import นับ</span>
-                </a>
-                <a href="audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
-                    <i data-lucide="shield-check"></i>
-                    <span>ตรวจสอบ</span>
-                </a>
-                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
-                    <i data-lucide="database"></i>
-                    <span>SKU Master</span>
-                </a>
-                <a href="dashboard.html" class="sidebar-nav-item active" title="ภาพรวมและรายงาน">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
-                    <i data-lucide="settings"></i>
-                    <span>ตั้งค่า</span>
-                </a>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="appSidebar" data-active-page="dashboard" aria-label="เมนูหลัก"></aside>
         <main class="main-area">
     <div class="app-shell">
         <header class="topbar">
@@ -1070,6 +1146,46 @@
             <div class="warehouse-scope-bar" id="warehouseScopeBar"></div>
             <div class="warehouse-overview-grid" id="warehouseOverviewGrid"></div>
         </section>
+
+        <section class="panel panel-compact">
+            <div class="panel-header">
+                <div>
+                    <div class="panel-title">
+                        <i data-lucide="calendar-range"></i>
+                        <span>รอบนับ (Match / กรองผลนับ)</span>
+                    </div>
+                    <div class="panel-sub">เลือกรอบเพื่อดู KPI Match ยอด · หรือกรองการนับตามรอบที่ผูกแล้ว</div>
+                </div>
+            </div>
+            <div class="cycle-filter-bar">
+                <div class="field" style="margin:0;">
+                    <label for="filterCycle">รอบนับ</label>
+                    <select class="control" id="filterCycle">
+                        <option value="">— ทั้งหมดตามเดือน/คลัง —</option>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-soft" id="btnUseActiveCycle" title="ใช้รอบ active หรือรอบล่าสุดถ้ายังไม่ได้ตั้ง active">
+                    <i data-lucide="zap"></i>
+                    <span>รอบ active / ล่าสุด</span>
+                </button>
+                <button type="button" class="btn btn-primary" id="btnReloadDashboard">
+                    <i data-lucide="refresh-cw"></i>
+                    <span>รีเฟรช</span>
+                </button>
+            </div>
+            <p class="small-muted" id="cycleFilterHint" style="margin:0 0 4px;padding:0 2px;"></p>
+        </section>
+
+        <nav class="dash-tabs" aria-label="มุมมอง Dashboard">
+            <button type="button" class="dash-tab active" data-dash-tab="counting">
+                <i data-lucide="activity"></i> การนับและความเร็วส่งงาน
+            </button>
+            <button type="button" class="dash-tab" data-dash-tab="match">
+                <i data-lucide="scale"></i> Match ยอด (รอบ)
+            </button>
+        </nav>
+
+        <div class="dash-tab-panel active" id="dashPanelCounting">
 
         <section class="hero-grid">
             <article class="hero-card">
@@ -1138,7 +1254,7 @@
                                 <div class="kpi-value" id="kpiRate">0%</div>
                             </div>
                         </div>
-                        <div class="kpi-desc">สัดส่วนรายการที่ถูกส่งงานเมื่อเทียบกับข้อมูลทั้งหมด</div>
+                        <div class="kpi-desc" id="kpiRateDesc">เฉลี่ยรายการต่อนาทีในช่วงที่เลือก</div>
                     </div>
                 </div>
             </article>
@@ -1248,17 +1364,27 @@
                 <div class="panel-header">
                     <div>
                         <div class="panel-title">
-                            <i data-lucide="bar-chart-3"></i>
-                            <span>แนวโน้มการส่งงานตามเวลา</span>
+                            <i data-lucide="line-chart"></i>
+                            <span>อัตราการส่งงานตามเวลา</span>
                         </div>
-                        <div class="panel-sub">แสดงจำนวนรายการที่ถูกส่งตามช่วงเวลาแบบ Timeline</div>
+                        <div class="panel-sub">กราฟเส้น — จำนวนรายการและรายการ/นาที ต่อช่วงเวลา</div>
+                    </div>
+                    <div class="interval-select-wrap">
+                        <label for="bucketInterval" class="small-muted">ช่วงเวลา</label>
+                        <select id="bucketInterval" title="ช่วง bucket">
+                            <option value="30" selected>30 นาที</option>
+                            <option value="1">1 นาที</option>
+                            <option value="10">10 นาที</option>
+                            <option value="60">1 ชม.</option>
+                        </select>
                     </div>
                 </div>
                 <div class="chart-card">
                     <div class="chart-wrap large">
-                        <canvas id="timelineChart"></canvas>
+                        <canvas id="submissionLineChart"></canvas>
                     </div>
                 </div>
+                <p class="small-muted" id="submissionRateHint" style="margin:10px 4px 0;"></p>
             </article>
         </section>
 
@@ -1378,6 +1504,73 @@
             </div>
         </section>
 
+        </div><!-- /dashPanelCounting -->
+
+        <div class="dash-tab-panel" id="dashPanelMatch">
+            <section class="panel">
+                <div class="panel-header">
+                    <div>
+                        <div class="panel-title">
+                            <i data-lucide="scale"></i>
+                            <span>สรุป Match ยอด (รอบที่เลือก)</span>
+                        </div>
+                        <div class="panel-sub">จาก reconciliation_lines — กด Refresh ในหน้า Match ก่อนถ้ายังไม่มีข้อมูล</div>
+                    </div>
+                    <a class="btn btn-primary" id="btnOpenReconcile" href="reconcile.html">
+                        <i data-lucide="external-link"></i>
+                        <span>เปิด Match ยอด</span>
+                    </a>
+                </div>
+
+                <div id="matchNoCycleBanner" class="dash-banner info">
+                    <i data-lucide="info" style="width:16px;flex-shrink:0;"></i>
+                    <span>เลือก<strong>รอบนับ</strong>ด้านบนเพื่อดู KPI Match (ถูกต้อง / ขาด / เกิน / ยังไม่ได้นับ)</span>
+                </div>
+                <div id="matchEmptyBanner" class="dash-banner" style="display:none;">
+                    <i data-lucide="alert-triangle" style="width:16px;flex-shrink:0;"></i>
+                    <span>ยังไม่มีข้อมูล Match — ไปที่หน้า Match ยอดแล้วกด <strong>คำนวณ Match</strong></span>
+                </div>
+
+                <div class="match-kpi-grid" id="matchKpiGrid"></div>
+
+                <div class="layout-grid" style="margin-top:16px;">
+                    <article class="panel" style="box-shadow:none;border:none;padding:0;">
+                        <div class="panel-header" style="padding:0 0 12px;">
+                            <div class="panel-title"><i data-lucide="pie-chart"></i> สัดส่วนสถานะ Match</div>
+                        </div>
+                        <div class="chart-card">
+                            <div class="chart-wrap">
+                                <canvas id="matchPieChart"></canvas>
+                            </div>
+                        </div>
+                    </article>
+                    <article class="panel" style="box-shadow:none;border:none;padding:0;">
+                        <div class="panel-header" style="padding:0 0 12px;">
+                            <div class="panel-title"><i data-lucide="list"></i> Top SKU ขาด / เกิน</div>
+                        </div>
+                        <div class="table-box">
+                            <div class="table-scroll" style="max-height:320px;">
+                                <table style="min-width:100%;">
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>สถานะ</th>
+                                            <th style="text-align:right;">Excel</th>
+                                            <th style="text-align:right;">ผลนับ</th>
+                                            <th style="text-align:right;">ต่าง</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="matchTopSkuBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="substats" id="matchExtraStats" style="margin-top:14px;"></div>
+            </section>
+        </div>
+
         <section class="panel">
             <div class="panel-header">
                 <div>
@@ -1401,10 +1594,16 @@
         </main>
     </div>
 
+    <script src="../Js/sidebar-shared.js"></script>
     <script src="../Js/api.js"></script>
     <script src="../Js/settings-shared.js"></script>
+    <script src="../Js/reconcile-shared.js"></script>
+    <script src="../Js/dashboard-shared.js"></script>
     <script>
         lucide.createIcons();
+
+        const RS = window.reconcileService;
+        const DS = window.dashboardShared;
 
         let supabaseClient = window.apiService ? window.apiService.getClient() : null;
         let allRecords = [];
@@ -1412,10 +1611,18 @@
         let skuMaster = [];
         let filteredRows = [];
         let countPieChart = null;
-        let timelineChart = null;
+        let submissionLineChart = null;
+        let matchPieChart = null;
         let monthFilter = { yearMonth: '', countDay: '' };
         let monthSelectOptionsHtml = '';
         let scopeWarehouse = localStorage.getItem('dashboard_scope_warehouse') || '';
+        let selectedCycleId = localStorage.getItem('dashboard_cycle_id')
+            || new URLSearchParams(window.location.search).get('cycle')
+            || '';
+        let cyclesList = [];
+        let matchSummary = null;
+        let bucketIntervalMinutes = 30;
+        let dataLoading = false;
 
         const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
@@ -1457,7 +1664,16 @@
             scopeSubtitle: document.getElementById('scopeSubtitle'),
             scopeActivePill: document.getElementById('scopeActivePill'),
             scopeActiveLabel: document.getElementById('scopeActiveLabel'),
-            filterWarehouseField: document.getElementById('filterWarehouseField')
+            filterWarehouseField: document.getElementById('filterWarehouseField'),
+            filterCycle: document.getElementById('filterCycle'),
+            cycleFilterHint: document.getElementById('cycleFilterHint'),
+            kpiRateDesc: document.getElementById('kpiRateDesc'),
+            submissionRateHint: document.getElementById('submissionRateHint'),
+            bucketInterval: document.getElementById('bucketInterval'),
+            matchKpiGrid: document.getElementById('matchKpiGrid'),
+            matchTopSkuBody: document.getElementById('matchTopSkuBody'),
+            matchExtraStats: document.getElementById('matchExtraStats'),
+            btnOpenReconcile: document.getElementById('btnOpenReconcile')
         };
 
         const thaiNow = new Date().toLocaleString('th-TH', {
@@ -1557,7 +1773,17 @@
             if (els.filterWarehouse && scopeWarehouse) {
                 els.filterWarehouse.value = scopeWarehouse;
             }
-            render();
+            loadDashboardData();
+        }
+
+        function setDashTab(tabId) {
+            document.querySelectorAll('.dash-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.dashTab === tabId);
+            });
+            document.querySelectorAll('.dash-tab-panel').forEach(panel => {
+                panel.classList.toggle('active', panel.id === (tabId === 'match' ? 'dashPanelMatch' : 'dashPanelCounting'));
+            });
+            lucide.createIcons();
         }
 
         function renderWarehouseScopeBar() {
@@ -1810,7 +2036,8 @@
                     monthFilter.countDay = monthFilter.countDay === day ? '' : day;
                     if (els.filterCountDay) els.filterCountDay.value = monthFilter.countDay;
                     syncDateInputsFromMonthFilter();
-                    render();
+                    if (!selectedCycleId) loadDashboardData();
+                    else render();
                 });
             });
         }
@@ -1841,26 +2068,239 @@
             lucide.createIcons();
         }
 
-        async function loadAllData() {
+        function getSelectedCycle() {
+            return cyclesList.find(c => c.id === selectedCycleId) || null;
+        }
+
+        function getCountLoadOptions() {
+            const cycle = getSelectedCycle();
+            if (cycle) {
+                return { cycle, cycleId: cycle.id };
+            }
+            let range = null;
+            if (monthFilter.yearMonth) {
+                range = RS.yearMonthToRangeISO(monthFilter.yearMonth);
+            }
+            const wh = scopeWarehouse || els.filterWarehouse?.value || '';
+            return {
+                range,
+                warehouseValue: wh && !RS.isAllWarehousesCycle(wh) ? wh : (scopeWarehouse || null)
+            };
+        }
+
+        async function loadPagedSkuMaster() {
+            let rows = [];
+            let from = 0;
+            const pageSize = 1000;
+            while (true) {
+                const { data, error } = await supabaseClient
+                    .from('sku_master')
+                    .select('sku_name, name_pro, warehouse')
+                    .order('sku_name', { ascending: false })
+                    .range(from, from + pageSize - 1);
+                if (error) throw error;
+                rows = rows.concat(data || []);
+                if (!data || data.length < pageSize) break;
+                from += pageSize;
+            }
+            return rows;
+        }
+
+        function applySelectedCycleId(id) {
+            selectedCycleId = id || '';
+            if (els.filterCycle) els.filterCycle.value = selectedCycleId;
+            if (selectedCycleId) localStorage.setItem('dashboard_cycle_id', selectedCycleId);
+            else localStorage.removeItem('dashboard_cycle_id');
+        }
+
+        async function populateCycleSelect() {
+            if (!els.filterCycle || !supabaseClient) return;
+            try {
+                cyclesList = await RS.fetchCycles(null);
+                const opts = ['<option value="">— ทั้งหมดตามเดือน/คลัง —</option>'];
+                cyclesList.forEach(c => {
+                    opts.push(`<option value="${c.id}">${escapeHtml(RS.formatCycleLabel(c))}</option>`);
+                });
+                els.filterCycle.innerHTML = opts.join('');
+
+                const active = RS.getActiveCycle();
+                if (selectedCycleId && cyclesList.some(c => c.id === selectedCycleId)) {
+                    applySelectedCycleId(selectedCycleId);
+                } else if (active?.id && cyclesList.some(c => c.id === active.id)) {
+                    applySelectedCycleId(active.id);
+                } else {
+                    applySelectedCycleId('');
+                }
+            } catch (e) {
+                console.warn('load cycles', e);
+            }
+        }
+
+        /** ใช้รอบ active หรือรอบล่าสุดถ้ายังไม่ได้ตั้ง active */
+        async function useActiveOrLatestCycle() {
+            const active = RS.getActiveCycle();
+            if (active?.id) {
+                if (!cyclesList.length) await populateCycleSelect();
+                if (cyclesList.some(c => c.id === active.id)) {
+                    applySelectedCycleId(active.id);
+                    updateCycleFilterHint();
+                    await loadDashboardData();
+                    return true;
+                }
+            }
+
+            if (!cyclesList.length) await populateCycleSelect();
+
+            if (cyclesList.length) {
+                const pick = cyclesList[0];
+                applySelectedCycleId(pick.id);
+                if (els.cycleFilterHint) {
+                    els.cycleFilterHint.innerHTML =
+                        `ยังไม่มีรอบ <strong>active</strong> — เลือกรอบล่าสุดให้แล้ว: ` +
+                        `<strong>${escapeHtml(RS.formatCycleLabel(pick))}</strong> · ` +
+                        `<a href="cycle_config.html" style="color:#93c5fd;text-decoration:underline;">ไปตั้งค่ารอบ</a> ` +
+                        `แล้วกดปุ่ม「ใช้งาน」ที่รอบนั้น`;
+                }
+                await loadDashboardData();
+                return true;
+            }
+
+            if (els.cycleFilterHint) {
+                els.cycleFilterHint.innerHTML =
+                    'ยังไม่มีรอบในระบบ — <a href="cycle_config.html" style="color:#93c5fd;text-decoration:underline;">สร้างรอบที่ตั้งค่ารอบ</a>';
+            }
+            return false;
+        }
+
+        function updateCycleFilterHint() {
+            const cycle = getSelectedCycle();
+            if (!els.cycleFilterHint) return;
+            if (!cycle) {
+                els.cycleFilterHint.textContent = 'โหมดเดือน/คลัง — ไม่กรองตามรอบ (ใช้ตัวกรองเดือนด้านล่าง)';
+                if (els.btnOpenReconcile) els.btnOpenReconcile.href = 'reconcile.html';
+                return;
+            }
+            els.cycleFilterHint.textContent =
+                `กรองผลนับตามรอบ: ${RS.formatCycleLabel(cycle)} · ${RS.formatDateRangeLabel(cycle)}`;
+            if (els.btnOpenReconcile) els.btnOpenReconcile.href = `reconcile.html?cycle=${cycle.id}`;
+            if (cycle.year_month && !monthFilter.yearMonth) {
+                monthFilter.yearMonth = cycle.year_month;
+            }
+        }
+
+        async function loadMatchData() {
+            const cycle = getSelectedCycle();
+            const noCycle = document.getElementById('matchNoCycleBanner');
+            const emptyBanner = document.getElementById('matchEmptyBanner');
+            if (!cycle) {
+                if (noCycle) noCycle.style.display = 'flex';
+                if (emptyBanner) emptyBanner.style.display = 'none';
+                if (els.matchKpiGrid) els.matchKpiGrid.innerHTML = '';
+                if (els.matchTopSkuBody) els.matchTopSkuBody.innerHTML = '';
+                matchSummary = null;
+                matchPieChart = DS.destroyChart(matchPieChart);
+                return;
+            }
+            if (noCycle) noCycle.style.display = 'none';
+            try {
+                matchSummary = await RS.fetchCycleSummary(cycle.id);
+                const kpis = DS.aggregateMatchFromSummary(matchSummary);
+                if (emptyBanner) emptyBanner.style.display = kpis.hasData ? 'none' : 'flex';
+                renderMatchKpis(kpis, cycle);
+            } catch (err) {
+                console.warn('match summary', err);
+                if (emptyBanner) {
+                    emptyBanner.style.display = 'flex';
+                    emptyBanner.querySelector('span').textContent =
+                        'ยังไม่มี view Match — รัน SQL 002 หรือกดคำนวณ Match ในหน้า Match ยอด';
+                }
+            }
+        }
+
+        async function renderMatchTopSkus(cycleId) {
+            if (!els.matchTopSkuBody) return;
+            try {
+                const [shortRows, overRows] = await Promise.all([
+                    RS.fetchReconciliationLinesTop(cycleId, { status: 'short', limit: 15 }),
+                    RS.fetchReconciliationLinesTop(cycleId, { status: 'over', limit: 15 })
+                ]);
+                const rows = [...shortRows, ...overRows].slice(0, 25);
+                if (!rows.length) {
+                    els.matchTopSkuBody.innerHTML =
+                        '<tr><td colspan="5" class="small-muted">ไม่มี SKU ขาด/เกิน</td></tr>';
+                    return;
+                }
+                els.matchTopSkuBody.innerHTML = rows.map(r => {
+                    const st = DS.MATCH_STATUS_LABELS[r.match_status] || { th: r.match_status };
+                    return `<tr>
+                        <td class="sku">${escapeHtml(r.sku_id)}</td>
+                        <td>${escapeHtml(st.th)}</td>
+                        <td style="text-align:right;">${Number(r.book_qty).toLocaleString()}</td>
+                        <td style="text-align:right;">${Number(r.counted_qty).toLocaleString()}</td>
+                        <td style="text-align:right;">${Number(r.variance_qty).toLocaleString()}</td>
+                    </tr>`;
+                }).join('');
+            } catch {
+                els.matchTopSkuBody.innerHTML =
+                    '<tr><td colspan="5" class="small-muted">โหลดรายการไม่สำเร็จ</td></tr>';
+            }
+        }
+
+        function renderMatchKpis(kpis, cycle) {
+            if (!els.matchKpiGrid) return;
+            const pct = kpis.matchPct != null ? `${kpis.matchPct}%` : '—';
+            els.matchKpiGrid.innerHTML = `
+                <div class="match-kpi match"><div class="mk-label">ถูกต้อง</div><div class="mk-value">${kpis.match.toLocaleString()}</div></div>
+                <div class="match-kpi short"><div class="mk-label">ขาด</div><div class="mk-value">${kpis.short.toLocaleString()}</div></div>
+                <div class="match-kpi over"><div class="mk-label">เกิน</div><div class="mk-value">${kpis.over.toLocaleString()}</div></div>
+                <div class="match-kpi other"><div class="mk-label">ยังไม่ได้นับ</div><div class="mk-value">${kpis.book_only.toLocaleString()}</div></div>
+                <div class="match-kpi other"><div class="mk-label">ไม่พบใน Excel</div><div class="mk-value">${kpis.count_only.toLocaleString()}</div></div>
+                <div class="match-kpi"><div class="mk-label">% Match</div><div class="mk-value" style="color:#93c5fd;">${pct}</div></div>`;
+
+            if (els.matchExtraStats) {
+                els.matchExtraStats.innerHTML = `
+                    <div class="substat"><div class="label">SKU รวม</div><div class="value">${kpis.total.toLocaleString()}</div></div>
+                    <div class="substat"><div class="label">ความต่าง (ชิ้น)</div><div class="value">${kpis.totalVariance.toLocaleString()}</div></div>
+                    <div class="substat"><div class="label">รอบ</div><div class="value" style="font-size:0.95rem;">${escapeHtml(RS.formatWarehouseDisplay(cycle))}</div></div>`;
+            }
+
+            const canvas = document.getElementById('matchPieChart');
+            matchPieChart = DS.buildMatchDoughnutChart(canvas, kpis, matchPieChart);
+            renderMatchTopSkus(cycle.id);
+        }
+
+        async function loadDashboardData() {
             if (!supabaseClient) {
                 updateDashboardConnectionStatus(false);
                 return;
             }
+            if (dataLoading) return;
+            dataLoading = true;
             updateDashboardConnectionStatus(true);
+            els.progressText.textContent = 'กำลังโหลดข้อมูล...';
 
             try {
+                await populateCycleSelect();
+                updateCycleFilterHint();
+
                 const [skuRes, countRes] = await Promise.all([
-                    loadPagedRows('sku_master', 'sku_name, name_pro, warehouse'),
-                    loadPagedRows('inventory_counts', '*')
+                    loadPagedSkuMaster(),
+                    RS.loadInventoryCountsForDashboard({
+                        ...getCountLoadOptions(),
+                        onProgress: ({ loaded }) => {
+                            els.progressText.textContent = `กำลังโหลดผลนับ... ${loaded.toLocaleString()} แถว`;
+                        }
+                    })
                 ]);
 
                 skuMasterAll = skuRes.map(row => ({
                     ...row,
                     warehouse: getSkuWarehouse(row)
                 }));
-                skuMaster = getScopedSkuMaster();
                 allRecords = countRes;
+                skuMaster = getScopedSkuMaster();
 
+                await loadMatchData();
                 render();
             } catch (error) {
                 console.error(error);
@@ -1868,31 +2308,12 @@
                     <div class="empty-state">
                         <i data-lucide="alert-triangle"></i>
                         <div>โหลดข้อมูลไม่สำเร็จ</div>
-                        <div style="margin-top:8px;">${error.message}</div>
+                        <div style="margin-top:8px;">${escapeHtml(error.message)}</div>
                     </div>`;
                 lucide.createIcons();
+            } finally {
+                dataLoading = false;
             }
-        }
-
-        async function loadPagedRows(table, selectQuery) {
-            let rows = [];
-            let from = 0;
-            const pageSize = 1000;
-
-            while (true) {
-                const { data, error } = await supabaseClient
-                    .from(table)
-                    .select(selectQuery)
-                    .order(table === 'inventory_counts' ? 'created_at' : 'sku_name', { ascending: false })
-                    .range(from, from + pageSize - 1);
-
-                if (error) throw error;
-                rows = rows.concat(data || []);
-                if (!data || data.length < pageSize) break;
-                from += pageSize;
-            }
-
-            return rows;
         }
 
         function getSKUName(skuId, warehouseHint) {
@@ -1978,12 +2399,19 @@
             const totalRecords = rows.length;
             const counters = new Set(rows.map(r => normalize(r.counter_name)).filter(Boolean)).size;
             const warehouses = new Set(rows.map(r => normalize(r.warehouse)).filter(Boolean)).size;
-            const rate = totalRecords && totalSku ? Math.min(100, Math.floor((totalRecords / totalSku) * 100)) : 0;
+            const rateStats = DS.computeSubmissionRateStats(rows, bucketIntervalMinutes);
 
             els.kpiCounted.textContent = countedSku.toLocaleString();
             els.kpiUncounted.textContent = uncountedSku.toLocaleString();
             els.kpiProgress.textContent = `${progress}%`;
-            els.kpiRate.textContent = `${rate}%`;
+            els.kpiRate.textContent = rateStats.avgPerMin > 0
+                ? rateStats.avgPerMin.toFixed(2)
+                : '0';
+            if (els.kpiRateDesc) {
+                els.kpiRateDesc.textContent = rateStats.peakPerMin > 0
+                    ? `เฉลี่ย ${rateStats.avgPerMin.toFixed(2)} รายการ/นาที · พีค ${rateStats.peakPerMin.toFixed(2)} (${rateStats.peakLabel})`
+                    : 'เฉลี่ยรายการต่อนาทีในช่วงที่เลือก';
+            }
 
             els.statTotalRecords.textContent = totalRecords.toLocaleString();
             els.statTotalQty.textContent = totalQty.toLocaleString();
@@ -2058,70 +2486,38 @@
             });
         }
 
-        function groupByHour(rows) {
-            const buckets = new Map();
-            rows.forEach(row => {
-                const date = row.created_at ? new Date(row.created_at) : null;
-                if (!date || Number.isNaN(date.getTime())) return;
-                const key = date.toLocaleString('th-TH', {
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit'
+        async function renderSubmissionLineChart(rows) {
+            let buckets = null;
+            const opts = getCountLoadOptions();
+            let range = opts.range;
+            if (opts.cycle) range = RS.getCycleLinkRange(opts.cycle);
+            if (range?.start && range?.end) {
+                buckets = await RS.fetchSubmissionBuckets({
+                    start: range.start,
+                    end: range.end,
+                    warehouseValue: scopeWarehouse || opts.cycle?.warehouse || null,
+                    cycleId: opts.cycleId || null,
+                    intervalMinutes: bucketIntervalMinutes
                 });
-                buckets.set(key, (buckets.get(key) || 0) + 1);
-            });
-            return [...buckets.entries()].sort((a, b) => a[0].localeCompare(b[0], 'th'));
-        }
-
-        function renderTimelineChart(rows) {
-            const grouped = groupByHour(rows);
-            const labels = grouped.map(x => x[0]);
-            const values = grouped.map(x => x[1]);
-
-            const ctx = document.getElementById('timelineChart');
-            if (timelineChart) timelineChart.destroy();
-
-            timelineChart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels.length ? labels : ['ไม่มีข้อมูล'],
-                    datasets: [{
-                        label: 'จำนวนรายการ',
-                        data: values.length ? values : [0],
-                        backgroundColor: 'rgba(79,140,255,.8)',
-                        borderColor: '#4f8cff',
-                        borderWidth: 1,
-                        borderRadius: 10,
-                        maxBarThickness: 56
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: '#121316',
-                            borderColor: '#353b47',
-                            borderWidth: 1,
-                            titleColor: '#fff',
-                            bodyColor: '#fff'
-                        }
-                    },
-                    scales: {
-                        x: {
-                            ticks: { color: '#9aa4b2' },
-                            grid: { color: 'rgba(255,255,255,.04)' }
-                        },
-                        y: {
-                            beginAtZero: true,
-                            ticks: { color: '#9aa4b2', precision: 0 },
-                            grid: { color: 'rgba(255,255,255,.06)' }
-                        }
-                    }
+            }
+            const stats = buckets?.length
+                ? {
+                    buckets,
+                    avgPerMin: buckets.reduce((s, b) => s + b.ratePerMin, 0) / buckets.length,
+                    peakPerMin: Math.max(...buckets.map(b => b.ratePerMin), 0),
+                    peakLabel: buckets.reduce((a, b) => (b.ratePerMin > a.ratePerMin ? b : a), buckets[0])?.label || '-',
+                    totalRecords: rows.length
                 }
-            });
+                : DS.computeSubmissionRateStats(rows, bucketIntervalMinutes);
+            const canvas = document.getElementById('submissionLineChart');
+            submissionLineChart = DS.buildSubmissionLineChart(canvas, stats.buckets, submissionLineChart);
+            if (els.submissionRateHint) {
+                const intervalLabel = DS.BUCKET_OPTIONS.find(b => b.minutes === bucketIntervalMinutes)?.label
+                    || `${bucketIntervalMinutes} นาที`;
+                els.submissionRateHint.textContent = stats.buckets.length
+                    ? `ช่วง bucket: ${intervalLabel} · ${stats.buckets.length} จุด · รวม ${stats.totalRecords.toLocaleString()} รายการ`
+                    : 'ไม่มีข้อมูลในช่วงที่เลือก — ลองเปลี่ยนเดือน/รอบ/คลัง';
+            }
         }
 
         function renderTopCounters(rows) {
@@ -2313,10 +2709,10 @@
 
         function escapeHtml(value) {
             return String(value || '')
-                .replace(/&/g, '&')
-                .replace(/</g, '<')
-                .replace(/>/g, '>')
-                .replace(/"/g, '"');
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
         }
 
         function populateFilterOptions(rows) {
@@ -2333,7 +2729,7 @@
             els.filterWarehouse.value = currentWarehouse;
         }
 
-        function render() {
+        async function render() {
             skuMaster = getScopedSkuMaster();
             renderWarehouseScopeBar();
             renderWarehouseOverview();
@@ -2349,7 +2745,7 @@
             renderKpis(filtered);
             populateFilterOptions(scopedRecords);
             renderPieChart(filtered);
-            renderTimelineChart(filtered);
+            await renderSubmissionLineChart(filtered);
             renderTopCounters(filtered);
             renderWarehouseBreakdown(filtered);
             renderFilteredTable(filtered);
@@ -2364,6 +2760,32 @@
                 : 0;
             els.progressBar.style.width = `${progress}%`;
             lucide.createIcons();
+        }
+
+        document.querySelectorAll('.dash-tab').forEach(btn => {
+            btn.addEventListener('click', () => setDashTab(btn.dataset.dashTab || 'counting'));
+        });
+
+        if (els.filterCycle) {
+            els.filterCycle.addEventListener('change', () => {
+                applySelectedCycleId(els.filterCycle.value || '');
+                updateCycleFilterHint();
+                loadDashboardData();
+            });
+        }
+
+        document.getElementById('btnUseActiveCycle')?.addEventListener('click', () => {
+            useActiveOrLatestCycle();
+        });
+
+        document.getElementById('btnReloadDashboard')?.addEventListener('click', () => loadDashboardData());
+
+        if (els.bucketInterval) {
+            bucketIntervalMinutes = Number(els.bucketInterval.value) || 30;
+            els.bucketInterval.addEventListener('change', () => {
+                bucketIntervalMinutes = Number(els.bucketInterval.value) || 30;
+                renderSubmissionLineChart(filteredRows.length ? filteredRows : applyFilters(getScopedRecords()));
+            });
         }
 
         document.getElementById('btnApplyFilters').addEventListener('click', render);
@@ -2383,14 +2805,16 @@
                 monthFilter.yearMonth = els.filterMonth.value;
                 monthFilter.countDay = '';
                 if (els.filterCountDay) els.filterCountDay.value = '';
-                render();
+                if (!selectedCycleId) loadDashboardData();
+                else render();
             });
         }
 
         if (els.filterCountDay) {
             els.filterCountDay.addEventListener('change', () => {
                 monthFilter.countDay = els.filterCountDay.value;
-                render();
+                if (!selectedCycleId) loadDashboardData();
+                else render();
             });
         }
 
@@ -2412,7 +2836,7 @@
                 </div>`;
             lucide.createIcons();
         } else {
-            loadAllData();
+            loadDashboardData();
         }
     </script>
 </body>

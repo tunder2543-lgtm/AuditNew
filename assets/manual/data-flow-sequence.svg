@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 200" font-family="Kanit, sans-serif">
+  <defs>
+    <marker id="f" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#34d399"/></marker>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#1e3a5f"/><stop offset="100%" stop-color="#064e3b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1000" height="200" fill="#0c0c10" rx="12"/>
+  <text x="500" y="28" text-anchor="middle" fill="#93c5fd" font-size="14" font-weight="600">????? Data Flow (F0 ? F7)</text>
+  <g font-size="11" fill="#f8fafc">
+    <rect x="20" y="55" width="72" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="56" y="78" text-anchor="middle">F0 Setup</text>
+    <rect x="108" y="55" width="72" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="144" y="78" text-anchor="middle">F1 Master</text>
+    <rect x="196" y="55" width="88" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="240" y="78" text-anchor="middle">F2 ???+Book</text>
+    <rect x="300" y="55" width="72" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="336" y="78" text-anchor="middle">F3 ???</text>
+    <rect x="388" y="55" width="72" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="424" y="78" text-anchor="middle">F4 ??????</text>
+    <rect x="476" y="55" width="72" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="512" y="78" text-anchor="middle">F5 ????</text>
+    <rect x="564" y="55" width="72" height="36" rx="8" fill="#334155" stroke="#64748b"/><text x="600" y="78" text-anchor="middle">F6 Match</text>
+    <rect x="652" y="55" width="88" height="36" rx="8" fill="url(#g)" stroke="#34d399" stroke-width="2"/><text x="696" y="78" text-anchor="middle">F7 Dashboard</text>
+  </g>
+  <line x1="92" y1="73" x2="108" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="180" y1="73" x2="196" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="284" y1="73" x2="300" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="372" y1="73" x2="388" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="460" y1="73" x2="476" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="548" y1="73" x2="564" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <line x1="636" y1="73" x2="652" y2="73" stroke="#34d399" stroke-width="2" marker-end="url(#f)"/>
+  <text x="500" y="130" text-anchor="middle" fill="#94a3b8" font-size="10">D1 ? D2,D3 ? D4 ? D4.cycle_id ? ???? D4 ? D5,D6 ? ???? ??????</text>
+  <text x="500" y="155" text-anchor="middle" fill="#64748b" font-size="9">?? F2: ?????????? Book ???????? · F3 ?????? counted_qty ????? Match · ?????? cycle_id ???? reconcile</text>
+</svg>

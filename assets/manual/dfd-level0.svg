@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="Kanit, Segoe UI, sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <path d="M0,0 L9,3 L0,6 Z" fill="#38bdf8"/>
+    </marker>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <rect width="960" height="520" fill="#0c0c10"/>
+  <text x="480" y="36" text-anchor="middle" fill="#93c5fd" font-size="18" font-weight="600">DFD Level 0 — Context Diagram</text>
+  <text x="480" y="58" text-anchor="middle" fill="#64748b" font-size="12">ระบบนับสต็อก Stock Audit (P0)</text>
+
+  <g transform="translate(24,72)">
+    <rect x="0" y="0" width="14" height="14" fill="#1e293b" stroke="#94a3b8"/>
+    <text x="22" y="12" fill="#94a3b8" font-size="11">External Entity (E)</text>
+    <circle cx="7" cy="32" r="7" fill="#1e3a5f" stroke="#3b82f6"/>
+    <text x="22" y="36" fill="#94a3b8" font-size="11">Process (P0)</text>
+  </g>
+
+  <g filter="url(#sh)">
+    <rect x="40" y="180" width="130" height="56" rx="6" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="105" y="204" text-anchor="middle" fill="#f1f5f9" font-size="12" font-weight="600">E1</text>
+    <text x="105" y="224" text-anchor="middle" fill="#e2e8f0" font-size="11">เจ้าหน้าที่นับ</text>
+  </g>
+
+  <g filter="url(#sh)">
+    <rect x="40" y="320" width="130" height="56" rx="6" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="105" y="344" text-anchor="middle" fill="#f1f5f9" font-size="12" font-weight="600">E2</text>
+    <text x="105" y="364" text-anchor="middle" fill="#e2e8f0" font-size="11">ผู้บริหาร / ERP</text>
+  </g>
+
+  <g filter="url(#sh)">
+    <rect x="790" y="120" width="130" height="56" rx="6" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="855" y="144" text-anchor="middle" fill="#f1f5f9" font-size="12" font-weight="600">E3</text>
+    <text x="855" y="164" text-anchor="middle" fill="#e2e8f0" font-size="11">ไฟล์ Excel</text>
+  </g>
+
+  <g filter="url(#sh)">
+    <rect x="790" y="340" width="130" height="56" rx="6" fill="#1e293b" stroke="#cbd5e1" stroke-width="1.5"/>
+    <text x="855" y="364" text-anchor="middle" fill="#f1f5f9" font-size="12" font-weight="600">E4</text>
+    <text x="855" y="384" text-anchor="middle" fill="#e2e8f0" font-size="11">Supabase DB</text>
+  </g>
+
+  <g filter="url(#sh)">
+    <circle cx="480" cy="268" r="88" fill="#172554" stroke="#3b82f6" stroke-width="3"/>
+    <text x="480" y="252" text-anchor="middle" fill="#93c5fd" font-size="16" font-weight="700">P0</text>
+    <text x="480" y="274" text-anchor="middle" fill="#f8fafc" font-size="13">ระบบนับสต็อก</text>
+    <text x="480" y="294" text-anchor="middle" fill="#bfdbfe" font-size="12">Stock Audit Web</text>
+  </g>
+
+  <path d="M170 208 Q280 200 392 238" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="260" y="198" fill="#7dd3fc" font-size="10">ผลนับ / ค้นหา / Import</text>
+
+  <path d="M392 298 Q280 310 170 300" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="250" y="318" fill="#7dd3fc" font-size="10">KPI / รายงานค้นหา</text>
+
+  <path d="M170 340 Q300 320 400 290" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="250" y="332" fill="#7dd3fc" font-size="10">ยอด Book / Match / Export</text>
+
+  <path d="M400 310 Q280 360 170 348" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="240" y="368" fill="#7dd3fc" font-size="10">รายงาน / Dashboard</text>
+
+  <path d="M790 148 Q640 180 568 230" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="650" y="168" fill="#7dd3fc" font-size="10">อัปโหลด Master / Book / นับ</text>
+  <path d="M568 250 Q640 200 790 168" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="650" y="218" fill="#7dd3fc" font-size="10">Export Excel</text>
+
+  <path d="M568 285 Q680 310 790 360" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+  <text x="680" y="328" fill="#7dd3fc" font-size="10">อ่าน/เขียน / บันทึก DB</text>
+  <path d="M790 368 Q680 340 568 300" fill="none" stroke="#38bdf8" stroke-width="1.8" marker-end="url(#arr)"/>
+</svg>

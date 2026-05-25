@@ -19,35 +19,7 @@
 </head>
 <body class="has-sidebar">
     <div class="app-layout">
-        <aside class="sidebar" aria-label="เมนูหลัก">
-            <div class="sidebar-brand">เมนู</div>
-            <nav class="sidebar-nav">
-                <a href="index.html" class="sidebar-nav-item active" title="หน้านับสต็อก">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>นับสต็อก</span>
-                </a>
-                <a href="Html/import_counts.html" class="sidebar-nav-item" title="นำเข้าผลการนับจาก Excel">
-                    <i data-lucide="file-input"></i>
-                    <span>Import นับ</span>
-                </a>
-                <a href="Html/audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
-                    <i data-lucide="shield-check"></i>
-                    <span>ตรวจสอบ</span>
-                </a>
-                <a href="Html/sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
-                    <i data-lucide="database"></i>
-                    <span>SKU Master</span>
-                </a>
-                <a href="Html/dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="Html/settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
-                    <i data-lucide="settings"></i>
-                    <span>ตั้งค่า</span>
-                </a>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="appSidebar" data-active-page="index" aria-label="เมนูหลัก"></aside>
         <main class="main-area">
     <div class="dashboard-container">
         <!-- Header -->
@@ -57,35 +29,19 @@
                 <p id="monthSubtitle" style="font-family: 'Kanit', sans-serif; font-size: 1.5rem; font-weight: 600; color: #93c5fd; text-align: center; margin-top: 0.25rem; letter-spacing: 0.02em;">นับสต็อกเดือน...</p>
             </div>
             <div class="header-stats">
-                <div class="header-kpi-panel" id="headerKpiPanel">
-                    <div class="kpi-row kpi-row-main">
-                        <div class="kpi-card kpi-today">
-                            <span class="kpi-card-label">บันทึกแล้ววันนี้</span>
-                            <span class="kpi-card-sublabel">SKU / ชิ้น</span>
-                            <span class="kpi-card-value kpi-value-blue" id="totalScanned">0 / 0</span>
-                        </div>
-                        <button type="button" class="kpi-card kpi-uncounted" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ">
-                            <span class="kpi-card-label">ยังไม่ได้นับ</span>
-                            <span class="kpi-card-sublabel">SKU ใน Master</span>
-                            <span class="kpi-card-value kpi-value-red" id="totalUncounted">0</span>
-                        </button>
-                        <div class="kpi-card kpi-progress" id="progressStatBox" title="SKU ใน Master ที่มีการนับแล้ว">
-                            <span class="kpi-card-label">นับแล้วใน Master</span>
-                            <span class="kpi-card-sublabel" id="progressSubLabel">0 / 0 SKU</span>
-                            <span class="kpi-card-value kpi-value-green" id="progressPercent">0%</span>
-                            <div class="kpi-progress-bar" aria-hidden="true">
-                                <div class="kpi-progress-fill" id="progressBarFill"></div>
-                            </div>
-                        </div>
+                <div class="header-stats-kpis">
+                    <div class="stat-box">
+                        <span class="stat-label">บันทึกแล้ววันนี้ (SKU / ชิ้น)</span>
+                        <span class="stat-value" id="totalScanned">0 / 0</span>
                     </div>
-                    <button type="button" class="kpi-banner kpi-extra" id="extraSkuStatBox" style="display:none;" onclick="openExtraSkuDrawer()" title="คลิกเพื่อดู SKU ที่นับเจอแต่ไม่อยู่ใน SKU Master">
-                        <span class="kpi-banner-icon"><i data-lucide="sparkles"></i></span>
-                        <span class="kpi-banner-text">
-                            <span class="kpi-banner-title">สินค้าใหม่ (นอก SKU Master)</span>
-                            <span class="kpi-banner-hint">คลิกเพื่อดูรายการ · ควรเพิ่มใน Master ภายหลัง</span>
-                        </span>
-                        <span class="kpi-banner-value" id="totalExtraSku">0</span>
-                    </button>
+                    <div class="stat-box" style="cursor: pointer; border-color: rgba(239, 68, 68, 0.3); transition: all 0.2s;" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ" onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='var(--card)'">
+                        <span class="stat-label">ยังไม่ได้นับ (SKU ใน Master)</span>
+                        <span class="stat-value" id="totalUncounted" style="color: #fca5a5;">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">SKU ที่มีการนับแล้ว</span>
+                        <span class="stat-value" id="progressPercent" style="color: #34d399;">0%</span>
+                    </div>
                 </div>
                 <div class="header-stats-actions">
                     <div id="connectionBadge" class="connection-badge badge-disconnected connection-badge-status" title="สถานะการเชื่อมต่อ Supabase">
@@ -314,40 +270,6 @@
         </div>
     </div>
 
-    <!-- Extra SKU Drawer (counted but not in SKU Master) -->
-    <div id="extraSkuDrawerOverlay" class="log-drawer-overlay" onclick="closeExtraSkuDrawer()"></div>
-    <div id="extraSkuDrawer" class="log-drawer">
-        <div class="log-drawer-header" style="border-bottom-color: rgba(251, 191, 36, 0.25);">
-            <h2 style="color: #fbbf24;"><i data-lucide="sparkles"></i> สินค้าใหม่ (นอก SKU Master)</h2>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <button class="settings-btn-cs" onclick="exportExtraSkuExcel()" title="ส่งออก Excel" style="color: #10b981; border-color: rgba(255,255,255,0.1);">
-                    <i data-lucide="download" style="width: 16px; height: 16px;"></i>
-                </button>
-                <button class="settings-btn-cs" onclick="refreshExtraSku()" title="รีเฟรชข้อมูล" style="color: #9ca3af; border-color: rgba(255,255,255,0.1);">
-                    <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
-                </button>
-                <button class="icon-btn" onclick="closeExtraSkuDrawer()">
-                    <i data-lucide="x"></i>
-                </button>
-            </div>
-        </div>
-        <div class="log-drawer-body">
-            <p style="font-size:0.82rem;color:var(--text-muted);margin:0 0 1rem;line-height:1.5;">
-                รายการที่มีการนับในคลังที่เลือก แต่<strong style="color:#fde68a;">ไม่มีใน SKU Master</strong> ของคลังนี้ — อาจเป็นสินค้าใหม่หรือรหัสที่ยังไม่ได้ลง Master
-            </p>
-            <div class="search-box" style="margin-bottom: 1rem; position: relative;">
-                <i data-lucide="search" style="position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 18px; height: 18px;"></i>
-                <input type="text" id="extraSkuSearch" placeholder="ค้นหารหัส SKU..." onkeyup="filterExtraSku()" style="width: 100%; padding: 0.75rem 1rem 0.75rem 2.5rem; background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 8px; color: var(--text); outline: none;">
-            </div>
-            <div id="extraSkuListContainer" class="log-list">
-                <div class="empty-state">
-                    <i data-lucide="loader-2" class="spin"></i>
-                    <p>กำลังคำนวณ...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Export Menu -->
     <div id="exportMenu" class="export-menu" style="display:none;">
         <button type="button" class="export-menu-item" onclick="exportInventory('excel')">
@@ -467,6 +389,7 @@
 
     <script src="Js/api.js"></script>
     <script src="Js/settings-shared.js"></script>
+    <script src="Js/sidebar-shared.js"></script>
     <script src="Js/script.js"></script>
 </body>
 </html>

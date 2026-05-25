@@ -1,0 +1,738 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>คู่มือการใช้งาน — Stock Audit System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        .manual-wrap { max-width: 920px; width: 100%; margin: 0 auto; padding-bottom: 4rem; }
+        .manual-hero {
+            text-align: center; padding: 2rem 1rem 1.5rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06); margin-bottom: 2rem;
+        }
+        .manual-hero h1 {
+            font-family: 'Kanit', sans-serif; font-size: clamp(1.6rem, 4vw, 2.2rem); font-weight: 600; margin: 0 0 0.5rem;
+            background: linear-gradient(135deg, #e0f2fe, #7dd3fc, #38bdf8);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .manual-hero p { color: var(--text-muted); font-size: 0.95rem; margin: 0; line-height: 1.6; }
+        .manual-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin-top: 1rem; font-size: 0.78rem; color: var(--text-muted); }
+        .manual-meta span { padding: 0.25rem 0.65rem; border-radius: 999px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); }
+
+        .manual-toc {
+            background: linear-gradient(165deg, rgba(24,24,27,0.97), rgba(15,15,18,0.99));
+            border: 1px solid var(--card-border); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 2.5rem;
+        }
+        .manual-toc h2 { font-family: 'Kanit', sans-serif; font-size: 1rem; margin: 0 0 0.85rem; color: #93c5fd; }
+        .manual-toc ol { margin: 0; padding-left: 1.25rem; columns: 2; column-gap: 2rem; }
+        @media (max-width: 640px) { .manual-toc ol { columns: 1; } }
+        .manual-toc li { margin: 0.35rem 0; font-size: 0.88rem; }
+        .manual-toc a { color: var(--text); text-decoration: none; }
+        .manual-toc a:hover { color: #60a5fa; text-decoration: underline; }
+
+        .manual-section { margin-bottom: 3rem; scroll-margin-top: 1.5rem; }
+        .manual-section h2 {
+            font-family: 'Kanit', sans-serif; font-size: 1.35rem; font-weight: 600; margin: 0 0 0.75rem;
+            display: flex; align-items: center; gap: 0.5rem; color: #e2e8f0;
+        }
+        .manual-section h2 .sec-num {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.75rem; height: 1.75rem; border-radius: 8px; font-size: 0.85rem;
+            background: rgba(59,130,246,0.2); color: #93c5fd; flex-shrink: 0;
+        }
+        .manual-section h3 { font-family: 'Kanit', sans-serif; font-size: 1rem; font-weight: 500; margin: 1.5rem 0 0.5rem; color: #cbd5e1; }
+        .manual-section p, .manual-section li { font-size: 0.9rem; line-height: 1.75; color: var(--text-muted); }
+        .manual-section ul, .manual-section ol { padding-left: 1.35rem; margin: 0.5rem 0 1rem; }
+        .manual-section li { margin: 0.35rem 0; }
+
+        .manual-tip, .manual-warn, .manual-info {
+            display: flex; gap: 0.65rem; padding: 0.85rem 1rem; border-radius: 10px;
+            font-size: 0.86rem; line-height: 1.6; margin: 1rem 0;
+        }
+        .manual-tip { border: 1px solid rgba(34,197,94,0.35); background: rgba(34,197,94,0.08); color: #bbf7d0; }
+        .manual-warn { border: 1px solid rgba(251,191,36,0.35); background: rgba(251,191,36,0.08); color: #fde68a; }
+        .manual-info { border: 1px solid rgba(59,130,246,0.35); background: rgba(59,130,246,0.08); color: #bfdbfe; }
+        .manual-tip svg, .manual-warn svg, .manual-info svg { flex-shrink: 0; width: 18px; height: 18px; margin-top: 2px; }
+
+        .manual-figure { margin: 1.25rem 0 1.5rem; }
+        .manual-figure img {
+            width: 100%; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.35); display: block;
+        }
+        .manual-figure figcaption {
+            font-size: 0.78rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem; font-style: italic;
+        }
+
+        .manual-steps { list-style: none; padding: 0; margin: 1rem 0; counter-reset: step; }
+        .manual-steps li {
+            counter-increment: step; position: relative; padding: 0.85rem 0 0.85rem 2.75rem;
+            border-left: 2px solid rgba(59,130,246,0.25); margin-left: 0.85rem;
+        }
+        .manual-steps li:last-child { border-left-color: transparent; }
+        .manual-steps li::before {
+            content: counter(step); position: absolute; left: -0.85rem; top: 0.75rem;
+            width: 1.65rem; height: 1.65rem; border-radius: 50%;
+            background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: #fff;
+            font-size: 0.75rem; font-weight: 600; display: flex; align-items: center; justify-content: center;
+        }
+        .manual-steps li strong { color: #e2e8f0; display: block; margin-bottom: 0.2rem; }
+
+        .manual-table-wrap { overflow-x: auto; margin: 1rem 0; border-radius: 10px; border: 1px solid var(--card-border); }
+        .manual-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .manual-table th, .manual-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: left; }
+        .manual-table th { background: #1e293b; color: #e2e8f0; font-weight: 500; white-space: nowrap; }
+        .manual-table td { color: var(--text-muted); }
+        .manual-table code { font-size: 0.78rem; background: rgba(255,255,255,0.06); padding: 0.1rem 0.35rem; border-radius: 4px; color: #93c5fd; }
+
+        .menu-diagram {
+            display: grid; grid-template-columns: 180px 1fr; gap: 1rem; margin: 1rem 0;
+            border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden;
+            background: rgba(15,15,18,0.6);
+        }
+        .menu-diagram-side { background: #0f0f12; padding: 0.75rem; border-right: 1px solid rgba(255,255,255,0.06); }
+        .menu-diagram-side div {
+            padding: 0.4rem 0.55rem; font-size: 0.75rem; border-radius: 6px; margin: 0.15rem 0; color: var(--text-muted);
+        }
+        .menu-diagram-side div.active { background: rgba(59,130,246,0.15); color: #93c5fd; }
+        .menu-diagram-main { padding: 1rem; font-size: 0.82rem; color: var(--text-muted); line-height: 1.6; }
+
+        .flow-box {
+            background: rgba(15,15,18,0.8); border: 1px solid var(--card-border);
+            border-radius: 12px; padding: 1.25rem; margin: 1rem 0; overflow-x: auto;
+        }
+        .flow-box svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+
+        hr.manual-divider { border: none; border-top: 1px solid rgba(255,255,255,0.06); margin: 2.5rem 0; }
+
+        .manual-toolbar {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.65rem;
+            margin-top: 1.25rem; padding: 0.75rem 1rem;
+            background: rgba(15,15,18,0.85); border: 1px solid var(--card-border); border-radius: 12px;
+        }
+        .manual-mode-btn {
+            font-family: 'Kanit', sans-serif; font-size: 0.85rem; padding: 0.45rem 1rem; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--text-muted);
+            cursor: pointer; display: inline-flex; align-items: center; gap: 0.4rem; transition: 0.2s;
+        }
+        .manual-mode-btn:hover { border-color: rgba(96,165,250,0.5); color: #e2e8f0; }
+        .manual-mode-btn.active { background: rgba(59,130,246,0.25); border-color: #3b82f6; color: #e0f2fe; }
+        .manual-toolbar-actions { display: flex; gap: 0.4rem; margin-left: 0.5rem; }
+        .manual-toolbar-actions button {
+            font-size: 0.75rem; padding: 0.35rem 0.65rem; border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1); background: transparent; color: var(--text-muted); cursor: pointer;
+        }
+        .manual-toolbar-actions button:hover { color: #fca5a5; border-color: rgba(248,113,113,0.4); }
+        .manual-save-hint { font-size: 0.72rem; color: var(--text-muted); width: 100%; text-align: center; margin-top: 0.25rem; }
+        .manual-save-hint.ok { color: #86efac; }
+        .manual-save-hint.warn { color: #fde68a; }
+
+        body.manual-read-mode .manual-figure-slot .slot-browse-wrap,
+        body.manual-read-mode .manual-figure-slot .slot-change-img { display: none !important; }
+        body.manual-edit-mode [data-editable]:focus { outline: 1px dashed rgba(96,165,250,0.6); outline-offset: 2px; border-radius: 4px; }
+        body.manual-read-mode [data-editable] { cursor: default; }
+
+        .manual-figure-slot { margin: 1.25rem 0 1.5rem; }
+        .slot-image-wrap {
+            position: relative; border-radius: 12px; border: 1px dashed rgba(255,255,255,0.15);
+            background: rgba(0,0,0,0.25); min-height: 120px; overflow: hidden;
+        }
+        .manual-figure-slot .figure-img {
+            width: 100%; display: block; border-radius: 12px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+        }
+        .slot-placeholder {
+            padding: 2rem 1rem; text-align: center; font-size: 0.82rem; color: #64748b; line-height: 1.5;
+        }
+        .slot-browse-wrap { padding: 1rem; text-align: center; }
+        .slot-browse-btn {
+            display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 1rem;
+            border-radius: 8px; background: rgba(59,130,246,0.2); border: 1px solid #3b82f6;
+            color: #93c5fd; font-size: 0.85rem; cursor: pointer;
+        }
+        .slot-browse-btn:hover { background: rgba(59,130,246,0.35); }
+        .slot-change-img {
+            display: block; text-align: center; font-size: 0.75rem; color: #93c5fd;
+            padding: 0.35rem; cursor: pointer; text-decoration: underline;
+        }
+        .manual-figure-slot figcaption {
+            font-size: 0.78rem; color: var(--text-muted); text-align: center; margin-top: 0.5rem; font-style: italic;
+        }
+        .flow-phase-section { border-left: 3px solid rgba(59,130,246,0.45); padding-left: 1rem; margin-left: 0.25rem; }
+        .dfd-wrap { padding: 0.5rem; background: #0c0c10; border-radius: 12px; }
+        .dfd-diagram-img { width: 100%; height: auto; display: block; border-radius: 10px; }
+        .dfd-svg { min-height: 280px; }
+        .dfd-built { border: 1px solid rgba(34,197,94,0.35); background: rgba(34,197,94,0.06); padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.8rem; color: #86efac; margin-bottom: 0.75rem; }
+        .manual-toc a[href^="#flow-"] { color: #93c5fd; }
+        .er-diagram-box { font-size: 0.8rem; line-height: 1.7; color: #94a3b8; font-family: Consolas, monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body class="has-sidebar manual-read-mode">
+    <div class="app-layout">
+        <aside class="sidebar" id="appSidebar" data-active-page="user_manual" aria-label="เมนูหลัก"></aside>
+        <main class="main-area">
+            <div class="manual-wrap">
+
+                <header class="manual-hero">
+                    <h1>คู่มือการใช้งานระบบนับสต็อก</h1>
+                    <p>Stock Audit System — จัดตามลำดับ Data Flow · DFD Level 0–1 · ขั้นตอน F0–F7 ตั้งแต่ SKU Master การนับ Match Dashboard และ ER / Data Flow</p>
+                    <div class="manual-meta">
+                        <span>อัปเดต พ.ค. 2026</span>
+                        <span>3 คลัง + คลังทั้งหมด</span>
+                        <span>Supabase</span>
+                    </div>
+                    <div class="manual-toolbar" role="toolbar" aria-label="โหมดคู่มือ">
+                        <button type="button" class="manual-mode-btn active" id="btnModeRead" title="อ่านอย่างเดียว">
+                            <i data-lucide="book-open"></i> อ่านอย่างเดียว
+                        </button>
+                        <button type="button" class="manual-mode-btn" id="btnModeEdit" title="แก้ไขข้อความและใส่รูป">
+                            <i data-lucide="pencil"></i> แก้ไขคู่มือ
+                        </button>
+                        <div class="manual-toolbar-actions">
+                            <button type="button" id="btnManualExport" title="ส่งออก JSON สำรอง">สำรอง</button>
+                            <button type="button" id="btnManualReset" title="ล้างการแก้ไข">รีเซ็ต</button>
+                        </div>
+                        <span class="manual-save-hint" id="manualSaveHint">โหมดแก้ไข: แก้ข้อความได้ · กด Browse เพื่อใส่รูป (บันทึกในเบราว์เซอร์)</span>
+                    </div>
+                </header>
+
+                <nav class="manual-toc" aria-label="สารบัญ">
+                    <h2>สารบัญ</h2>
+                    <ol>
+                        <li><a href="#intro">บทนำ</a></li>
+                        <li><a href="#dfd-lv0">DFD Level 0 (Context)</a></li>
+                        <li><a href="#dfd-lv1">DFD Level 1</a></li>
+                        <li><a href="#flow-sequence">ลำดับ Data Flow F0–F7</a></li>
+                        <li><a href="#flow-f0">F0 ตั้งค่าระบบ</a></li>
+                        <li><a href="#flow-f1">F1 SKU Master</a></li>
+                        <li><a href="#flow-f2">F2 รอบ + Book</a></li>
+                        <li><a href="#flow-f3">F3 นับสต็อก</a></li>
+                        <li><a href="#flow-f3-import">F3 Import นับ</a></li>
+                        <li><a href="#flow-f4">F4 ผูกรอบ</a></li>
+                        <li><a href="#flow-f5">F5 Audit Check</a></li>
+                        <li><a href="#flow-f5-search">F5 ค้นหาผลนับ</a></li>
+                        <li><a href="#flow-f6">F6 Match ยอด</a></li>
+                        <li><a href="#flow-f7">F7 Dashboard</a></li>
+                        <li><a href="#er-diagram">ER-Diagram</a></li>
+                        <li><a href="#excel">ภาคผนิ Excel</a></li>
+                        <li><a href="#faq">คำถามที่พบบ่อย</a></li>
+                        <li><a href="#manual-page">วิธีใช้คู่มือ (แก้ไข/รูป)</a></li>
+                    </ol>
+                </nav>
+
+                <div id="manualContentRoot">
+
+<section id="intro" class="manual-section"><h2><span class="sec-num">★</span> บทนำ</h2>
+                    <p data-editable>คู่มือฉบับนี้จัดตาม <strong>ลำดับ Data Flow</strong> — อ่าน DFD Level 0–1 ก่อน แล้วตามขั้น F0→F7 แต่ละขั้นอธิบายหน้าเว็บและการไหลของข้อมูล</p>
+                    <div class="manual-info"><i data-lucide="info"></i><div data-editable><code>inventory_counts</code> = หลักฐานผลนับ · Match ไม่แก้ counted_qty · ปรับยอดที่ Book/<code>stock_adjustments</code> เท่านั้น</div></div>
+</section>
+<hr class="manual-divider">
+
+<!-- DFD Level 0 -->
+                <section id="dfd-lv0" class="manual-section">
+                    <h2><span class="sec-num">DFD</span> DFD Level 0 — Context Diagram</h2>
+                    <p class="dfd-built">✓ สร้างแผนภาพให้แล้ว — ไฟล์ <code>assets/manual/dfd-level0.svg</code></p>
+                    <p data-editable>แผนภาพบริบท (Context) แสดงระบบ <strong>Stock Audit</strong> เป็นหนึ่งกระบวนการกลาง (P0) ทำหน้าที่รับ-ส่งข้อมูลกับผู้ใช้งาน ไฟล์ Excel และฐานข้อมูล Supabase</p>
+                    <div class="flow-box dfd-wrap">
+                        <img class="dfd-diagram-img" src="../assets/manual/dfd-level0.svg" alt="DFD Level 0 Context Diagram" width="960" height="520">
+                    </div>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>สัญลักษณ์</th><th>ความหมาย</th></tr></thead><tbody>
+                        <tr><td>E1 ผู้นับสต็อก</td><td data-editable>สแกน/Import ผลนับผ่านหน้าเว็บ</td></tr>
+                        <tr><td>E2 ผู้ดูแล/ERP</td><td data-editable>ตั้งรอบ อัปโหลด Book ดู Match Export ไป ERP</td></tr>
+                        <tr><td>E3 ไฟล์ Excel</td><td data-editable>SKU Master · ผลนับ · ยอด Book ก่อนนับ</td></tr>
+                        <tr><td>E4 Supabase</td><td data-editable>ที่เก็บข้อมูลถาวรทุกตาราง</td></tr>
+                        <tr><td>P0</td><td data-editable>เว็บแอป Stock Audit ทั้งหมด</td></tr>
+                    </tbody></table></div>
+                    <h3>รายการ Data Flow หลัก (Level 0)</h3>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>ลูกศร</th><th>ข้อมูล</th></tr></thead><tbody>
+                        <tr><td>E1 → P0</td><td data-editable>ผลนับ, สแกน, Import</td></tr>
+                        <tr><td>P0 → E1</td><td data-editable>KPI, รายการสแกนล่าสุด</td></tr>
+                        <tr><td>E2 → P0</td><td data-editable>ตั้งรอบ, Match, คำสั่ง Export</td></tr>
+                        <tr><td>P0 → E2</td><td data-editable>รายงาน, Dashboard, ผล Match</td></tr>
+                        <tr><td>E3 ↔ P0</td><td data-editable>อัปโหลด/ดาวน์โหลด Excel (Master, Book, นับ)</td></tr>
+                        <tr><td>E4 ↔ P0</td><td data-editable>อ่าน/เขียนทุกตารางใน Supabase</td></tr>
+                    </tbody></table></div>
+                </section>
+                <hr class="manual-divider">
+
+                <section id="dfd-lv1" class="manual-section">
+                    <h2><span class="sec-num">DFD</span> DFD Level 1 — แตกกระบวนการ P0</h2>
+                    <p class="dfd-built">✓ สร้างแผนภาพให้แล้ว — ไฟล์ <code>assets/manual/dfd-level1.svg</code></p>
+                    <p data-editable>แผนภาพ Level 1 แตก P0 เป็นกระบวนการย่อย <strong>P1–P6</strong> และคลังข้อมูล <strong>D1–D7</strong> สอดคล้องหน้าเว็บและลำดับ Flow F0–F7</p>
+                    <div class="flow-box dfd-wrap">
+                        <img class="dfd-diagram-img" src="../assets/manual/dfd-level1.svg" alt="DFD Level 1" width="1100" height="680">
+                    </div>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>กระบวนการ</th><th>หน้าเว็บ</th><th>คลังข้อมูล</th></tr></thead><tbody>
+                        <tr><td>P1 จัดการ SKU Master</td><td><code>sku_master.html</code></td><td>D1 <code>sku_master_data</code></td></tr>
+                        <tr><td>P2 สร้างรอบ + อัปโหลด Book</td><td><code>cycle_config.html</code></td><td>D2 <code>count_cycles</code> · D3 <code>book_stock_lines</code></td></tr>
+                        <tr><td>P3 บันทึกผลนับ</td><td><code>index.html</code> · <code>import_counts.html</code></td><td>D4 <code>inventory_counts</code></td></tr>
+                        <tr><td>P4 ผูกรอบ + ตรวจสอบ</td><td><code>cycle_config</code> · <code>audit_check.html</code> · <code>count_search.html</code></td><td>D4 (อัปเดต cycle_id / แก้ตำแหน่ง)</td></tr>
+                        <tr><td>P5 Match ยอด + ปรับยอด</td><td><code>reconcile.html</code></td><td>D5 <code>reconciliation_lines</code> · D6 <code>stock_adjustments</code></td></tr>
+                        <tr><td>P6 รายงานภาพรวม</td><td><code>dashboard.html</code></td><td>อ่าน D4, D5 + สรุป RPC</td></tr>
+                    </tbody></table></div>
+                </section>
+                <hr class="manual-divider">
+
+                <section id="flow-sequence" class="manual-section">
+                    <h2><span class="sec-num">Flow</span> ลำดับ Data Flow ทั้งระบบ (อ่านตามลำดับนี้)</h2>
+                    <p class="dfd-built">✓ แผนภาพลำดับ Flow — <code>assets/manual/data-flow-sequence.svg</code></p>
+                    <p data-editable>คู่มือฉบับนี้จัดตาม<strong>ลำดับการไหลของข้อมูล</strong> ไม่ใช่ลำดับเมนู — แต่ละขั้นระบุ Flow ID, กระบวนการ DFD, ตารางที่เกี่ยวข้อง และหน้าเว็บ</p>
+                    <div class="flow-box dfd-wrap">
+                        <img class="dfd-diagram-img" src="../assets/manual/data-flow-sequence.svg" alt="ลำดับ Data Flow F0-F7" width="1000" height="200">
+                    </div>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>Flow</th><th>ขั้นตอน</th><th>DFD</th><th>หน้าเว็บ</th><th>ข้อมูลหลัก</th></tr></thead><tbody>
+                        <tr><td><strong>F0</strong></td><td data-editable>ตั้งค่า Supabase + SQL</td><td>—</td><td><a href="#flow-f0">settings</a></td><td>การเชื่อมต่อ</td></tr>
+                        <tr><td><strong>F1</strong></td><td data-editable>นำเข้า SKU Master</td><td>P1</td><td><a href="#flow-f1">sku_master</a></td><td>D1</td></tr>
+                        <tr><td><strong>F2</strong></td><td data-editable>สร้างรอบ + อัปโหลด Excel Book</td><td>P2</td><td><a href="#flow-f2">cycle_config</a></td><td>D2, D3</td></tr>
+                        <tr><td><strong>F3</strong></td><td data-editable>บันทึกผลนับ (สแกน / Import)</td><td>P3</td><td><a href="#flow-f3">index</a> · <a href="#flow-f3-import">import</a></td><td>D4</td></tr>
+                        <tr><td><strong>F4</strong></td><td data-editable>ผูก cycle_id + ตั้งรอบ active</td><td>P4</td><td><a href="#flow-f4">cycle_config</a></td><td>D4.cycle_id</td></tr>
+                        <tr><td><strong>F5</strong></td><td data-editable>ตรวจสอบตำแหน่ง + ค้นหาผลนับ</td><td>P4</td><td><a href="#flow-f5">audit</a> · <a href="#flow-f5-search">ค้นหา</a></td><td>D4</td></tr>
+                        <tr><td><strong>F6</strong></td><td data-editable>Match ยอด + ปรับยอด + Export</td><td>P5</td><td><a href="#flow-f6">reconcile</a></td><td>D5, D6</td></tr>
+                        <tr><td><strong>F7</strong></td><td data-editable>Dashboard สรุป</td><td>P6</td><td><a href="#flow-f7">dashboard</a></td><td>อ่านทุกตาราง</td></tr>
+                    </tbody></table></div>
+                    <div class="manual-info"><i data-lucide="info"></i><div data-editable>หลัง F2 แนะนำกด <strong>ใช้งานรอบนี้</strong> (active cycle) ก่อน F3 เพื่อให้ insert ใหม่ได้ <code>cycle_id</code> อัตโนมัติ</div></div>
+                </section>
+                <hr class="manual-divider">
+
+<section id="flow-f0" class="manual-section flow-phase-section">
+                    <h2><span class="sec-num">F0</span> ตั้งค่าระบบ — Supabase + SQL</h2>
+                    <p data-editable>เชื่อมต่อ Supabase และเตรียมฐานข้อมูลก่อนใช้ Match</p>
+                    <figure class="manual-figure-slot" data-slot="settings-1">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" alt="" style="display:none">
+                            <div class="slot-placeholder">แนะนำ: ฟอร์ม Supabase URL + anon key + ปุ่มบันทึก</div>
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพที่ 9 — หน้าตั้งค่า</figcaption>
+                    </figure>
+                    <h3>9.1 เชื่อมต่อ Supabase</h3>
+                    <ol class="manual-steps">
+                        <li data-editable>กรอก <strong>Project URL</strong> และ <strong>anon public key</strong></li>
+                        <li data-editable>กดบันทึก — เก็บใน localStorage</li>
+                        <li data-editable>ตรวจ badge หน้านับ — สีเขียว = เชื่อมต่อแล้ว</li>
+                    </ol>
+                    <h3>9.2 SQL ที่ต้องรัน (ครั้งแรก)</h3>
+                    <ol>
+                        <li data-editable><code>docs/sql/002_reconciliation_schema.sql</code> — ตารางรอบ, Book, Match, adjustments</li>
+                        <li data-editable><code>docs/sql/003_cycle_all_warehouses_date_range.sql</code> — คลังทั้งหมด + ช่วงวัน</li>
+                        <li data-editable><code>docs/sql/004_dashboard_submission_buckets.sql</code> — (แนะนำ) RPC กราฟ Dashboard</li>
+                    </ol>
+                </section>
+<hr class="manual-divider">
+
+<section id="flow-f1" class="manual-section flow-phase-section">
+                    <h2><span class="sec-num">F1</span> SKU Master (P1 → D1)</h2>
+                    <p data-editable>จัดการตาราง <code>sku_master_data</code> — รายการ SKU ที่คาดว่าจะนับในแต่ละคลัง ใช้คำนวณ KPI 「ยังไม่ได้นับ」「นับแล้วใน Master %」</p>
+                    <figure class="manual-figure-slot" data-slot="sku-master-1">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" alt="" style="display:none">
+                            <div class="slot-placeholder">แนะนำ: ภาพหน้า SKU Master — dropdown คลัง, ปุ่มอัปโหลด, ตาราง preview</div>
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพที่ 1 — หน้า SKU Master</figcaption>
+                    </figure>
+                    <h3>1.1 เครื่องมือบนหน้า</h3>
+                    <ul>
+                        <li data-editable><strong>เลือกคลัง</strong> — ตึกกันตนา / หน้าไลฟ์ / คลังอะไหล่ (Master แยกต่อคลัง)</li>
+                        <li data-editable><strong>อัปโหลด Excel</strong> — นำเข้ารายการ SKU (คอลัมน์หลักคือรหัส SKU)</li>
+                        <li data-editable><strong>Preview ก่อนยืนยัน</strong> — ตรวจจำนวนแถว / แถวซ้ำ / คอลัมน์ไม่ครบ</li>
+                        <li data-editable><strong>บันทึก (Upsert)</strong> — อัปเดตแถวเดิมหรือเพิ่มใหม่ตาม SKU+คลัง</li>
+                        <li data-editable><strong>ดู/ลบรายการในตาราง</strong> — จัดการ Master หลังนำเข้า</li>
+                    </ul>
+                    <h3>1.2 ขั้นตอนนำเข้า SKU</h3>
+                    <ol class="manual-steps">
+                        <li data-editable><strong>เลือกคลัง</strong> ที่ต้องการ</li>
+                        <li data-editable><strong>เลือกไฟล์ .xlsx</strong> ที่มีคอลัมน์ SKU</li>
+                        <li data-editable><strong>ตรวจ preview</strong> — แก้ไฟล์ถ้ามีแถว error</li>
+                        <li data-editable><strong>กดยืนยันนำเข้า</strong> — รอจนเสร็จ</li>
+                    </ol>
+                    <h3>1.3 สินค้าใหม่ (นอก Master)</h3>
+                    <p data-editable>SKU ที่นับแล้วแต่ไม่อยู่ใน Master จะ<strong>ไม่นับใน % ความคืบหน้า</strong> แต่แสดงที่หน้า <strong>นับสต็อก</strong> ในแบนเนอร์「สินค้าใหม่」— Export ไปเพิ่มใน Master ภายหลัง</p>
+                    <div class="manual-tip"><i data-lucide="lightbulb"></i><div data-editable>ควรอัปเดต Master <strong>ก่อนเริ่มรอบนับ</strong> ของเดือน เพื่อให้ KPI และรายการ「ยังไม่ได้นับ」ตรงกับของจริง</div></div>
+                </section>
+<hr class="manual-divider">
+
+<section id="flow-f2" class="manual-section flow-phase-section">
+                    <h2><span class="sec-num">F2</span> รอบนับ + ไฟล์ Excel Book (P2 → D2, D3)</h2>
+                    <p data-editable>ศูนย์กลางรอบนับ — สร้างรอบ อัปโหลดยอด Excel (Book) ผูกผลนับ ตั้งรอบ active</p>
+                    <figure class="manual-figure-slot" data-slot="cycle-1">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual-ui-cycle-config.png" alt="" style="display:none">
+                            <div class="slot-placeholder">แนะนำ: ฟอร์มสร้างรอบ + ตารางรายการรอบ + ส่วนอัปโหลด Book + แถว invalid</div>
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพที่ 6 — ตั้งค่ารอบ</figcaption>
+                    </figure>
+                    <h3>6.1 สร้างรอบใหม่</h3>
+                    <ul>
+                        <li data-editable><strong>คลังเดียว</strong> — ตึกกันตนา / หน้าไลฟ์ / คลังอะไหล่</li>
+                        <li data-editable><strong>หลายคลัง</strong> — เลือก checkbox หลายคลัง (เก็บ warehouse แบบ <code>คลัง1|คลัง2</code>)</li>
+                        <li data-editable><strong>คลังทั้งหมด</strong> — Book ไฟล์เดียวรวมทุกคลัง · <strong>ต้อง</strong>กำหนดวันเริ่ม-สิ้นสุด</li>
+                        <li data-editable><strong>ปี + เดือน</strong> · ช่วงวันที่นับ (ว่าง = ทั้งเดือน)</li>
+                        <li data-editable><strong>ชื่อรอบ (ไม่บังคับ)</strong></li>
+                    </ul>
+                    <h3>6.2 อัปโหลดไฟล์ Excel (Book)</h3>
+                    <ol class="manual-steps">
+                        <li data-editable>เลือกรอบในตาราง</li>
+                        <li data-editable>เลือกไฟล์ Excel (SKU + จำนวน)</li>
+                        <li data-editable>ดู preview — แถว <strong>ไม่ผ่าน</strong> (ไม่มี SKU / จำนวนไม่ถูก) แสดงตารางแยก</li>
+                        <li data-editable>กดอัปโหลด — เข้า <code>book_stock_lines</code></li>
+                    </ol>
+                    <h3>6.3 ผูกผลนับ + ใช้งานรอบ</h3>
+                    <p data-editable><strong>ผูกผลนับกับรอบนี้</strong> — อัปเดต <code>cycle_id</code> ตามช่วงวัน (ไม่แก้ qty) · <strong>ใช้งาน</strong> — บันทึก active ใน localStorage สำหรับ insert ใหม่</p>
+                    <div class="manual-info"><i data-lucide="info"></i><div data-editable>กด「โหลดเดือนที่มีข้อมูลนับ」เพื่อเติม dropdown เดือนจากข้อมูลจริงใน DB</div></div>
+                </section>
+<hr class="manual-divider">
+
+<section id="flow-f3" class="manual-section flow-phase-section">
+                    <p data-editable>หน้าหลัก index.html — บันทึก inventory_counts แบบ real-time</p>
+                    <figure class="manual-figure-slot" data-slot="count-main">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-main.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.1 — หน้านับสต็อก</figcaption>
+                    </figure>
+                    <h3>2.1 KPI</h3>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>การ์ด</th><th>ความหมาย</th></tr></thead><tbody>
+                        <tr><td>บันทึกแล้ววันนี้</td><td data-editable>จำนวนที่บันทึกวันนี้</td></tr>
+                        <tr><td>ยังไม่ได้นับ</td><td data-editable>คลิกเปิด drawer รายการใน Master ที่ยังไม่นับ</td></tr>
+                        <tr><td>นับแล้วใน Master</td><td data-editable>% ความคืบหน้าเทียบ Master</td></tr>
+                        <tr><td>สินค้าใหม่</td><td data-editable>นับแล้วแต่ไม่อยู่ใน Master</td></tr>
+                    </tbody></table></div>
+                    <figure class="manual-figure-slot" data-slot="count-unscanned">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-drawer-unscanned.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.2 — รายการที่ยังไม่ได้นับ</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="count-new-sku">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-new-sku-drawer.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.3 — สินค้าใหม่นอก Master</figcaption>
+                    </figure>
+                    <h3>2.2 ฟอร์มและโหมด</h3>
+                    <figure class="manual-figure-slot" data-slot="count-warehouse">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-warehouse-dropdown.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.4 — เลือกคลัง</figcaption>
+                    </figure>
+                    <ul><li data-editable><strong>Single</strong> บันทึกทันที</li><li data-editable><strong>Group</strong> สะสมสูงสุด 25 รายการแล้วส่งออกกลุ่ม</li></ul>
+                    <figure class="manual-figure-slot" data-slot="count-scan-list">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-scan-list.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.5 — รายการสแกนล่าสุด</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="count-audit-logs">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-audit-logs.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.6 — Audit Logs</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="count-export">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-export-menu.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 2.7 — ส่งออก Excel/CSV</figcaption>
+                    </figure>
+</section>
+<hr class="manual-divider">
+
+<section id="flow-f3-import" class="manual-section flow-phase-section">
+                    <p data-editable>import_counts.html — นำเข้า Excel จำนวนมาก</p>
+                    <figure class="manual-figure-slot" data-slot="import-upload">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/import-upload.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 3.1 — อัปโหลด + ข้อมูลรอบ</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="import-preview">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/import-preview.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 3.2 — Preview ก่อนนำเข้า</figcaption>
+                    </figure>
+                    <p data-editable>คอลัมน์ A=ตำแหน่ง B=SKU C=จำนวน · มี Log ประวัติ · นำเข้าเฉพาะแถวพร้อมนำเข้า</p>
+</section>
+<hr class="manual-divider">
+
+
+                <section id="flow-f4" class="manual-section flow-phase-section">
+                    <h2><span class="sec-num">F4</span> ผูกผลนับกับรอบ + Active Cycle</h2>
+                    <p data-editable>ขั้นตอนนี้ทำที่ <strong>ตั้งค่ารอบ</strong> (<code>cycle_config.html</code>) หลัง F3 — อัปเดตเฉพาะ <code>cycle_id</code> ใน <code>inventory_counts</code> ตามช่วงวันที่ (ไม่แก้ qty)</p>
+                    <ol class="manual-steps">
+                        <li data-editable>เลือกรอบในตาราง → กด <strong>ผูกผลนับกับรอบนี้</strong></li>
+                        <li data-editable>กด <strong>ใช้งานรอบนี้</strong> — บันทึก active ใน localStorage สำหรับ insert ใหม่</li>
+                    </ol>
+                    <div class="manual-tip"><i data-lucide="lightbulb"></i><div data-editable>ดูรายละเอียดฟอร์มสร้างรอบและอัปโหลด Book ในหัวข้อ <a href="#flow-f2">F2</a></div></div>
+                </section>
+                <hr class="manual-divider">
+
+<section id="flow-f5" class="manual-section flow-phase-section">
+                    <p data-editable>audit_check.html — ตรวจก่อนปิดรอบ</p>
+                    <figure class="manual-figure-slot" data-slot="audit-overview">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-overview.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.1 — หน้าตรวจสอบ</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-loading-ref">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-loading-ref.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.2 — โหลดอ้างอิง</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-loading-db">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-loading-db.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.3 — ดึงจาก Supabase</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-filter-wh">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-filter-warehouse.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.4 — คลัง/เดือน</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-filter-zone">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-filter-zone.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.5 — กรองโซน</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-sort">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-sort-loc.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.6 — เรียงตำแหน่ง</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-table">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-table-ok.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.7 — ตารางผลตรวจ</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-import-loc">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-import-loc-modal.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.8 — Import เทียบตำแหน่ง</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-edit-loc">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-edit-loc-mode.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.9 — แก้ไขตำแหน่ง</figcaption>
+                    </figure>                    <figure class="manual-figure-slot" data-slot="audit-swap">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/audit-swap-mode.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 5.10 — สลับ SKU/ตำแหน่ง</figcaption>
+                    </figure>
+                    <p data-editable>ปุ่ม: ตรวจสอบทั้งหมด · เพิ่มแถว · ลบ · Import · Import เทียบตำแหน่ง · Export · โหมดแก้ไข · โหมดสลับ</p>
+</section>
+<hr class="manual-divider">
+
+<section id="flow-f5-search" class="manual-section flow-phase-section">
+                    <p data-editable>count_search.html — ค้นหา inventory_counts</p>
+                    <figure class="manual-figure-slot" data-slot="count-search">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual/count-search.png" alt="" style="display:none">
+                            
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพ 4.1 — หน้าค้นหาผลนับ</figcaption>
+                    </figure>
+                    <p data-editable>กรอง: คำค้น · คลัง · เดือน · ตำแหน่ง · ผู้นับ · ปุ่มค้นหาและส่งออก</p>
+</section>
+<hr class="manual-divider">
+
+<section id="flow-f6" class="manual-section flow-phase-section">
+                    <h2><span class="sec-num">F6</span> Match ยอด (P5 → D5, D6)</h2>
+                    <p data-editable>เทียบ <strong>ไฟล์ Excel</strong> (ยอดก่อนนับ) กับ <strong>ผลนับรวม</strong> ต่อ SKU ในรอบที่เลือก</p>
+                    <figure class="manual-figure-slot" data-slot="reconcile-1">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" data-default-src="../assets/manual-ui-reconcile-page.png" alt="" style="display:none">
+                            <div class="slot-placeholder">แนะนำ: KPI ตรง/ขาด/เกิน + ตาราง + ตัวกรองสถานะ</div>
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพที่ 7 — Match ยอด</figcaption>
+                    </figure>
+                    <h3>7.1 เครื่องมือ</h3>
+                    <ul>
+                        <li data-editable><strong>เลือกคลัง + รอบ</strong></li>
+                        <li data-editable><strong>คำนวณ Match / Refresh</strong> — เรียก RPC อัปเดต <code>reconciliation_lines</code></li>
+                        <li data-editable><strong>KPI</strong> — ตรง · ขาด · เกิน · ยังไม่ได้นับ · นับเจอแต่ไม่พบใน Excel</li>
+                        <li data-editable><strong>ตัวกรองสถานะ</strong> ในตาราง</li>
+                        <li data-editable><strong>ปรับยอด (draft)</strong> — บันทึกที่ <code>stock_adjustments</code> ฝั่ง Excel</li>
+                        <li data-editable><strong>Export Excel</strong></li>
+                    </ul>
+                    <h3>7.2 สถานะและคอลัมน์</h3>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>สถานะ</th><th>ความหมาย</th></tr></thead><tbody>
+                        <tr><td>ตรง</td><td data-editable>ผลนับ = Excel ใช้เทียบ (หลังปรับ)</td></tr>
+                        <tr><td>ขาด</td><td data-editable>นับ &lt; Excel</td></tr>
+                        <tr><td>เกิน</td><td data-editable>นับ &gt; Excel</td></tr>
+                        <tr><td>ยังไม่ได้นับ</td><td data-editable>มีใน Excel ไม่มีผลนับ</td></tr>
+                        <tr><td>นับเจอ แต่ไม่พบSKUในExcel</td><td data-editable>มีผลนับ ไม่มีใน Excel</td></tr>
+                    </tbody></table></div>
+                    <h3>7.3 สูตร</h3>
+                    <div class="flow-box"><pre style="margin:0;font-size:0.82rem;color:#94a3b8;line-height:1.8;">Excel ใช้เทียบ = SUM(book_qty) + SUM(adjustments applied)
+ผลนับ = SUM(inventory_counts.counted_qty)  ← อ่านอย่างเดียว
+variance = ผลนับ − Excel ใช้เทียบ</pre></div>
+                    <div class="manual-warn"><i data-lucide="alert-triangle"></i><div data-editable><strong>ห้าม</strong>แก้ counted_qty ใน inventory_counts เพื่อให้ Match ตรง</div></div>
+                </section>
+<hr class="manual-divider">
+
+<section id="flow-f7" class="manual-section flow-phase-section">
+                    <h2><span class="sec-num">F7</span> Dashboard (P6)</h2>
+                    <p data-editable>ภาพรวม 2 ชั้น: <strong>การนับและความเร็วส่งงาน</strong> และ <strong>Match ยอดตามรอบ</strong></p>
+                    <figure class="manual-figure-slot" data-slot="dashboard-1">
+                        <div class="slot-image-wrap">
+                            <img class="figure-img slot-empty" alt="" style="display:none">
+                            <div class="slot-placeholder">แนะนำ: แท็บ 2 แท็บ + กราฟเส้น + KPI Match + doughnut</div>
+                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
+                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
+                        </div>
+                        <figcaption data-editable>ภาพที่ 8 — Dashboard</figcaption>
+                    </figure>
+                    <h3>8.1 แท็บการนับและความเร็วส่งงาน</h3>
+                    <ul>
+                        <li data-editable>กรอง<strong>คลัง</strong> · <strong>เดือน/วันที่</strong></li>
+                        <li data-editable>เลือก<strong>รอบนับ</strong> — ปุ่ม「รอบ active / ล่าสุด」ใช้รอบจาก localStorage หรือรอบล่าสุด</li>
+                        <li data-editable>KPI <strong>อัตราการส่งงาน</strong> = รายการ/นาที (ไม่ใช่ % เทียบ Master)</li>
+                        <li data-editable>กราฟเส้น — bucket 1 / 10 / 30 นาที / 1 ชม.</li>
+                    </ul>
+                    <h3>8.2 แท็บ Match ยอด (รอบ)</h3>
+                    <ul>
+                        <li data-editable>ต้องเลือกรอบ — ดึงจาก <code>v_cycle_reconciliation_summary</code></li>
+                        <li data-editable>กราฟ doughnut สัดส่วนสถานะ · Top SKU ขาด/เกิน</li>
+                        <li data-editable>ลิงก์ไป <code>reconcile.html?cycle=...</code></li>
+                    </ul>
+                    <p data-editable>SQL เสริม: <code>docs/sql/004_dashboard_submission_buckets.sql</code> สำหรับกราฟเส้นเร็วขึ้น</p>
+                </section>
+<hr class="manual-divider">
+
+
+                <section id="er-diagram" class="manual-section">
+                    <h2><span class="sec-num">ER</span> ER-Diagram (โครงสร้างตาราง)</h2>
+                    <p data-editable>ความสัมพันธ์ตาราง — สอดคล้อง DFD Level 1</p>
+                    <div class="er-diagram-box" data-editable>count_cycles (PK id)
+  ├── book_stock_lines     (FK cycle_id)
+  ├── inventory_counts     (FK cycle_id?, warehouse, sku_id, location, counted_qty)
+  ├── reconciliation_lines (FK cycle_id, SKU)
+  └── stock_adjustments    (FK cycle_id)
+
+sku_master_data (warehouse, sku_id) — อ้างอิงเป้าหมายนับ KPI</div>
+                </section>
+                <hr class="manual-divider">
+
+<section id="excel" class="manual-section">
+                    <h2><span class="sec-num">📄</span> ภาคผนิ: รูปแบบ Excel</h2>
+                    <h3>Import นับ</h3>
+                    <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>คอลัมน์</th><th>ชื่อที่รองรับ</th><th>บังคับ</th></tr></thead><tbody>
+                        <tr><td>SKU</td><td>SKU, sku, รหัสสินค้า</td><td>ใช่</td></tr>
+                        <tr><td>ตำแหน่ง</td><td>location, ตำแหน่ง</td><td>ใช่</td></tr>
+                        <tr><td>จำนวน</td><td>qty, จำนวน, quantity</td><td>ใช่</td></tr>
+                    </tbody></table></div>
+                    <h3>Book (cycle_config)</h3>
+                    <p data-editable>SKU + จำนวน (book_qty) — แถวไม่ผ่านจะไม่นำเข้า</p>
+                    <h3>SKU Master</h3>
+                    <p data-editable>คอลัมน์หลัก SKU — แยกไฟล์ต่อคลัง</p>
+                </section>
+<hr class="manual-divider">
+
+<section id="faq" class="manual-section">
+                    <h2><span class="sec-num">?</span> คำถามที่พบบ่อย</h2>
+                    <h3>ทำไม % ไม่ถึง 100?</h3>
+                    <p data-editable>% จาก SKU ใน Master เท่านั้น — SKU นอก Master ไม่รวมใน %</p>
+                    <h3>ข้อมูลเดือนก่อนหายไหม?</h3>
+                    <p data-editable>ไม่หาย — แยกด้วย cycle_id / เดือน</p>
+                    <h3>กดใช้งานรอบ vs ไม่กด?</h3>
+                    <p data-editable>กด = insert ใหม่ได้ cycle_id อัตโนมัติ · ไม่กด = ต้องผูกภายหลัง</p>
+                    <h3>badge แดง?</h3>
+                    <p data-editable>ตรวจหน้าตั้งค่า URL/key และ Supabase project</p>
+                    <h3>error ตารางไม่มี?</h3>
+                    <p data-editable>รัน SQL 002 ก่อน</p>
+                    <h3>Import ซ้ำ?</h3>
+                    <p data-editable>ได้แถวซ้ำ — dedupe หรือลบใน DB</p>
+                </section>
+
+<section id="manual-page" class="manual-section">
+                    <h2><span class="sec-num">10</span> หน้าคู่มือนี้ (<code>user_manual.html</code>)</h2>
+                    <h3>10.1 โหมดอ่านอย่างเดียว</h3>
+                    <p data-editable>อ่านเนื้อหาและรูปที่ใส่ไว้แล้ว · ไม่มีปุ่ม Browse · แก้ข้อความไม่ได้</p>
+                    <h3>10.2 โหมดแก้ไขคู่มือ</h3>
+                    <ul>
+                        <li data-editable>คลิกข้อความที่มีเส้นประเมื่อโฟกัส — แก้คำแบบ Word</li>
+                        <li data-editable>กด <strong>Browse รูป</strong> ใต้ช่องภาพ — เลือกไฟล์จากเครื่อง · ปุ่ม Browse จะหายเมื่อมีรูปแล้ว</li>
+                        <li data-editable>ใช้ <strong>เปลี่ยนรูป</strong> เพื่ออัปเดตภาพเดิม</li>
+                        <li data-editable>บันทึกอัตโนมัติในเบราว์เซอร์ (localStorage)</li>
+                        <li data-editable><strong>สำรอง</strong> — ดาวน์โหลด JSON · <strong>รีเซ็ต</strong> — กลับคู่มือเริ่มต้น</li>
+                    </ul>
+                    <div class="manual-warn"><i data-lucide="alert-triangle"></i><div data-editable>รูปเก็บเป็น base64 — ถ้าเต็มพื้นที่ลดจำนวนรูปหรือใช้สำรองแล้วล้าง</div></div>
+                </section>
+
+                </div><!-- /manualContentRoot -->
+
+            </div>
+        </main>
+    </div>
+    <script src="../Js/sidebar-shared.js"></script>
+    <script src="../Js/manual-editor.js"></script>
+</body>
+</html>
+

@@ -169,6 +169,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return rows;
     }
 
+    function attachCycleId(payload, warehouse) {
+        if (window.reconcileService?.attachCycleToPayload) {
+            return window.reconcileService.attachCycleToPayload(payload, warehouse);
+        }
+        return payload;
+    }
+
     function recordBelongsToActiveWarehouse(rec) {
         const wh = getActiveWarehouse();
         if (!wh) return true;
@@ -598,7 +605,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
     setMode('group');
 
+    function getGroupContext() {
+        const warehouseCustomEl = document.getElementById('warehouseCustom');
+        return {
+            counter_name: counterNameInput.value.trim(),
+            warehouse: (warehouseInput.value === 'custom'
+                ? (warehouseCustomEl?.value.trim() || '')
+                : warehouseInput.value.trim()),
+            location: locationInput.value.trim()
+        };
+    }
+
+    function isGroupContextComplete(ctx) {
+        const c = ctx || getGroupContext();
+        return !!(c.counter_name && c.warehouse && c.location);
+    }
+
+    function clearGroupFieldErrors() {
+        [counterNameInput, locationInput, warehouseInput, warehouseCustom].forEach(el => {
+            if (el) el.closest('.input-wrapper')?.classList.remove('field-error');
+        });
+    }
+
+    function highlightGroupFieldError(field) {
+        clearGroupFieldErrors();
+        let el = null;
+        if (field === 'counter') el = counterNameInput;
+        else if (field === 'location') el = locationInput;
+        else if (field === 'warehouse') {
+            el = warehouseInput.value === 'custom' ? warehouseCustom : warehouseInput;
+        }
+        if (el) {
+            el.closest('.input-wrapper')?.classList.add('field-error');
+            el.focus();
+        }
+    }
+
+    /** @returns {boolean} */
+    function validateGroupContext(showToastOnFail) {
+        const ctx = getGroupContext();
+        if (!ctx.counter_name) {
+            if (showToastOnFail) showToast('กรุณาระบุชื่อผู้นับก่อนเพิ่มรายการ', 'error');
+            highlightGroupFieldError('counter');
+            return false;
+        }
+        if (!ctx.warehouse) {
+            if (showToastOnFail) showToast('กรุณาเลือกหมวดคลังก่อนเพิ่มรายการ', 'error');
+            highlightGroupFieldError('warehouse');
+            return false;
+        }
+        if (!ctx.location) {
+            if (showToastOnFail) showToast('กรุณาระบุตำแหน่งก่อนเพิ่มรายการ', 'error');
+            highlightGroupFieldError('location');
+            return false;
+        }
+        clearGroupFieldErrors();
+        return true;
+    }
+
     window.addGroupItem = function() {
+        if (!validateGroupContext(true)) return;
+
         if (groupItems.length >= maxGroupItems) {
             showToast(`ไม่สามารถเพิ่มได้เกิน ${maxGroupItems} รายการใน 1 กลุ่ม`, 'error');
             return;
@@ -664,11 +731,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `).join('');
             
-            submitGroupBtn.disabled = false;
+            submitGroupBtn.disabled = !isGroupContextComplete();
             addGroupBtn.disabled = groupItems.length >= maxGroupItems;
         }
         lucide.createIcons();
     }
+
+    function bindGroupContextListeners() {
+        [counterNameInput, locationInput, warehouseInput, warehouseCustom].forEach(el => {
+            if (!el) return;
+            el.addEventListener('input', () => {
+                if (currentMode === 'group') renderGroupList();
+            });
+            el.addEventListener('change', () => {
+                if (currentMode === 'group') renderGroupList();
+            });
+        });
+    }
+    bindGroupContextListeners();
+    renderGroupList();
 
     window.submitGroup = async function() {
         if (groupSubmitPromise) return groupSubmitPromise;
@@ -680,14 +761,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const counter_name = counterNameInput.value.trim();
-        const warehouse    = (warehouseInput.value === 'custom' ? document.getElementById('warehouseCustom').value.trim() : warehouseInput.value.trim());
-        const location     = locationInput.value.trim();
-
-        if (!counter_name || !warehouse || !location) {
-            showToast('กรุณาระบุชื่อผู้นับ, คลัง และตำแหน่งให้ครบถ้วน', 'error');
+        if (!validateGroupContext(false)) {
+            const ctx = getGroupContext();
+            if (!ctx.counter_name) {
+                showToast('กรุณาระบุชื่อผู้นับ, คลัง และตำแหน่งให้ครบถ้วน', 'error');
+                highlightGroupFieldError('counter');
+            } else if (!ctx.warehouse) {
+                showToast('กรุณาระบุชื่อผู้นับ, คลัง และตำแหน่งให้ครบถ้วน', 'error');
+                highlightGroupFieldError('warehouse');
+            } else {
+                showToast('กรุณาระบุชื่อผู้นับ, คลัง และตำแหน่งให้ครบถ้วน', 'error');
+                highlightGroupFieldError('location');
+            }
             return;
         }
+
+        const { counter_name, warehouse, location } = getGroupContext();
 
         const snapshot = [...groupItems];
         if (snapshot.length === 0) {
@@ -708,13 +797,13 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const reversedItems = [...snapshot].reverse();
 
-                const payloads = reversedItems.map(item => ({
+                const payloads = reversedItems.map(item => attachCycleId({
                     warehouse,
                     location,
                     sku_id: item.sku,
                     counted_qty: item.quantity,
                     counter_name
-                }));
+                }, warehouse));
 
                 const { data, error } = await supabaseClient
                     .from('inventory_counts')
@@ -768,9 +857,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 showToast(`✓ บันทึกกลุ่มสำเร็จ ${itemCount} รายการ`, 'success');
 
-                locationInput.value = '';
-                localStorage.removeItem('saved_location');
-                locationInput.focus();
+                skuInput.value = '';
+                quantityInput.value = '1';
+                hideSkuInfo();
+                closeDropdown();
+                skuInput.focus();
 
             } catch (err) {
                 console.error('[Insert Group Error]', err);
@@ -782,9 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 isGroupSubmitting = false;
                 groupSubmitPromise = null;
                 submitGroupBtn.innerHTML = orig;
-                if (groupItems.length === 0) {
-                    submitGroupBtn.disabled = true;
-                }
+                renderGroupList();
                 lucide.createIcons();
             }
         })();
@@ -835,7 +924,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const { data, error } = await supabaseClient
                 .from('inventory_counts')
-                .insert([{ warehouse, location, sku_id: sku, counted_qty: quantity, counter_name }])
+                .insert([attachCycleId({ warehouse, location, sku_id: sku, counted_qty: quantity, counter_name }, warehouse)])
                 .select();
             if (error) throw error;
 

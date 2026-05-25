@@ -45,35 +45,7 @@
 </head>
 <body class="has-sidebar">
     <div class="app-layout">
-        <aside class="sidebar" aria-label="เมนูหลัก">
-            <div class="sidebar-brand">เมนู</div>
-            <nav class="sidebar-nav">
-                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>นับสต็อก</span>
-                </a>
-                <a href="import_counts.html" class="sidebar-nav-item" title="นำเข้าผลการนับจาก Excel">
-                    <i data-lucide="file-input"></i>
-                    <span>Import นับ</span>
-                </a>
-                <a href="audit_check.html" class="sidebar-nav-item" title="ตรวจสอบความถูกต้อง">
-                    <i data-lucide="shield-check"></i>
-                    <span>ตรวจสอบ</span>
-                </a>
-                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
-                    <i data-lucide="database"></i>
-                    <span>SKU Master</span>
-                </a>
-                <a href="dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="settings.html" class="sidebar-nav-item active" title="ตั้งค่าและเชื่อมต่อ">
-                    <i data-lucide="settings"></i>
-                    <span>ตั้งค่า</span>
-                </a>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="appSidebar" data-active-page="settings" aria-label="เมนูหลัก"></aside>
         <main class="main-area">
     <div class="settings-page dashboard-container">
         <header class="dashboard-header">
@@ -142,6 +114,7 @@
 
     <script src="../Js/api.js"></script>
     <script src="../Js/settings-shared.js"></script>
+    <script src="../Js/sidebar-shared.js"></script>
     <script>
         lucide.createIcons();
 

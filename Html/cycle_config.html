@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งค่ารอบนับ — Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        /* ─── Layout ─────────────────────────────── */
+        .cc-page { max-width: 1100px; width: 100%; display: flex; flex-direction: column; gap: 1.25rem; }
+
+        /* ─── Banner ────────────────────────────── */
+        .cc-banner {
+            display: flex; align-items: flex-start; gap: 0.65rem;
+            padding: 0.85rem 1rem; border-radius: 10px; font-size: 0.86rem; line-height: 1.5;
+            border: 1px solid rgba(251,191,36,0.35); background: rgba(251,191,36,0.1); color: #fde68a;
+        }
+        .cc-banner.ok { border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.1); color: #bbf7d0; }
+        .cc-banner.err { border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.1); color: #fecaca; }
+        .cc-banner svg { flex-shrink: 0; margin-top: 1px; width: 16px; height: 16px; }
+
+        /* ─── Panel ─────────────────────────────── */
+        .cc-panel {
+            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            border: 1px solid var(--card-border); border-radius: 14px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            overflow: visible;
+        }
+        .cc-panel-head {
+            display: flex; align-items: center; gap: 0.65rem;
+            padding: 0.9rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .cc-panel-head h2 { font-family:'Kanit',sans-serif; font-size:0.97rem; font-weight:500; margin:0; }
+        .cc-panel-head .cc-head-icon {
+            width: 32px; height: 32px; border-radius: 9px; display: flex; align-items: center; justify-content: center; flex-shrink:0;
+        }
+        .cc-head-icon.blue { background: rgba(59,130,246,0.2); color: #60a5fa; }
+        .cc-head-icon.purple { background: rgba(168,85,247,0.2); color: #c084fc; }
+        .cc-head-icon.green { background: rgba(16,185,129,0.2); color: #34d399; }
+        .cc-panel-body { padding: 1.25rem; }
+
+        /* ─── Form ──────────────────────────────── */
+        .cc-create-form { display: flex; flex-direction: column; gap: 1rem; }
+        .cc-form-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.85rem;
+        }
+        @media (max-width: 768px) { .cc-form-row { grid-template-columns: 1fr; } }
+
+        .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; }
+        .cc-field label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.35rem; letter-spacing: 0.02em; }
+        .cc-field label .req { color: #f87171; margin-left: 0.15rem; }
+        .cc-field input, .cc-field select {
+            width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px;
+            border: 1px solid var(--input-border); background: var(--input-bg);
+            color: var(--text); font-size: 0.88rem; transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: 'Kanit', sans-serif;
+        }
+        .cc-field input:focus, .cc-field select:focus {
+            outline: none; border-color: rgba(59,130,246,0.7);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.18);
+        }
+        .cc-field select { cursor: pointer; appearance: auto; }
+        .cc-field.required-field select { border-color: rgba(96,165,250,0.45); background: rgba(59,130,246,0.06); }
+        .cc-month-row { display: flex; gap: 0.45rem; align-items: stretch; }
+        .cc-month-row select { flex: 1; min-width: 0; }
+        .cc-note { font-size: 0.78rem; color: var(--text-muted); margin: 0.4rem 0 0; line-height: 1.5; }
+
+        /* ─── Date range card ───────────────────── */
+        .cc-date-card {
+            border: 1px solid rgba(59,130,246,0.22);
+            border-radius: 12px;
+            padding: 1rem 1.1rem;
+            background: linear-gradient(135deg, rgba(59,130,246,0.07) 0%, rgba(15,15,18,0.4) 100%);
+        }
+        .cc-date-card-head {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 0.85rem; font-family: 'Kanit', sans-serif;
+            font-size: 0.88rem; font-weight: 500; color: #93c5fd;
+        }
+        .cc-date-card-head svg { width: 18px; height: 18px; flex-shrink: 0; }
+        .cc-date-pickers {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            gap: 0.65rem;
+            align-items: end;
+        }
+        @media (max-width: 520px) {
+            .cc-date-pickers { grid-template-columns: 1fr; }
+            .cc-date-arrow { display: none; }
+        }
+        .cc-date-arrow {
+            display: flex; align-items: center; justify-content: center;
+            padding-bottom: 0.55rem; color: #64748b;
+        }
+        .cc-date-arrow svg { width: 20px; height: 20px; }
+        .cc-day-select-wrap { position: relative; }
+        .cc-day-select-wrap select { padding-left: 2.1rem; }
+        .cc-day-icon {
+            position: absolute; left: 0.65rem; bottom: 0.62rem;
+            width: 15px; height: 15px; color: #60a5fa; pointer-events: none;
+        }
+
+        .cc-all-wh-banner {
+            display: none; align-items: flex-start; gap: 0.65rem;
+            padding: 0.85rem 1rem; border-radius: 10px;
+            border: 1px solid rgba(59,130,246,0.35);
+            background: linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(59,130,246,0.04) 100%);
+            color: #bfdbfe; font-size: 0.82rem; line-height: 1.55;
+        }
+        .cc-all-wh-banner.show { display: flex; }
+        .cc-all-wh-banner svg { flex-shrink: 0; margin-top: 2px; width: 18px; height: 18px; color: #60a5fa; }
+
+        .cc-wh-field { grid-column: 1 / -1; }
+        .cc-wh-modes {
+            display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem;
+            margin-bottom: 0.65rem; font-size: 0.84rem;
+        }
+        .cc-wh-modes label {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            cursor: pointer; color: var(--text);
+        }
+        .cc-wh-modes input { accent-color: #3b82f6; }
+        .cc-wh-checks {
+            display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem;
+            padding: 0.75rem 0.9rem; border-radius: 10px;
+            border: 1px solid rgba(59,130,246,0.25);
+            background: rgba(59,130,246,0.05);
+        }
+        .cc-wh-checks.disabled { opacity: 0.45; pointer-events: none; }
+        .cc-wh-checks label {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            font-size: 0.84rem; cursor: pointer; padding: 0.25rem 0.5rem;
+            border-radius: 8px; border: 1px solid transparent;
+        }
+        .cc-wh-checks label:has(input:checked) {
+            border-color: rgba(59,130,246,0.45);
+            background: rgba(59,130,246,0.12);
+            color: #93c5fd;
+        }
+        .cc-wh-edit-card {
+            margin: 0.75rem 0 1rem;
+            padding: 1rem 1.1rem;
+            border-radius: 12px;
+            border: 1px solid rgba(168,85,247,0.28);
+            background: rgba(168,85,247,0.06);
+        }
+        .cc-wh-edit-head {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 0.75rem; font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem; font-weight: 500; color: #c4b5fd;
+        }
+        .cc-wh-edit-head svg { width: 17px; height: 17px; }
+
+        /* ─── Action buttons ────────────────────── */
+        .cc-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; align-items: center; }
+
+        /* base */
+        .cc-btn {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.5rem 1rem; border-radius: 9px; border: none; font-size: 0.85rem;
+            font-family: 'Kanit', sans-serif; font-weight: 500; cursor: pointer;
+            transition: filter 0.15s, transform 0.12s, box-shadow 0.15s;
+            text-decoration: none; white-space: nowrap;
+        }
+        .cc-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .cc-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+        .cc-btn:active:not(:disabled) { filter: brightness(0.95); transform: translateY(0); }
+        .cc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* variants */
+        .cc-btn-primary {
+            background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+            color: #fff; box-shadow: 0 4px 12px rgba(59,130,246,0.35);
+        }
+        .cc-btn-primary:hover:not(:disabled) { box-shadow: 0 6px 18px rgba(59,130,246,0.45); }
+        .cc-btn-green {
+            background: linear-gradient(135deg, #065f46 0%, #10b981 100%);
+            color: #fff; box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+        }
+        .cc-btn-amber {
+            background: linear-gradient(135deg, #92400e 0%, #f59e0b 100%);
+            color: #fff; box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+        }
+        .cc-btn-purple {
+            background: linear-gradient(135deg, #5b21b6 0%, #a855f7 100%);
+            color: #fff; box-shadow: 0 4px 12px rgba(168,85,247,0.3);
+        }
+        .cc-btn-ghost {
+            background: rgba(255,255,255,0.06); color: var(--text);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .cc-btn-ghost:hover:not(:disabled) { background: rgba(255,255,255,0.1); }
+        .cc-btn-danger {
+            background: rgba(239,68,68,0.12); color: #fca5a5;
+            border: 1px solid rgba(239,68,68,0.38);
+        }
+        .cc-btn-danger:hover:not(:disabled) { background: rgba(239,68,68,0.22); color: #fecaca; }
+        .cc-btn-sm {
+            padding: 0.28rem 0.65rem; font-size: 0.76rem; border-radius: 7px;
+        }
+
+        /* ─── Table ─────────────────────────────── */
+        .cc-table-wrap { overflow: auto; max-height: 300px; border: 1px solid var(--card-border); border-radius: 10px; }
+        .cc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .cc-table th, .cc-table td { padding: 0.5rem 0.7rem; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: left; }
+        .cc-table th { position: sticky; top: 0; background: #1e293b; font-weight: 500; color: #e2e8f0; }
+        .cc-table tbody tr:hover td { background: rgba(59,130,246,0.05); }
+        .cc-table tr.selected-row td { background: rgba(59,130,246,0.1); }
+        .cc-table tr.active-row td { background: rgba(16,185,129,0.07); }
+        .cc-table tr.cc-row-invalid td { background: rgba(239,68,68,0.06); }
+        .cc-table tr.cc-row-invalid:hover td { background: rgba(239,68,68,0.1); }
+
+        /* ─── Book import preview (invalid / duplicate) ─ */
+        .cc-book-preview {
+            margin-top: 0.75rem;
+            border-radius: 10px;
+            border: 1px solid rgba(239,68,68,0.35);
+            background: rgba(239,68,68,0.06);
+            overflow: hidden;
+        }
+        .cc-book-preview-head {
+            display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+            padding: 0.65rem 0.85rem;
+            font-size: 0.84rem; color: #fecaca;
+            border-bottom: 1px solid rgba(239,68,68,0.2);
+        }
+        .cc-book-preview-head svg { width: 16px; height: 16px; flex-shrink: 0; color: #f87171; }
+        .cc-book-preview-head span { flex: 1; min-width: 0; }
+        .cc-book-preview-body { padding: 0.65rem 0.85rem 0.75rem; }
+        .cc-book-err-reason {
+            display: inline-block; padding: 0.12rem 0.45rem; border-radius: 6px;
+            font-size: 0.76rem; color: #fecaca;
+            background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+        }
+        .cc-book-dup-panel {
+            margin-top: 0.65rem; padding: 0.65rem 0.85rem; border-radius: 10px;
+            border: 1px solid rgba(251,191,36,0.35); background: rgba(251,191,36,0.08);
+            color: #fde68a; font-size: 0.82rem;
+        }
+        .cc-book-dup-panel ul { margin: 0.35rem 0 0; padding-left: 1.2rem; line-height: 1.55; }
+
+        /* ─── Badge ─────────────────────────────── */
+        .cc-badge {
+            display: inline-block; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: var(--text-muted);
+        }
+        .cc-badge.active { color: #93c5fd; border-color: rgba(59,130,246,0.4); background: rgba(59,130,246,0.12); }
+        .cc-badge.status-open { color: #6ee7b7; border-color: rgba(16,185,129,0.35); background: rgba(16,185,129,0.1); }
+        .cc-badge.status-counting { color: #93c5fd; border-color: rgba(59,130,246,0.35); background: rgba(59,130,246,0.1); }
+        .cc-badge.status-reconciling { color: #c084fc; border-color: rgba(168,85,247,0.35); background: rgba(168,85,247,0.1); }
+        .cc-badge.status-closed { color: #94a3b8; border-color: rgba(148,163,184,0.3); background: rgba(148,163,184,0.07); }
+
+        /* ─── Stats ─────────────────────────────── */
+        .cc-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 0.5rem; margin: 0.75rem 0; }
+        .cc-stat {
+            padding: 0.7rem; border-radius: 10px;
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); text-align: center;
+        }
+        .cc-stat strong { display: block; font-size: 1.25rem; color: #93c5fd; font-family:'Kanit',sans-serif; }
+        .cc-stat span { font-size: 0.7rem; color: var(--text-muted); }
+
+        /* ─── Dropzone ───────────────────────────── */
+        .cc-dropzone {
+            border: 2px dashed rgba(59,130,246,0.35); border-radius: 12px; padding: 1.5rem 1rem; text-align: center;
+            cursor: pointer; background: rgba(59,130,246,0.05); transition: 0.2s;
+        }
+        .cc-dropzone:hover { border-color: rgba(96,165,250,0.7); background: rgba(59,130,246,0.1); }
+        .cc-dropzone.has-file { border-color: rgba(16,185,129,0.5); border-style: solid; background: rgba(16,185,129,0.07); }
+        input[type="file"] { display: none; }
+
+        /* ─── Section header in detail ───────────── */
+        .cc-section-title {
+            font-family:'Kanit',sans-serif; font-size:0.88rem; font-weight:500;
+            margin: 1.25rem 0 0.4rem; display: flex; align-items: center; gap: 0.4rem;
+            color: var(--text);
+        }
+        .cc-section-title::before {
+            content: ''; display: inline-block; width: 4px; height: 16px;
+            border-radius: 4px; background: linear-gradient(180deg, #3b82f6, #60a5fa);
+        }
+
+        /* ─── Loading ────────────────────────────── */
+        .cc-loading {
+            position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+        }
+        .cc-loading.active { display: flex; }
+        .cc-loading-box {
+            background: linear-gradient(165deg, #1a1d24, #12141a);
+            border: 1px solid rgba(59,130,246,0.35); border-radius: 16px;
+            padding: 2rem 2.5rem; text-align: center; min-width: 240px;
+        }
+        .cc-spin { animation: cc-spin 0.9s linear infinite; width: 42px; height: 42px; color: #3b82f6; margin: 0 auto 0.75rem; display: block; }
+        @keyframes cc-spin { to { transform: rotate(360deg); } }
+
+        /* ─── Month picker hint ──────────────────── */
+        .cc-month-hint {
+            font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.3rem; margin-top: 0.3rem;
+        }
+
+        /* ─── Delete cycle modal ─────────────────── */
+        #deleteCycleModal.cs-modal { z-index: 16000; }
+        .cc-del-modal-name {
+            font-family: 'Kanit', sans-serif; font-size: 1rem; font-weight: 500;
+            color: #93c5fd; margin: 0 0 1rem; line-height: 1.45;
+        }
+        .cc-del-modal-box {
+            border-radius: 11px; padding: 0.85rem 1rem; margin-bottom: 0.65rem;
+        }
+        .cc-del-modal-box.danger {
+            background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.28);
+        }
+        .cc-del-modal-box.safe {
+            background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.28);
+        }
+        .cc-del-modal-box h3 {
+            display: flex; align-items: center; gap: 0.4rem;
+            font-family: 'Kanit', sans-serif; font-size: 0.82rem; font-weight: 500;
+            margin: 0 0 0.45rem;
+        }
+        .cc-del-modal-box.danger h3 { color: #fca5a5; }
+        .cc-del-modal-box.safe h3 { color: #86efac; }
+        .cc-del-modal-box h3 svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .cc-del-modal-box ul {
+            margin: 0; padding-left: 1.1rem; font-size: 0.84rem; line-height: 1.55; color: var(--text-muted);
+        }
+        .cc-del-modal-box ul strong { color: var(--text); }
+        .cc-del-modal-actions { display: flex; gap: 0.75rem; margin-top: 1.25rem; }
+        .cc-del-modal-actions .cs-btn-test,
+        .cc-del-modal-actions .cs-btn-save { flex: 1; justify-content: center; }
+        .cc-del-modal-actions .cs-btn-danger {
+            flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+            padding: 0.65rem 1rem; border-radius: 10px; font-family: 'Kanit', sans-serif;
+            font-size: 0.9rem; cursor: pointer; border: none;
+            background: linear-gradient(135deg, #dc2626, #ef4444); color: #fff;
+            box-shadow: 0 4px 14px rgba(239,68,68,0.35); transition: 0.2s;
+        }
+        .cc-del-modal-actions .cs-btn-danger:hover { filter: brightness(1.08); }
+    </style>
+</head>
+<body class="has-sidebar">
+<div class="app-layout">
+    <aside class="sidebar" id="appSidebar" data-active-page="cycle_config" aria-label="เมนูหลัก"></aside>
+    <main class="main-area">
+        <div class="cc-page dashboard-container">
+
+            <!-- Header -->
+            <header class="dashboard-header" style="border:none;padding:0;background:transparent;">
+                <div class="header-content" style="align-items:flex-start;text-align:left;">
+                    <h1 style="font-family:'Kanit',sans-serif;font-size:1.65rem;">ตั้งค่ารอบนับ</h1>
+                    <p style="color:var(--text-muted);font-size:0.85rem;margin:0.2rem 0 0;">
+                        สร้างรอบ · อัปโหลดยอดก่อนนับ (Book) · ผูกผลนับ — <strong style="color:#fde68a;">ไม่แก้ counted_qty</strong>
+                    </p>
+                </div>
+                <div class="header-stats">
+                    <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                        <i data-lucide="wifi-off" data-badge-icon></i><span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Schema banner -->
+            <div id="schemaBanner" class="cc-banner err" style="display:none;">
+                <i data-lucide="alert-triangle"></i><span id="schemaBannerText"></span>
+            </div>
+
+            <!-- Active cycle banner -->
+            <div id="activeCycleBanner" class="cc-banner ok" style="display:none;">
+                <i data-lucide="check-circle"></i>
+                <span><strong>รอบที่ใช้งาน:</strong> <span id="activeCycleText">-</span></span>
+                <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="btnClearActiveCycle" style="margin-left:auto;">
+                    <i data-lucide="x"></i> ยกเลิก active
+                </button>
+            </div>
+
+            <!-- ── สร้างรอบใหม่ ── -->
+            <section class="cc-panel">
+                <div class="cc-panel-head">
+                    <span class="cc-head-icon blue"><i data-lucide="plus-circle"></i></span>
+                    <h2>สร้างรอบนับใหม่</h2>
+                </div>
+                <div class="cc-panel-body">
+                    <div class="cc-create-form">
+                        <div class="cc-form-row">
+                            <div class="cc-field cc-wh-field">
+                                <label>คลัง</label>
+                                <div class="cc-wh-modes">
+                                    <label><input type="radio" name="createWhMode" id="whModePick" value="pick" checked> เลือกคลัง (หลายคลังได้)</label>
+                                    <label><input type="radio" name="createWhMode" id="whModeAll" value="all"> คลังทั้งหมด (รวมทุกคลัง)</label>
+                                </div>
+                                <div class="cc-wh-checks" id="whPickPanel">
+                                    <label><input type="checkbox" class="wh-chk-create" value="ตึกกันตนา" checked> ตึกกันตนา</label>
+                                    <label><input type="checkbox" class="wh-chk-create" value="หน้าไลฟ์(บางกรวย)"> หน้าไลฟ์(บางกรวย)</label>
+                                    <label><input type="checkbox" class="wh-chk-create" value="คลังอะไหล่"> คลังอะไหล่</label>
+                                </div>
+                                <p class="cc-note" id="whPickHint">เลือกได้หลายคลัง เช่น ตึกกันตนา + หน้าไลฟ์ — ผูกผลนับเฉพาะคลังที่เลือก</p>
+                            </div>
+
+                            <div class="cc-field">
+                                <label>ปี-เดือน</label>
+                                <div class="cc-month-row">
+                                    <select id="newYear" style="flex:0 0 90px;"></select>
+                                    <select id="newMonth"></select>
+                                </div>
+                                <div class="cc-month-hint">
+                                    <i data-lucide="info" style="width:12px;height:12px;flex-shrink:0;"></i>
+                                    <span>หรือ </span>
+                                    <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="btnLoadAvailMonths" style="padding:0.1rem 0.45rem;font-size:0.7rem;">
+                                        <i data-lucide="calendar-search" style="width:11px;height:11px;"></i>
+                                        โหลดเดือนที่มีข้อมูลนับ
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="cc-field">
+                                <label for="newStatus">สถานะ</label>
+                                <select id="newStatus">
+                                    <option value="open">เปิด (open)</option>
+                                    <option value="counting">กำลังนับ (counting)</option>
+                                    <option value="reconciling">กำลัง Match (reconciling)</option>
+                                    <option value="closed">ปิดรอบ (closed)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="allWhBanner" class="cc-all-wh-banner">
+                            <i data-lucide="layers"></i>
+                            <div>รอบ <strong>คลังทั้งหมด</strong> — อัปโหลด Book ไฟล์เดียว (รวม SKU ทุกคลัง) แล้วผูกผลนับจากทุกคลังเฉพาะช่วงวันที่ที่เลือก</div>
+                        </div>
+                        <div id="multiWhBanner" class="cc-all-wh-banner" style="border-color:rgba(168,85,247,0.35);background:rgba(168,85,247,0.08);color:#e9d5ff;display:none;">
+                            <i data-lucide="building-2" style="color:#c084fc;"></i>
+                            <div>รอบ <strong>หลายคลัง</strong> — Book ไฟล์เดียว · ผูกผลนับเฉพาะคลังที่เลือกในช่วงวันที่</div>
+                        </div>
+
+                        <div class="cc-date-card" id="dateCard">
+                            <div class="cc-date-card-head">
+                                <i data-lucide="calendar-range"></i>
+                                <span>ช่วงวันที่นับ</span>
+                                <span id="dateMonthHint" style="font-weight:400;font-size:0.78rem;color:var(--text-muted);margin-left:auto;"></span>
+                            </div>
+                            <div class="cc-date-pickers">
+                                <div class="cc-field cc-day-select-wrap" id="dayStartWrap">
+                                    <label for="newDayStart">วันเริ่ม <span class="req" id="reqStart" style="display:none;">*</span></label>
+                                    <i data-lucide="calendar" class="cc-day-icon"></i>
+                                    <select id="newDayStart"><option value="">— เลือกวัน —</option></select>
+                                </div>
+                                <div class="cc-date-arrow" aria-hidden="true">
+                                    <i data-lucide="arrow-right"></i>
+                                </div>
+                                <div class="cc-field cc-day-select-wrap" id="dayEndWrap">
+                                    <label for="newDayEnd">วันสิ้นสุด <span class="req" id="reqEnd" style="display:none;">*</span></label>
+                                    <i data-lucide="calendar" class="cc-day-icon"></i>
+                                    <select id="newDayEnd"><option value="">— เลือกวัน —</option></select>
+                                </div>
+                            </div>
+                            <p class="cc-note" id="dateRangeNote">แสดงเฉพาะวันที่มีข้อมูลการนับ · ว่างทั้งสองช่อง = ทั้งเดือน · รอบ "คลังทั้งหมด" ต้องเลือกวันเริ่มและสิ้นสุด</p>
+                        </div>
+
+                        <div class="cc-field">
+                            <label for="newLabel">ชื่อรอบ (optional)</label>
+                            <input type="text" id="newLabel" placeholder="เช่น นับพฤษภาคม 2569">
+                        </div>
+
+                        <div class="cc-actions" style="margin-top:0;">
+                            <button type="button" class="cc-btn cc-btn-primary" id="btnCreateCycle">
+                                <i data-lucide="save"></i> สร้างรอบ
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── รายการรอบ ── -->
+            <section class="cc-panel">
+                <div class="cc-panel-head">
+                    <span class="cc-head-icon purple"><i data-lucide="list"></i></span>
+                    <h2>รายการรอบทั้งหมด</h2>
+                    <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center;">
+                        <select id="filterWarehouse" style="padding:0.3rem 0.6rem;border-radius:7px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--text);font-size:0.8rem;">
+                            <option value="">ทุกคลัง</option>
+                            <option value="คลังทั้งหมด">คลังทั้งหมด</option>
+                            <option value="ตึกกันตนา">ตึกกันตนา</option>
+                            <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                            <option value="คลังอะไหล่">คลังอะไหล่</option>
+                        </select>
+                        <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="btnReloadList">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="cc-panel-body" style="padding-top:0.75rem;">
+                    <div class="cc-table-wrap">
+                        <table class="cc-table">
+                            <thead>
+                                <tr>
+                                    <th>คลัง</th><th>เดือน</th><th>ช่วงวันที่</th><th>สถานะ</th><th>Book</th><th>ผลนับ</th><th style="width:160px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="cyclesBody">
+                                <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:1.25rem;">กำลังโหลด...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── รายละเอียดรอบที่เลือก ── -->
+            <section class="cc-panel" id="detailPanel" style="display:none;">
+                <div class="cc-panel-head">
+                    <span class="cc-head-icon green"><i data-lucide="folder-open"></i></span>
+                    <h2>รอบที่เลือก: <span id="detailTitle" style="color:#93c5fd;"></span></h2>
+                    <button type="button" class="cc-btn cc-btn-danger cc-btn-sm" id="btnDeleteCycle" style="margin-left:auto;">
+                        <i data-lucide="trash-2"></i> ลบรอบ
+                    </button>
+                </div>
+                <div class="cc-panel-body">
+                    <div class="cc-stats" id="detailStats"></div>
+
+                    <div class="cc-wh-edit-card" id="editWarehouseCard">
+                        <div class="cc-wh-edit-head">
+                            <i data-lucide="building-2"></i>
+                            <span>แก้ไขคลังของรอบ</span>
+                            <span id="editWhCurrent" class="cc-note" style="margin-left:auto;color:#a78bfa;"></span>
+                        </div>
+                        <div class="cc-wh-modes">
+                            <label><input type="radio" name="editWhMode" id="editWhModePick" value="pick" checked> เลือกคลัง (หลายคลังได้)</label>
+                            <label><input type="radio" name="editWhMode" id="editWhModeAll" value="all"> คลังทั้งหมด</label>
+                        </div>
+                        <div class="cc-wh-checks" id="editWhPickPanel">
+                            <label><input type="checkbox" class="wh-chk-edit" value="ตึกกันตนา"> ตึกกันตนา</label>
+                            <label><input type="checkbox" class="wh-chk-edit" value="หน้าไลฟ์(บางกรวย)"> หน้าไลฟ์(บางกรวย)</label>
+                            <label><input type="checkbox" class="wh-chk-edit" value="คลังอะไหล่"> คลังอะไหล่</label>
+                        </div>
+                        <div class="cc-actions" style="margin-top:0.65rem;">
+                            <button type="button" class="cc-btn cc-btn-primary cc-btn-sm" id="btnSaveCycleWarehouse">
+                                <i data-lucide="save"></i> บันทึกคลัง
+                            </button>
+                        </div>
+                        <p class="cc-note">เปลี่ยนคลังมีผลต่อการผูกผลนับครั้งถัดไป — ไม่ลบ Book/ผลนับที่ผูกแล้ว</p>
+                    </div>
+
+                    <!-- 1) Upload Book -->
+                    <p class="cc-section-title"><i data-lucide="upload" style="width:15px;height:15px;color:#60a5fa;"></i> อัปโหลดยอดก่อนนับ (Book Excel)</p>
+                    <p class="cc-note">คอลัมน์: <code>A = SKU</code> · <code>B = จำนวน (ยอดก่อนนับ)</code> · <code>C = ชื่อสินค้า (optional)</code></p>
+
+                    <div class="cc-dropzone" id="bookDropzone" style="margin-top:0.65rem;">
+                        <i data-lucide="upload-cloud" style="width:34px;height:34px;color:#60a5fa;"></i>
+                        <p style="margin:0.4rem 0 0;font-family:'Kanit',sans-serif;font-size:0.95rem;">คลิกหรือลากไฟล์ Book (.xlsx) มาวาง</p>
+                        <p id="bookFileLabel" class="cc-note">ยังไม่ได้เลือกไฟล์</p>
+                        <input type="file" id="bookFileInput" accept=".xlsx,.xls,.csv">
+                    </div>
+
+                    <!-- banner: ไฟล์พร้อมแล้วแต่ยังไม่ได้บันทึก -->
+                    <div id="bookReadyBanner" style="display:none;align-items:center;gap:0.55rem;margin-top:0.65rem;padding:0.7rem 1rem;border-radius:10px;border:1px solid rgba(251,191,36,0.4);background:rgba(251,191,36,0.09);color:#fde68a;font-size:0.83rem;">
+                        <i data-lucide="alert-triangle" style="width:16px;height:16px;flex-shrink:0;"></i>
+                        <span>ไฟล์พร้อมแล้วแต่<strong>ยังไม่ได้บันทึกลง DB</strong> — กดปุ่ม <strong>"นำเข้า Book"</strong> เพื่อบันทึก</span>
+                    </div>
+
+                    <div id="bookInvalidPanel" class="cc-book-preview" style="display:none;" aria-live="polite">
+                        <div class="cc-book-preview-head">
+                            <i data-lucide="x-circle"></i>
+                            <span id="bookInvalidSummary">แถวที่ไม่ผ่านการตรวจสอบ</span>
+                            <button type="button" class="cc-btn cc-btn-ghost cc-btn-sm" id="btnToggleBookInvalid" title="ซ่อน/แสดงรายการ">
+                                <i data-lucide="chevron-up"></i> ซ่อน
+                            </button>
+                        </div>
+                        <div class="cc-book-preview-body" id="bookInvalidBody">
+                            <div class="cc-table-wrap" style="max-height:220px;">
+                                <table class="cc-table" id="bookInvalidTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:52px;">แถว</th>
+                                            <th>SKU</th>
+                                            <th style="width:90px;">จำนวน</th>
+                                            <th>ชื่อสินค้า</th>
+                                            <th>เหตุผล</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="bookInvalidTbody"></tbody>
+                                </table>
+                            </div>
+                            <p id="bookInvalidMore" class="cc-note" style="display:none;margin-top:0.5rem;color:#fca5a5;"></p>
+                            <p class="cc-note" style="margin-top:0.45rem;">แถวเหล่านี้<strong>จะไม่ถูกนำเข้า</strong> — แก้ใน Excel แล้วอัปโหลดใหม่ (หรือนำเข้าเฉพาะแถวที่ผ่านได้)</p>
+                        </div>
+                    </div>
+
+                    <div id="bookDupPanel" class="cc-book-dup-panel" style="display:none;" aria-live="polite">
+                        <strong><i data-lucide="copy" style="width:14px;height:14px;vertical-align:-2px;"></i> SKU ซ้ำในไฟล์</strong>
+                        <span id="bookDupSummary" class="cc-note" style="display:block;margin-top:0.25rem;color:#fde68a;"></span>
+                        <ul id="bookDupList"></ul>
+                    </div>
+
+                    <div class="cc-actions">
+                        <button type="button" class="cc-btn cc-btn-ghost" id="btnBookTemplate">
+                            <i data-lucide="download"></i> Template Book
+                        </button>
+                        <button type="button" class="cc-btn cc-btn-green" id="btnImportBook" disabled style="transition:box-shadow 0.3s;">
+                            <i data-lucide="database"></i> นำเข้า Book
+                        </button>
+                    </div>
+
+                    <!-- 2) Link counts -->
+                    <p class="cc-section-title"><i data-lucide="link" style="width:15px;height:15px;color:#fbbf24;"></i> ผูกผลนับกับรอบ (cycle_id เท่านั้น)</p>
+                    <p class="cc-note">ผูกแถวใน <code>inventory_counts</code> ตามคลัง + เดือน — <strong>ไม่แก้จำนวน</strong></p>
+                    <p id="linkPreview" class="cc-note" style="margin-top:0.4rem;color:#fde68a;min-height:1.2em;"></p>
+
+                    <div class="cc-actions">
+                        <button type="button" class="cc-btn cc-btn-ghost" id="btnPreviewLink">
+                            <i data-lucide="search"></i> ตรวจสอบจำนวน
+                        </button>
+                        <button type="button" class="cc-btn cc-btn-amber" id="btnLinkCounts">
+                            <i data-lucide="link"></i> ผูกผลนับ (1/2)
+                        </button>
+                        <a class="cc-btn cc-btn-purple" id="btnGoReconcile" href="reconcile.html">
+                            <i data-lucide="scale"></i> ไป Match ยอด
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+</div>
+
+<!-- Loading overlay -->
+<div class="cc-loading" id="loadingOverlay">
+    <div class="cc-loading-box">
+        <i data-lucide="loader-2" class="cc-spin"></i>
+        <p id="loadingText" style="font-family:'Kanit',sans-serif;margin:0;color:var(--text);">กำลังทำงาน...</p>
+    </div>
+</div>
+<!-- ยืนยันลบรอบ -->
+<div class="cs-modal" id="deleteCycleModal" role="dialog" aria-labelledby="deleteModalTitle" aria-modal="true">
+    <div class="cs-modal-content" style="max-width: 520px;">
+        <div class="cs-modal-header">
+            <h2 id="deleteModalTitle" style="color:#fca5a5;">
+                <i data-lucide="trash-2"></i> ยืนยันลบรอบ
+            </h2>
+            <button type="button" class="icon-btn" id="btnDeleteModalClose" aria-label="ปิด">
+                <i data-lucide="x"></i>
+            </button>
+        </div>
+        <p class="cc-del-modal-name" id="deleteModalCycleName">—</p>
+
+        <div class="cc-del-modal-box danger">
+            <h3><i data-lucide="x-circle"></i> จะลบ</h3>
+            <ul>
+                <li>Book <strong id="deleteModalBookN">0</strong> แถว</li>
+                <li>ผล Match และการปรับยอดของรอบนี้</li>
+            </ul>
+        </div>
+
+        <div class="cc-del-modal-box safe">
+            <h3><i data-lucide="shield-check"></i> คงไว้</h3>
+            <ul>
+                <li>ข้อมูลการนับ <strong id="deleteModalCountN">0</strong> แถว</li>
+                <li>ถอด <code>cycle_id</code> ออก — ไม่ลบแถว และไม่ปนกับรอบอื่น</li>
+            </ul>
+        </div>
+
+        <div class="cc-del-modal-actions">
+            <button type="button" class="cs-btn-test" id="btnDeleteModalCancel">ยกเลิก</button>
+            <button type="button" class="cs-btn-danger" id="btnDeleteModalConfirm">
+                <i data-lucide="trash-2"></i> ลบรอบ
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../Js/sidebar-shared.js"></script>
+<script src="../Js/api.js"></script>
+<script src="../Js/settings-shared.js"></script>
+<script src="../Js/reconcile-shared.js"></script>
+<script>
+    lucide.createIcons();
+    const RS = window.reconcileService;
+
+    const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+
+    let supabaseClient = null;
+    let cyclesCache = [];
+    let selectedCycle = null;
+    let bookParsed = null;
+    let bookFileName = '';
+    let linkConfirmStep = 0;
+
+    function getCreateWarehouseValue() {
+        if (document.getElementById('whModeAll').checked) return RS.ALL_WAREHOUSES;
+        const picked = [...document.querySelectorAll('.wh-chk-create:checked')].map(el => el.value);
+        if (!picked.length) return null;
+        return RS.encodeCycleWarehouses(picked);
+    }
+
+    function getEditWarehouseValue() {
+        if (document.getElementById('editWhModeAll').checked) return RS.ALL_WAREHOUSES;
+        const picked = [...document.querySelectorAll('.wh-chk-edit:checked')].map(el => el.value);
+        if (!picked.length) return null;
+        return RS.encodeCycleWarehouses(picked);
+    }
+
+    function syncCreateWarehouseUi() {
+        const isAll = document.getElementById('whModeAll').checked;
+        const panel = document.getElementById('whPickPanel');
+        const hint = document.getElementById('whPickHint');
+        panel.classList.toggle('disabled', isAll);
+        document.getElementById('allWhBanner').classList.toggle('show', isAll);
+        const picked = [...document.querySelectorAll('.wh-chk-create:checked')].map(el => el.value);
+        document.getElementById('multiWhBanner').style.display =
+            (!isAll && picked.length > 1) ? 'flex' : 'none';
+        if (hint) {
+            hint.textContent = isAll
+                ? 'โหมดคลังทั้งหมด — ไม่ต้องเลือกคลังย่อย'
+                : 'เลือกได้หลายคลัง เช่น ตึกกันตนา + หน้าไลฟ์ — ผูกผลนับเฉพาะคลังที่เลือก';
+        }
+        document.getElementById('reqStart').style.display = isAll ? 'inline' : 'none';
+        document.getElementById('reqEnd').style.display = isAll ? 'inline' : 'none';
+        document.getElementById('dayStartWrap').classList.toggle('required-field', isAll);
+        document.getElementById('dayEndWrap').classList.toggle('required-field', isAll);
+        document.getElementById('dateCard').style.borderColor = isAll
+            ? 'rgba(96,165,250,0.45)' : 'rgba(59,130,246,0.22)';
+    }
+
+    function fillEditWarehouseUi(cycle) {
+        const isAll = RS.isAllWarehousesCycle(cycle);
+        document.getElementById('editWhModeAll').checked = isAll;
+        document.getElementById('editWhModePick').checked = !isAll;
+        const list = isAll ? [] : (RS.parseCycleWarehouses(cycle) || []);
+        document.querySelectorAll('.wh-chk-edit').forEach(el => {
+            el.checked = list.includes(el.value);
+        });
+        const panel = document.getElementById('editWhPickPanel');
+        panel.classList.toggle('disabled', isAll);
+        document.getElementById('editWhCurrent').textContent =
+            'ปัจจุบัน: ' + RS.formatWarehouseDisplay(cycle);
+    }
+
+    function syncEditWarehouseUi() {
+        const isAll = document.getElementById('editWhModeAll').checked;
+        document.getElementById('editWhPickPanel').classList.toggle('disabled', isAll);
+    }
+
+    /* ──── Month picker setup ────────────────── */
+    function buildYearOptions() {
+        const sel = document.getElementById('newYear');
+        const cur = new Date().getFullYear();
+        sel.innerHTML = '';
+        for (let y = cur + 1; y >= cur - 3; y--) {
+            sel.innerHTML += `<option value="${y}"${y === cur ? ' selected' : ''}>${y}</option>`;
+        }
+    }
+
+    function buildMonthOptions(fromAvail = null) {
+        const sel = document.getElementById('newMonth');
+        const curM = new Date().getMonth() + 1;
+        if (fromAvail) {
+            sel.innerHTML = fromAvail.map(ym => {
+                const [, m] = ym.split('-');
+                return `<option value="${ym}">${ym} — ${THAI_MONTHS[Number(m) - 1]}</option>`;
+            }).join('');
+        } else {
+            sel.innerHTML = THAI_MONTHS.map((name, i) => {
+                const v = String(i + 1).padStart(2, '0');
+                return `<option value="${v}"${i + 1 === curM ? ' selected' : ''}>${v} — ${name}</option>`;
+            }).join('');
+        }
+    }
+
+    function getSelectedYearMonth() {
+        const yearSel = document.getElementById('newYear');
+        const monthSel = document.getElementById('newMonth');
+        const mv = monthSel.value || '';
+        if (mv.includes('-')) return mv; // came from "load available" — already YYYY-MM
+        const y = yearSel.value;
+        return y && mv ? `${y}-${mv}` : '';
+    }
+
+    function createdAtToBangkokYmd(iso) {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+        }).formatToParts(new Date(iso));
+        const get = t => parts.find(p => p.type === t)?.value || '';
+        return { y: get('year'), m: get('month'), day: get('day') };
+    }
+
+    let daySelectLoadSeq = 0;
+    let cachedAvailableDays = [];
+
+    function buildDayOptions(days, selectedDay) {
+        if (!days.length) return '<option value="">— ไม่มีข้อมูลนับ —</option>';
+        let html = '<option value="">— เลือกวัน —</option>';
+        for (const ds of days) {
+            const d = parseInt(ds, 10);
+            html += `<option value="${ds}"${ds === selectedDay ? ' selected' : ''}>วันที่ ${d}</option>`;
+        }
+        return html;
+    }
+
+    async function loadDaySelects() {
+        const seq = ++daySelectLoadSeq;
+        const ym = getSelectedYearMonth();
+        const wh = getCreateWarehouseValue();
+        const startEl = document.getElementById('newDayStart');
+        const endEl = document.getElementById('newDayEnd');
+        const hintEl = document.getElementById('dateMonthHint');
+        const noteEl = document.getElementById('dateRangeNote');
+        const prevStart = startEl.value;
+        const prevEnd = endEl.value;
+
+        if (!ym) {
+            cachedAvailableDays = [];
+            startEl.innerHTML = endEl.innerHTML = '<option value="">— เลือกวัน —</option>';
+            startEl.disabled = endEl.disabled = true;
+            if (hintEl) hintEl.textContent = '';
+            return;
+        }
+
+        startEl.disabled = endEl.disabled = true;
+        startEl.innerHTML = endEl.innerHTML = '<option value="">กำลังโหลด...</option>';
+
+        let days = [];
+        const client = RS.getClient();
+        if (client) {
+            try {
+                const range = RS.yearMonthToRangeISO(ym);
+                if (range) {
+                    let q = client.from('inventory_counts').select('created_at')
+                        .gte('created_at', range.start)
+                        .lt('created_at', range.end);
+                    if (wh) q = RS.applyWarehouseFilterValue(q, wh);
+                    const { data, error } = await q.limit(10000);
+                    if (error) throw error;
+                    if (seq !== daySelectLoadSeq) return;
+                    const daySet = new Set();
+                    (data || []).forEach(r => {
+                        const { y, m, day } = createdAtToBangkokYmd(r.created_at);
+                        if (`${y}-${m}` === ym) daySet.add(day);
+                    });
+                    days = [...daySet].sort();
+                }
+            } catch (err) {
+                if (seq !== daySelectLoadSeq) return;
+                showToast('โหลดวันที่มีข้อมูลล้มเหลว: ' + err.message, 'error');
+            }
+        }
+        if (seq !== daySelectLoadSeq) return;
+
+        cachedAvailableDays = days;
+        if (!days.length) {
+            const emptyOpt = '<option value="">— ไม่มีข้อมูลนับในเดือนนี้ —</option>';
+            startEl.innerHTML = endEl.innerHTML = emptyOpt;
+            startEl.disabled = endEl.disabled = true;
+            if (noteEl) noteEl.textContent = 'ไม่พบข้อมูลการนับในเดือนนี้ — ลองกด "โหลดเดือนที่มีข้อมูลนับ" หรือเปลี่ยนคลัง/เดือน';
+        } else {
+            const keepStart = days.includes(prevStart) ? prevStart : '';
+            const keepEnd = days.includes(prevEnd) ? prevEnd : '';
+            startEl.innerHTML = buildDayOptions(days, keepStart);
+            endEl.innerHTML = buildDayOptions(days, keepEnd);
+            startEl.disabled = endEl.disabled = false;
+            if (keepStart && keepEnd && keepStart > keepEnd) endEl.value = keepStart;
+            if (noteEl) noteEl.textContent =
+                `พบ ${days.length} วันที่มีข้อมูลนับ · ว่างทั้งสองช่อง = ทั้งเดือน · รอบ "คลังทั้งหมด" ต้องเลือกวันเริ่มและสิ้นสุด`;
+        }
+
+        if (hintEl) {
+            const parts = ym.split('-');
+            const monthIdx = parseInt(parts[1], 10) - 1;
+            const monthName = THAI_MONTHS[monthIdx] || parts[1];
+            const dayHint = days.length ? ` · ${days.length} วัน` : '';
+            hintEl.textContent = `${parts[0]}-${parts[1]} (${monthName})${dayHint}`;
+        }
+        lucide.createIcons();
+    }
+
+    function getSelectedDates() {
+        const ym = getSelectedYearMonth();
+        const bounds = RS.getMonthDateBounds(ym);
+        if (!bounds) return { start: null, end: null };
+        const dayStart = document.getElementById('newDayStart').value;
+        const dayEnd = document.getElementById('newDayEnd').value;
+        const prefix = bounds.min.slice(0, 8);
+        return {
+            start: dayStart ? `${prefix}${dayStart}` : null,
+            end: dayEnd ? `${prefix}${dayEnd}` : null
+        };
+    }
+
+    function updateWarehouseUi() {
+        syncCreateWarehouseUi();
+    }
+
+    async function loadAvailableMonths() {
+        const btn = document.getElementById('btnLoadAvailMonths');
+        const wh = getCreateWarehouseValue();
+        const client = RS.getClient();
+        if (!client) { showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error'); return; }
+        btn.disabled = true;
+        btn.innerHTML = '<i data-lucide="loader-2" style="width:11px;height:11px;animation:cc-spin 0.9s linear infinite;"></i> กำลังโหลด...';
+        lucide.createIcons();
+        try {
+            let q = client.from('inventory_counts').select('created_at');
+            if (wh) q = RS.applyWarehouseFilterValue(q, wh);
+            const { data } = await q.order('created_at', { ascending: false }).limit(5000);
+            const months = new Set();
+            (data || []).forEach(r => {
+                const bangkokDate = new Date(r.created_at);
+                const bkk = new Date(bangkokDate.getTime() + 7 * 60 * 60 * 1000);
+                months.add(`${bkk.getUTCFullYear()}-${String(bkk.getUTCMonth() + 1).padStart(2, '0')}`);
+            });
+            const sorted = [...months].sort().reverse();
+            if (!sorted.length) {
+                showToast(RS.isAllWarehousesCycle(wh) ? 'ไม่พบข้อมูลการนับในทุกคลัง' : 'ไม่พบข้อมูลการนับในคลังนี้', 'error');
+            } else {
+                buildMonthOptions(sorted);
+                document.getElementById('newYear').style.display = 'none';
+                await loadDaySelects();
+                showToast(`พบ ${sorted.length} เดือนที่มีข้อมูลนับ`);
+            }
+        } catch (err) {
+            showToast('โหลดล้มเหลว: ' + err.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="calendar-search" style="width:11px;height:11px;"></i> โหลดเดือนที่มีข้อมูลนับ';
+            lucide.createIcons();
+        }
+    }
+
+    document.querySelectorAll('input[name="createWhMode"]').forEach(el => {
+        el.addEventListener('change', () => {
+            document.getElementById('newYear').style.display = '';
+            buildMonthOptions();
+            loadDaySelects();
+            updateWarehouseUi();
+        });
+    });
+    document.querySelectorAll('.wh-chk-create').forEach(el => {
+        el.addEventListener('change', () => {
+            syncCreateWarehouseUi();
+            loadDaySelects();
+        });
+    });
+    document.querySelectorAll('input[name="editWhMode"]').forEach(el => {
+        el.addEventListener('change', syncEditWarehouseUi);
+    });
+    document.getElementById('newYear').addEventListener('change', loadDaySelects);
+    document.getElementById('newMonth').addEventListener('change', loadDaySelects);
+    document.getElementById('newDayStart').addEventListener('change', () => {
+        const start = document.getElementById('newDayStart').value;
+        const endEl = document.getElementById('newDayEnd');
+        if (start && endEl.value && start > endEl.value) endEl.value = start;
+    });
+
+    /* ──── Toast ─────────────────────────────── */
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.innerHTML = `<i data-lucide="${type === 'success' ? 'check-circle-2' : 'alert-circle'}"></i><span>${RS.escapeHtml(msg)}</span>`;
+        el.appendChild(t);
+        lucide.createIcons();
+        setTimeout(() => { t.classList.add('toast-closing'); t.addEventListener('animationend', () => t.remove()); }, 4500);
+    }
+
+    /* ──── Loading ───────────────────────────── */
+    function setLoading(on, text = 'กำลังทำงาน...') {
+        document.getElementById('loadingOverlay').classList.toggle('active', on);
+        document.getElementById('loadingText').textContent = text;
+        if (on) lucide.createIcons();
+    }
+
+    /* ──── Active banner ─────────────────────── */
+    function updateActiveBanner() {
+        const active = RS.getActiveCycle();
+        const banner = document.getElementById('activeCycleBanner');
+        if (!active) { banner.style.display = 'none'; return; }
+        banner.style.display = '';
+        document.getElementById('activeCycleText').textContent =
+            RS.formatCycleLabel(active) + ` · ${RS.statusLabel(active.status)}`;
+    }
+
+    /* ──── Schema check ──────────────────────── */
+    async function checkSchema() {
+        const banner = document.getElementById('schemaBanner');
+        const text = document.getElementById('schemaBannerText');
+        const res = await RS.checkSchemaReady(supabaseClient);
+        if (res.ok) { banner.style.display = 'none'; return true; }
+        banner.style.display = '';
+        banner.className = 'cc-banner err';
+        text.textContent = res.message;
+        return false;
+    }
+
+    /* ──── Status badge ──────────────────────── */
+    function statusBadge(status) {
+        const cls = `status-${status}`;
+        return `<span class="cc-badge ${cls}">${RS.statusLabel(status)}</span>`;
+    }
+
+    /* ──── Load cycles list ──────────────────── */
+    async function loadCycles() {
+        const wh = document.getElementById('filterWarehouse').value;
+        const body = document.getElementById('cyclesBody');
+        body.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:1rem;">กำลังโหลด...</td></tr>';
+        try {
+            cyclesCache = await RS.fetchCycles(wh || null);
+            const active = RS.getActiveCycle();
+            if (!cyclesCache.length) {
+                body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:1.25rem;color:var(--text-muted);">ยังไม่มีรอบ — สร้างรอบใหม่ด้านบน</td></tr>';
+                return;
+            }
+            const rows = await Promise.all(cyclesCache.map(async c => {
+                const bookN = await RS.countBookLines(c.id).catch(() => 0);
+                const countN = await RS.countLinkedInventory(c.id).catch(() => 0);
+                return { c, bookN, countN, isActive: active?.id === c.id };
+            }));
+            body.innerHTML = rows.map(({ c, bookN, countN, isActive }) => `
+                <tr class="${selectedCycle?.id === c.id ? 'selected-row' : ''}${isActive ? ' active-row' : ''}">
+                    <td>${RS.escapeHtml(RS.formatWarehouseDisplay(c))}</td>
+                    <td>${RS.escapeHtml(c.year_month)}</td>
+                    <td>${RS.escapeHtml(RS.formatDateRangeLabel(c))}</td>
+                    <td>${statusBadge(c.status)}${isActive ? ' <span class="cc-badge active">active</span>' : ''}</td>
+                    <td>${bookN.toLocaleString()}</td>
+                    <td>${countN.toLocaleString()}</td>
+                    <td>
+                        <div style="display:flex;gap:0.35rem;flex-wrap:wrap;">
+                            <button class="cc-btn cc-btn-ghost cc-btn-sm" data-select="${c.id}">
+                                <i data-lucide="folder-open" style="width:13px;height:13px;"></i> เลือก
+                            </button>
+                            <button class="cc-btn cc-btn-sm ${isActive ? 'cc-btn-ghost' : 'cc-btn-primary'}" data-active="${c.id}" ${isActive ? 'disabled' : ''}>
+                                ${isActive ? '<i data-lucide="check" style="width:13px;height:13px;"></i> ใช้งานอยู่' : '<i data-lucide="zap" style="width:13px;height:13px;"></i> ใช้งาน'}
+                            </button>
+                            <button class="cc-btn cc-btn-danger cc-btn-sm" data-delete="${c.id}" title="ลบรอบ (ข้อมูลการนับยังอยู่)">
+                                <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>`).join('');
+            body.querySelectorAll('[data-select]').forEach(btn =>
+                btn.addEventListener('click', () => selectCycle(btn.dataset.select)));
+            body.querySelectorAll('[data-active]').forEach(btn =>
+                btn.addEventListener('click', () => setActiveCycleById(btn.dataset.active)));
+            body.querySelectorAll('[data-delete]').forEach(btn =>
+                btn.addEventListener('click', () => deleteCycleById(btn.dataset.delete)));
+            lucide.createIcons();
+        } catch (err) {
+            body.innerHTML = `<tr><td colspan="7" style="color:#fca5a5;padding:1rem;">${RS.escapeHtml(err.message)}</td></tr>`;
+        }
+    }
+
+    /* ──── Select cycle (detail) ─────────────── */
+    async function selectCycle(id) {
+        selectedCycle = cyclesCache.find(c => c.id === id) || await RS.fetchCycleById(id);
+        if (!selectedCycle) return;
+        linkConfirmStep = 0;
+        bookParsed = null; bookFileName = '';
+        document.getElementById('bookFileLabel').textContent = 'ยังไม่ได้เลือกไฟล์';
+        document.getElementById('bookDropzone').classList.remove('has-file');
+        document.getElementById('btnImportBook').disabled = true;
+        clearBookImportPreview();
+        const lbtn = document.getElementById('btnLinkCounts');
+        lbtn.innerHTML = '<i data-lucide="link"></i> ผูกผลนับ (1/2)';
+        lucide.createIcons();
+
+        document.getElementById('detailPanel').style.display = '';
+        document.getElementById('detailTitle').textContent = RS.formatCycleLabel(selectedCycle);
+        document.getElementById('btnGoReconcile').href = `reconcile.html?cycle=${selectedCycle.id}`;
+        fillEditWarehouseUi(selectedCycle);
+
+        const [bookN, countN] = await Promise.all([
+            RS.countBookLines(selectedCycle.id),
+            RS.countLinkedInventory(selectedCycle.id)
+        ]);
+        document.getElementById('detailStats').innerHTML = `
+            <div class="cc-stat"><strong>${bookN.toLocaleString()}</strong><span>แถว Book</span></div>
+            <div class="cc-stat"><strong>${countN.toLocaleString()}</strong><span>ผลนับผูกแล้ว</span></div>
+            <div class="cc-stat"><strong>${RS.escapeHtml(RS.formatDateRangeLabel(selectedCycle))}</strong><span>ช่วงวันที่</span></div>
+            <div class="cc-stat"><strong>${RS.escapeHtml(RS.statusLabel(selectedCycle.status))}</strong><span>สถานะ</span></div>`;
+
+        try {
+            const prev = await RS.previewLinkInventoryCounts(selectedCycle);
+            document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
+        } catch { document.getElementById('linkPreview').textContent = ''; }
+
+        document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        await loadCycles();
+    }
+
+    /* ──── Set active cycle ──────────────────── */
+    function setActiveCycleById(id) {
+        const c = cyclesCache.find(x => x.id === id);
+        if (!c) return;
+        RS.setActiveCycle(c);
+        showToast(`ตั้งรอบ active: ${RS.formatCycleLabel(c)}`);
+        updateActiveBanner();
+        loadCycles();
+    }
+
+    let deleteModalResolve = null;
+
+    function showDeleteCycleModal({ label, bookN, countN }) {
+        return new Promise(resolve => {
+            deleteModalResolve = resolve;
+            document.getElementById('deleteModalCycleName').textContent = label;
+            document.getElementById('deleteModalBookN').textContent = bookN.toLocaleString();
+            document.getElementById('deleteModalCountN').textContent = countN.toLocaleString();
+            document.getElementById('deleteCycleModal').classList.add('open');
+            lucide.createIcons();
+            setTimeout(() => document.getElementById('btnDeleteModalConfirm').focus(), 80);
+        });
+    }
+
+    function closeDeleteCycleModal(confirmed) {
+        document.getElementById('deleteCycleModal').classList.remove('open');
+        if (deleteModalResolve) {
+            deleteModalResolve(confirmed);
+            deleteModalResolve = null;
+        }
+    }
+
+    async function deleteCycleById(id) {
+        const c = cyclesCache.find(x => x.id === id) || await RS.fetchCycleById(id);
+        if (!c) return showToast('ไม่พบรอบ', 'error');
+        const [bookN, countN] = await Promise.all([
+            RS.countBookLines(c.id).catch(() => 0),
+            RS.countLinkedInventory(c.id).catch(() => 0)
+        ]);
+        const label = RS.formatCycleLabel(c);
+        const confirmed = await showDeleteCycleModal({ label, bookN, countN });
+        if (!confirmed) return;
+
+        setLoading(true, 'กำลังลบรอบ...');
+        try {
+            const res = await RS.deleteCycle(c.id);
+            if (selectedCycle?.id === c.id) {
+                selectedCycle = null;
+                document.getElementById('detailPanel').style.display = 'none';
+            }
+            updateActiveBanner();
+            showToast(`ลบรอบ "${label}" แล้ว — คงข้อมูลการนับ ${res.preservedCountRows.toLocaleString()} แถว`);
+            await loadCycles();
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    /* ──── Event listeners ───────────────────── */
+    document.getElementById('btnClearActiveCycle').addEventListener('click', () => {
+        RS.clearActiveCycle(); updateActiveBanner();
+        showToast('ยกเลิกรอบ active แล้ว'); loadCycles();
+    });
+    document.getElementById('btnDeleteCycle').addEventListener('click', () => {
+        if (selectedCycle?.id) deleteCycleById(selectedCycle.id);
+    });
+
+    document.getElementById('btnDeleteModalCancel').addEventListener('click', () => closeDeleteCycleModal(false));
+    document.getElementById('btnDeleteModalClose').addEventListener('click', () => closeDeleteCycleModal(false));
+    document.getElementById('btnDeleteModalConfirm').addEventListener('click', () => closeDeleteCycleModal(true));
+    document.getElementById('deleteCycleModal').addEventListener('click', e => {
+        if (e.target.id === 'deleteCycleModal') closeDeleteCycleModal(false);
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && document.getElementById('deleteCycleModal').classList.contains('open')) {
+            closeDeleteCycleModal(false);
+        }
+    });
+
+    document.getElementById('btnLoadAvailMonths').addEventListener('click', loadAvailableMonths);
+    document.getElementById('filterWarehouse').addEventListener('change', loadCycles);
+    document.getElementById('btnReloadList').addEventListener('click', loadCycles);
+
+    document.getElementById('btnSaveCycleWarehouse').addEventListener('click', async () => {
+        if (!selectedCycle) return;
+        const warehouse = getEditWarehouseValue();
+        if (!warehouse) return showToast('กรุณาเลือกอย่างน้อย 1 คลัง', 'error');
+        if (warehouse === selectedCycle.warehouse) {
+            return showToast('คลังไม่เปลี่ยน');
+        }
+        const [bookN, countN] = await Promise.all([
+            RS.countBookLines(selectedCycle.id).catch(() => 0),
+            RS.countLinkedInventory(selectedCycle.id).catch(() => 0)
+        ]);
+        const msg = bookN || countN
+            ? `รอบนี้มี Book ${bookN} แถว และผลนับผูกแล้ว ${countN} แถว\n\nเปลี่ยนคลังเป็น "${RS.formatWarehouseDisplay({ warehouse })}"?\n(ข้อมูลเดิมไม่ถูกลบ — การผูกครั้งถัดไปจะใช้คลังใหม่)`
+            : `เปลี่ยนคลังเป็น "${RS.formatWarehouseDisplay({ warehouse })}"?`;
+        if (!confirm(msg)) return;
+        setLoading(true, 'กำลังบันทึกคลัง...');
+        try {
+            selectedCycle = await RS.updateCycleWarehouses(selectedCycle.id, warehouse);
+            const idx = cyclesCache.findIndex(c => c.id === selectedCycle.id);
+            if (idx >= 0) cyclesCache[idx] = selectedCycle;
+            const active = RS.getActiveCycle();
+            if (active?.id === selectedCycle.id) RS.setActiveCycle(selectedCycle);
+            showToast(`บันทึกคลัง: ${RS.formatWarehouseDisplay(selectedCycle)}`);
+            document.getElementById('detailTitle').textContent = RS.formatCycleLabel(selectedCycle);
+            fillEditWarehouseUi(selectedCycle);
+            const prev = await RS.previewLinkInventoryCounts(selectedCycle);
+            document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
+            await loadCycles();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoading(false); }
+    });
+
+    document.getElementById('btnCreateCycle').addEventListener('click', async () => {
+        if (!supabaseClient) return showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+        const warehouse = getCreateWarehouseValue();
+        if (!warehouse) return showToast('กรุณาเลือกอย่างน้อย 1 คลัง', 'error');
+        const ymRaw = getSelectedYearMonth();
+        if (!ymRaw) return showToast('กรุณาเลือกปี-เดือน', 'error');
+        const { start: dateStart, end: dateEnd } = getSelectedDates();
+        if (dateStart && dateEnd && dateStart > dateEnd) {
+            return showToast('วันเริ่มต้องไม่เกินวันสิ้นสุด', 'error');
+        }
+        setLoading(true, 'กำลังสร้างรอบ...');
+        try {
+            const cycle = await RS.createCycle({
+                warehouse, year_month: ymRaw,
+                label: document.getElementById('newLabel').value,
+                status: document.getElementById('newStatus').value,
+                count_start_date: dateStart || null,
+                count_end_date: dateEnd || null
+            });
+            showToast(`สร้างรอบ ${RS.formatCycleLabel(cycle)} สำเร็จ`);
+            await loadCycles();
+            await selectCycle(cycle.id);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoading(false); }
+    });
+
+    /* Book drop */
+    const bookDrop = document.getElementById('bookDropzone');
+    const bookInput = document.getElementById('bookFileInput');
+    bookDrop.addEventListener('click', () => bookInput.click());
+    bookDrop.addEventListener('dragover', e => { e.preventDefault(); bookDrop.style.borderColor = 'rgba(96,165,250,0.8)'; });
+    bookDrop.addEventListener('dragleave', () => { bookDrop.style.borderColor = ''; });
+    bookDrop.addEventListener('drop', e => {
+        e.preventDefault(); bookDrop.style.borderColor = '';
+        const f = e.dataTransfer.files[0];
+        if (f) handleBookFile(f);
+    });
+    bookInput.addEventListener('change', e => { const f = e.target.files[0]; if (f && selectedCycle) handleBookFile(f); });
+
+    const BOOK_INVALID_MAX = 200;
+    const BOOK_DUP_MAX = 30;
+
+    function clearBookImportPreview() {
+        document.getElementById('bookInvalidPanel').style.display = 'none';
+        document.getElementById('bookInvalidTbody').innerHTML = '';
+        document.getElementById('bookInvalidMore').style.display = 'none';
+        document.getElementById('bookDupPanel').style.display = 'none';
+        document.getElementById('bookDupList').innerHTML = '';
+        document.getElementById('bookReadyBanner').style.display = 'none';
+        document.getElementById('btnImportBook').style.boxShadow = '';
+        const body = document.getElementById('bookInvalidBody');
+        if (body) body.style.display = '';
+    }
+
+    function renderBookImportPreview(parsed) {
+        const invalidPanel = document.getElementById('bookInvalidPanel');
+        const tbody = document.getElementById('bookInvalidTbody');
+        const moreEl = document.getElementById('bookInvalidMore');
+        const invalid = parsed?.invalidRows || [];
+
+        if (!invalid.length) {
+            invalidPanel.style.display = 'none';
+            tbody.innerHTML = '';
+            moreEl.style.display = 'none';
+        } else {
+            invalidPanel.style.display = '';
+            document.getElementById('bookInvalidSummary').textContent =
+                `แถวที่ไม่ผ่าน ${invalid.length} รายการ (จะไม่ถูกนำเข้า)`;
+            const shown = invalid.slice(0, BOOK_INVALID_MAX);
+            tbody.innerHTML = shown.map(r => {
+                const qtyCell = r.qty != null && Number.isFinite(r.qty)
+                    ? RS.escapeHtml(String(r.qty))
+                    : '<span style="color:var(--text-muted);">—</span>';
+                return `<tr class="cc-row-invalid">
+                    <td>${r.rowNo}</td>
+                    <td>${r.sku ? RS.escapeHtml(r.sku) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                    <td>${qtyCell}</td>
+                    <td>${r.namePro ? RS.escapeHtml(r.namePro) : '<span style="color:var(--text-muted);">—</span>'}</td>
+                    <td><span class="cc-book-err-reason">${RS.escapeHtml(r.error || 'ไม่ผ่าน')}</span></td>
+                </tr>`;
+            }).join('');
+            if (invalid.length > BOOK_INVALID_MAX) {
+                moreEl.style.display = '';
+                moreEl.textContent = `แสดง ${BOOK_INVALID_MAX} แถวแรกจากทั้งหมด ${invalid.length} แถว — แก้ใน Excel แล้วอัปโหลดใหม่`;
+            } else {
+                moreEl.style.display = 'none';
+            }
+        }
+
+        const dupPanel = document.getElementById('bookDupPanel');
+        const dups = parsed?.duplicateSkus || [];
+        if (!dups.length) {
+            dupPanel.style.display = 'none';
+            document.getElementById('bookDupList').innerHTML = '';
+        } else {
+            dupPanel.style.display = '';
+            document.getElementById('bookDupSummary').textContent =
+                `พบ ${dups.length} SKU ที่มีหลายแถว — ระบบจะรวมยอดตามลำดับแถวเมื่อนำเข้า`;
+            const shownDup = dups.slice(0, BOOK_DUP_MAX);
+            document.getElementById('bookDupList').innerHTML = shownDup.map(d =>
+                `<li><strong>${RS.escapeHtml(d.sku)}</strong> — ${d.rows} แถว, รวม ${Number(d.total).toLocaleString()} ชิ้น</li>`
+            ).join('') + (dups.length > BOOK_DUP_MAX
+                ? `<li style="color:var(--text-muted);">… และอีก ${dups.length - BOOK_DUP_MAX} SKU</li>` : '');
+        }
+        lucide.createIcons();
+    }
+
+    document.getElementById('btnToggleBookInvalid').addEventListener('click', () => {
+        const body = document.getElementById('bookInvalidBody');
+        const btn = document.getElementById('btnToggleBookInvalid');
+        const hidden = body.style.display === 'none';
+        body.style.display = hidden ? '' : 'none';
+        btn.innerHTML = hidden
+            ? '<i data-lucide="chevron-up"></i> ซ่อน'
+            : '<i data-lucide="chevron-down"></i> แสดง';
+        lucide.createIcons();
+    });
+
+    function handleBookFile(f) {
+        const reader = new FileReader();
+        reader.onload = ev => {
+            try {
+                const wb = XLSX.read(ev.target.result, { type: 'binary' });
+                const sheet = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+                bookParsed = RS.parseBookExcelRows(rows);
+                bookFileName = f.name;
+                bookDrop.classList.toggle('has-file', bookParsed.validRows.length > 0);
+                document.getElementById('bookFileLabel').textContent =
+                    `${f.name} · พร้อมนำเข้า ${bookParsed.validRows.length} แถว` +
+                    (bookParsed.invalidRows.length ? ` · ไม่ผ่าน ${bookParsed.invalidRows.length}` : '');
+                document.getElementById('btnImportBook').disabled = bookParsed.validRows.length === 0;
+                renderBookImportPreview(bookParsed);
+                if (bookParsed.validRows.length > 0) {
+                    document.getElementById('bookReadyBanner').style.display = 'flex';
+                    document.getElementById('btnImportBook').style.boxShadow = '0 0 0 3px rgba(16,185,129,0.4)';
+                }
+                if (bookParsed.invalidRows.length)
+                    showToast(`มีแถวไม่ผ่าน ${bookParsed.invalidRows.length} — ดูรายการด้านล่าง`, 'error');
+                else if (bookParsed.duplicateSkus.length)
+                    showToast(`พบ SKU ซ้ำ ${bookParsed.duplicateSkus.length} รหัส — ดูรายการด้านล่าง`, 'error');
+            } catch (err) { showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error'); }
+        };
+        reader.readAsBinaryString(f);
+    }
+
+    document.getElementById('btnBookTemplate').addEventListener('click', () => {
+        const ws = XLSX.utils.aoa_to_sheet([
+            ['SKU', 'จำนวน (ยอดก่อนนับ)', 'ชื่อสินค้า'],
+            ['ZA001', 100, 'ตัวอย่าง A'],
+            ['XY100', 50, '']
+        ]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Book');
+        XLSX.writeFile(wb, 'Template_Book_Stock.xlsx');
+    });
+
+    document.getElementById('btnImportBook').addEventListener('click', async () => {
+        if (!selectedCycle || !bookParsed?.validRows.length) return;
+        const ok = confirm(
+            `นำเข้า Book ${bookParsed.validRows.length} แถว\nรอบ: ${RS.formatCycleLabel(selectedCycle)}\n\nจะแทนที่ Book เดิม — ต้องการดำเนินการต่อ?`);
+        if (!ok) return;
+        setLoading(true, 'กำลังนำเข้า Book...');
+        try {
+            const n = await RS.importBookStockLines(selectedCycle.id, bookParsed.validRows, bookFileName, { replaceExisting: true });
+            showToast(`นำเข้า Book สำเร็จ ${n} แถว`);
+            clearBookImportPreview();
+            await selectCycle(selectedCycle.id);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoading(false); }
+    });
+
+    document.getElementById('btnPreviewLink').addEventListener('click', async () => {
+        if (!selectedCycle) return;
+        try {
+            const prev = await RS.previewLinkInventoryCounts(selectedCycle);
+            document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
+            showToast('อัปเดตตัวเลขแล้ว');
+        } catch (err) { showToast(err.message, 'error'); }
+    });
+
+    document.getElementById('btnLinkCounts').addEventListener('click', async () => {
+        if (!selectedCycle) return;
+        const lbtn = document.getElementById('btnLinkCounts');
+        if (linkConfirmStep === 0) {
+            const prev = await RS.previewLinkInventoryCounts(selectedCycle);
+            const whLabel = RS.isAllWarehousesCycle(selectedCycle) ? 'ทุกคลัง' : RS.formatWarehouseDisplay(selectedCycle);
+            const rangeLabel = RS.formatDateRangeLabel(selectedCycle);
+            const ok = confirm(
+                `ยืนยันครั้งที่ 1\n\nผูก cycle_id ให้ผลนับ:\n· ${whLabel}\n· ช่วง ${rangeLabel}\n· รอผูก ${prev.linkableNull} แถว\n\nไม่แก้ counted_qty — ต้องการดำเนินการต่อ?`);
+            if (!ok) return;
+            linkConfirmStep = 1;
+            lbtn.innerHTML = '<i data-lucide="shield-alert"></i> ผูกผลนับ (2/2)';
+            lucide.createIcons();
+            return;
+        }
+        if (!confirm('ยืนยันครั้งที่ 2 — ผูกผลนับกับรอบนี้')) return;
+        setLoading(true, 'กำลังผูก cycle_id...');
+        try {
+            const n = await RS.linkInventoryCountsToCycle(selectedCycle, { relinkOthers: false });
+            showToast(`ผูกผลนับสำเร็จ ${n} แถว`);
+            linkConfirmStep = 0;
+            lbtn.innerHTML = '<i data-lucide="link"></i> ผูกผลนับ (1/2)';
+            lucide.createIcons();
+            await selectCycle(selectedCycle.id);
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoading(false); }
+    });
+
+    /* ──── Init ──────────────────────────────── */
+    (async function init() {
+        supabaseClient = RS.getClient();
+        buildYearOptions();
+        buildMonthOptions();
+        await loadDaySelects();
+        updateWarehouseUi();
+        updateActiveBanner();
+        const ready = await checkSchema();
+        if (ready) await loadCycles();
+        if (!supabaseClient) showToast('กรุณาตั้งค่า Supabase', 'error');
+    })();
+</script>
+</body>
+</html>

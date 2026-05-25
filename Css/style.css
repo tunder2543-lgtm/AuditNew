@@ -111,6 +111,78 @@ body.has-sidebar {
     flex-shrink: 0;
 }
 
+/* Sidebar groups (collapsible) */
+.sidebar-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.sidebar-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0.55rem 0.65rem;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    font-family: 'Kanit', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.sidebar-group-head:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--card-border);
+}
+
+.sidebar-group-left {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+}
+
+.sidebar-group-left svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    color: #93c5fd;
+}
+
+.sidebar-group-chevron {
+    width: 15px !important;
+    height: 15px !important;
+    flex-shrink: 0;
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+
+.sidebar-group.open .sidebar-group-chevron {
+    transform: rotate(180deg);
+}
+
+.sidebar-group-items {
+    display: none;
+    flex-direction: column;
+    gap: 0.2rem;
+    padding-left: 0.35rem;
+    margin-bottom: 0.25rem;
+}
+
+.sidebar-group.open .sidebar-group-items {
+    display: flex;
+}
+
+.sidebar-nav-sub {
+    padding: 0.55rem 0.75rem 0.55rem 1.65rem;
+    font-size: 0.84rem;
+}
+
 .main-area {
     flex: 1;
     min-width: 0;
@@ -321,6 +393,16 @@ input:focus, select:focus {
 input:focus + .input-icon, select:focus + .input-icon,
 .input-wrapper:focus-within .input-icon {
     color: var(--primary);
+}
+
+.input-wrapper.field-error input,
+.input-wrapper.field-error select {
+    border-color: var(--danger);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.input-wrapper.field-error .input-icon {
+    color: var(--danger);
 }
 
 .submit-btn {

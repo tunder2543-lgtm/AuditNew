@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ค้นหาผลนับ — Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .cs-page { max-width: 1280px; width: 100%; display: flex; flex-direction: column; gap: 1.25rem; }
+        .cs-page .dashboard-header { align-items: flex-start; gap: 0.75rem; }
+        .cs-page .connection-badge {
+            padding: 0.22rem 0.55rem;
+            font-size: 0.68rem;
+            font-weight: 500;
+            gap: 0.28rem;
+            flex-shrink: 0;
+        }
+        .cs-page .connection-badge svg {
+            width: 11px;
+            height: 11px;
+        }
+        .cs-panel {
+            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .cs-toolbar {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 0.7rem;
+            align-items: flex-end;
+            padding: 1rem 1.15rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            background:
+                radial-gradient(at 0% 0%, rgba(59,130,246,0.07) 0, transparent 45%),
+                rgba(8,10,14,0.42);
+            overflow-x: auto;
+        }
+        .cs-toolbar::-webkit-scrollbar { height: 6px; }
+        .cs-toolbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+        .cs-field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.32rem;
+            min-width: 140px;
+            flex: 0 0 auto;
+        }
+        .cs-field label {
+            font-size: 0.7rem;
+            color: #9ca3af;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            line-height: 1;
+        }
+        .cs-field input,
+        .cs-field select,
+        .cs-month-row {
+            height: 40px;
+            box-sizing: border-box;
+        }
+        .cs-field input, .cs-field select {
+            padding: 0 0.75rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text);
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+        }
+        .cs-field input:focus, .cs-field select:focus {
+            outline: none;
+            border-color: rgba(96,165,250,0.9);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.17);
+            background: rgba(10,12,18,0.95);
+        }
+        .cs-field-grow { flex: 1 1 160px; min-width: 140px; }
+        .cs-field-sku { flex: 1 1 200px; min-width: 160px; }
+        .cs-month-row {
+            display: flex;
+            align-items: stretch;
+            padding: 3px;
+            border-radius: 10px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            gap: 0;
+            overflow: hidden;
+        }
+        .cs-month-row select {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 100%;
+            border: none;
+            background: transparent;
+            padding: 0 0.55rem;
+            color: var(--text);
+            font-size: 0.85rem;
+        }
+        .cs-month-row select:focus { box-shadow: none; background: rgba(59,130,246,0.08); border-radius: 7px; }
+        .cs-month-row #qYear { flex: 0 0 78px; }
+        .cs-month-row .cs-divider {
+            width: 1px;
+            background: rgba(255,255,255,0.08);
+            margin: 4px 0;
+            flex: 0 0 1px;
+        }
+        .cs-icon-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            margin: 2px;
+            padding: 0;
+            border-radius: 7px;
+            background: rgba(59,130,246,0.12);
+            border: 1px solid rgba(147,197,253,0.32);
+            color: #93c5fd;
+            cursor: pointer;
+            transition: all 0.18s;
+            flex: 0 0 30px;
+        }
+        .cs-icon-btn:hover {
+            background: rgba(59,130,246,0.22);
+            color: #dbeafe;
+            border-color: rgba(147,197,253,0.55);
+        }
+        .cs-icon-btn svg { width: 14px; height: 14px; }
+        .cs-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            height: 40px;
+            padding: 0 1.05rem;
+            border-radius: 10px;
+            border: none;
+            font-size: 0.85rem;
+            font-family: 'Kanit', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+        .cs-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,0.24); }
+        .cs-btn:active { transform: translateY(0); }
+        .cs-btn-primary { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: #fff; }
+        .cs-btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid rgba(255,255,255,0.14); }
+        .cs-summary {
+            padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--text-muted);
+            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.12);
+        }
+        .cs-table-wrap { overflow: auto; max-height: 560px; }
+        .cs-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .cs-table th {
+            position: sticky; top: 0; background: #1e293b; text-align: left;
+            padding: 0.55rem 0.75rem; color: #e2e8f0; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .cs-table td { padding: 0.48rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .cs-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
+        .cs-sku { font-family: ui-monospace, monospace; color: #e0f2fe; }
+        .cs-loading {
+            position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+        }
+        .cs-loading.active { display: flex; }
+        .cs-loading-box {
+            width: min(360px, calc(100vw - 2rem));
+            padding: 1.35rem 1.4rem 1.2rem;
+            border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: linear-gradient(165deg, rgba(24,24,27,0.98) 0%, rgba(15,15,18,0.99) 100%);
+            box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+            text-align: center;
+        }
+        .cs-loading-spinner {
+            width: 42px; height: 42px; margin: 0 auto 0.85rem;
+            border: 3px solid rgba(255,255,255,0.12);
+            border-top-color: #60a5fa;
+            border-radius: 50%;
+            animation: csSpin 0.85s linear infinite;
+        }
+        @keyframes csSpin { to { transform: rotate(360deg); } }
+        .cs-loading-title {
+            margin: 0 0 0.35rem;
+            font-family: 'Kanit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #f8fafc;
+        }
+        .cs-loading-status {
+            margin: 0 0 0.85rem;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.45;
+            min-height: 2.2em;
+        }
+        .cs-loading-progress {
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.08);
+            overflow: hidden;
+            margin-bottom: 0.55rem;
+        }
+        .cs-loading-progress-bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #2563eb, #60a5fa);
+            transition: width 0.25s ease;
+        }
+        .cs-loading-count {
+            margin: 0;
+            font-size: 0.78rem;
+            color: #93c5fd;
+            font-variant-numeric: tabular-nums;
+        }
+        .cs-summary-warn { color: #fbbf24; }
+        @media (max-width: 1200px) {
+            .cs-toolbar { flex-wrap: wrap; overflow-x: visible; }
+            .cs-field { min-width: calc(33.333% - 0.7rem); }
+            .cs-field-grow { min-width: calc(50% - 0.7rem); }
+        }
+        @media (max-width: 720px) {
+            .cs-toolbar { padding: 0.95rem 0.85rem 1rem; gap: 0.6rem; }
+            .cs-field,
+            .cs-field-grow { min-width: calc(50% - 0.6rem); }
+            .cs-btn { flex: 1 1 calc(50% - 0.6rem); }
+        }
+        @media (max-width: 480px) {
+            .cs-field,
+            .cs-field-grow { min-width: 100%; }
+            .cs-btn { flex: 1 1 100%; }
+        }
+    </style>
+</head>
+<body class="has-sidebar">
+<div class="app-layout">
+    <aside class="sidebar" id="appSidebar" data-active-page="count_search" aria-label="เมนูหลัก"></aside>
+    <main class="main-area">
+        <div class="cs-page dashboard-container">
+            <header class="dashboard-header" style="border:none;padding:0;background:transparent;">
+                <div class="header-content" style="align-items:flex-start;text-align:left;">
+                    <h1 style="font-family:'Kanit',sans-serif;font-size:1.65rem;">ค้นหาผลนับ</h1>
+                    <p style="font-size:0.85rem;color:var(--text-muted);margin:0.2rem 0 0;">
+                        ค้นหารายการจาก <code>inventory_counts</code> — SKU, ตำแหน่ง, คลัง, ผู้นับ
+                    </p>
+                </div>
+                <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                    <i data-lucide="wifi-off" data-badge-icon></i><span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                </div>
+            </header>
+
+            <section class="cs-panel">
+                <div class="cs-toolbar">
+                    <div class="cs-field cs-field-sku">
+                        <label for="qSku">SKU / ตำแหน่ง / คำค้น</label>
+                        <input type="text" id="qSku" placeholder="เช่น E2-04, RJBL0350, BG328...">
+                    </div>
+                    <div class="cs-field">
+                        <label for="qWarehouse">คลัง</label>
+                        <select id="qWarehouse">
+                            <option value="">ทุกคลัง</option>
+                            <option value="ตึกกันตนา">ตึกกันตนา</option>
+                            <option value="หน้าไลฟ์(บางกรวย)">หน้าไลฟ์(บางกรวย)</option>
+                            <option value="คลังอะไหล่">คลังอะไหล่</option>
+                        </select>
+                    </div>
+                    <div class="cs-field" style="min-width:200px;">
+                        <label>เดือน</label>
+                        <div class="cs-month-row">
+                            <select id="qYear" title="ปี"></select>
+                            <span class="cs-divider"></span>
+                            <select id="qMonth" title="เดือน"></select>
+                            <span class="cs-divider"></span>
+                            <button type="button" class="cs-icon-btn" id="btnLoadMonths" title="โหลดเฉพาะเดือนที่มีข้อมูล">
+                                <i data-lucide="calendar-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="cs-field cs-field-grow">
+                        <label for="qLocation">ตำแหน่ง</label>
+                        <input type="text" id="qLocation" placeholder="เช่น A1, B2-03">
+                    </div>
+                    <div class="cs-field cs-field-grow">
+                        <label for="qCounter">ผู้นับ</label>
+                        <input type="text" id="qCounter" placeholder="ชื่อผู้นับ">
+                    </div>
+                    <button type="button" class="cs-btn cs-btn-primary" id="btnSearch">
+                        <i data-lucide="search"></i> ค้นหา
+                    </button>
+                    <button type="button" class="cs-btn cs-btn-ghost" id="btnExport">
+                        <i data-lucide="download"></i> Export
+                    </button>
+                </div>
+                <div class="cs-summary" id="summaryText">กรองแล้วกด ค้นหา</div>
+                <div class="cs-table-wrap">
+                    <table class="cs-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>SKU</th>
+                                <th>ตำแหน่ง</th>
+                                <th>คลัง</th>
+                                <th style="text-align:right;">จำนวน</th>
+                                <th>ผู้นับ</th>
+                                <th>วันที่บันทึก</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultBody">
+                            <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">ยังไม่ได้ค้นหา</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div class="cs-loading" id="loading" aria-live="polite" aria-busy="false">
+    <div class="cs-loading-box">
+        <div class="cs-loading-spinner" aria-hidden="true"></div>
+        <p class="cs-loading-title">กำลังค้นหา...</p>
+        <p class="cs-loading-status" id="loadingStatus">กำลังเตรียมข้อมูล</p>
+        <div class="cs-loading-progress" aria-hidden="true">
+            <div class="cs-loading-progress-bar" id="loadingProgressBar"></div>
+        </div>
+        <p class="cs-loading-count" id="loadingCount">0 แถว</p>
+    </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../Js/api.js"></script>
+<script src="../Js/settings-shared.js"></script>
+<script src="../Js/reconcile-shared.js"></script>
+<script src="../Js/sidebar-shared.js"></script>
+<script>
+    lucide.createIcons();
+
+    const RS = window.reconcileService;
+    const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
+    const PAGE_SIZE = 1000;
+    const MAX_BATCHES = 500;
+    let rowsRawCache = [];
+    let rowsCache = [];
+    let lastFetchMeta = null;
+    let monthFromAvailable = false;
+    let searchRunning = false;
+
+    function setLoading(active, opts) {
+        const loading = document.getElementById('loading');
+        const statusEl = document.getElementById('loadingStatus');
+        const countEl = document.getElementById('loadingCount');
+        const barEl = document.getElementById('loadingProgressBar');
+        loading.classList.toggle('active', !!active);
+        loading.setAttribute('aria-busy', active ? 'true' : 'false');
+        if (!active) {
+            barEl.style.width = '0%';
+            statusEl.textContent = 'กำลังเตรียมข้อมูล';
+            countEl.textContent = '0 แถว';
+            return;
+        }
+        if (opts?.status) statusEl.textContent = opts.status;
+        if (opts?.expected != null && opts.expected > 0) {
+            const pct = Math.min(100, Math.round((opts.fetched || 0) / opts.expected * 100));
+            barEl.style.width = pct + '%';
+            countEl.textContent = (opts.fetched || 0).toLocaleString() + ' / ' + opts.expected.toLocaleString() + ' แถว';
+        } else if (opts?.fetched != null) {
+            barEl.style.width = '35%';
+            countEl.textContent = 'ดึงแล้ว ' + opts.fetched.toLocaleString() + ' แถว';
+        }
+    }
+
+    function setSearchBusy(busy) {
+        searchRunning = busy;
+        document.getElementById('btnSearch').disabled = busy;
+        document.getElementById('btnExport').disabled = busy;
+    }
+
+    /** ช่วงเดือนแบบเดียวกับหน้าตรวจสอบ (audit_check) — ครบทั้งเดือน */
+    function getMonthBoundsIso(yearMonth) {
+        if (!yearMonth) return { start: null, end: null };
+        const parts = yearMonth.split('-').map(Number);
+        const y = parts[0];
+        const m = parts[1];
+        if (!y || !m) return { start: null, end: null };
+        const lastDay = new Date(y, m, 0).getDate();
+        const pad = function (n) { return String(n).padStart(2, '0'); };
+        return {
+            start: yearMonth + '-01T00:00:00+07:00',
+            end: yearMonth + '-' + pad(lastDay) + 'T23:59:59.999+07:00'
+        };
+    }
+
+    function buildDbFilters() {
+        const wh = document.getElementById('qWarehouse').value;
+        const ym = getSelectedYearMonth();
+        const bounds = getMonthBoundsIso(ym);
+        return { wh, ym, range: bounds.start ? bounds : null };
+    }
+
+    function getLocalFilters() {
+        return {
+            skuQ: document.getElementById('qSku').value.trim().toLowerCase(),
+            locQ: document.getElementById('qLocation').value.trim().toLowerCase(),
+            counterQ: document.getElementById('qCounter').value.trim().toLowerCase()
+        };
+    }
+
+    function applyDbFilters(q, filters) {
+        if (filters.wh) q = q.eq('warehouse', filters.wh);
+        if (filters.range && filters.range.start && filters.range.end) {
+            q = q.gte('created_at', filters.range.start).lte('created_at', filters.range.end);
+        }
+        return q;
+    }
+
+    function rowMatchesKeyword(r, keyword) {
+        if (!keyword) return true;
+        const k = keyword.toLowerCase();
+        const hay = [
+            r.sku_id,
+            r.location,
+            r.counter_name,
+            r.warehouse
+        ].map(function (v) { return String(v || '').toLowerCase(); }).join(' ');
+        return hay.includes(k);
+    }
+
+    function applyLocalFilters() {
+        if (searchRunning) return;
+        const { skuQ, locQ, counterQ } = getLocalFilters();
+        if (!rowsRawCache.length) {
+            rowsCache = [];
+            renderTable();
+            if (lastFetchMeta) updateDisplaySummary();
+            else if (skuQ || locQ || counterQ) {
+                document.getElementById('summaryText').textContent = 'กรุณากด ค้นหา เพื่อโหลดข้อมูลก่อนกรอง';
+            }
+            return;
+        }
+        rowsCache = rowsRawCache.filter(function (r) {
+            if (skuQ && !rowMatchesKeyword(r, skuQ)) return false;
+            if (locQ && !String(r.location || '').toLowerCase().includes(locQ)) return false;
+            if (counterQ && !String(r.counter_name || '').toLowerCase().includes(counterQ)) return false;
+            return true;
+        });
+        renderTable();
+        updateDisplaySummary();
+    }
+
+    function updateDisplaySummary() {
+        const summaryEl = document.getElementById('summaryText');
+        const { skuQ, locQ, counterQ } = getLocalFilters();
+        const hasLocalFilter = !!(skuQ || locQ || counterQ);
+        if (!lastFetchMeta) return;
+
+        if (!rowsRawCache.length) {
+            summaryEl.classList.toggle('cs-summary-warn', !lastFetchMeta.complete);
+            let summary = 'ไม่พบข้อมูลในช่วงที่เลือก';
+            if (lastFetchMeta.wh) summary += ' · คลัง ' + lastFetchMeta.wh;
+            if (lastFetchMeta.ym) summary += ' · เดือน ' + lastFetchMeta.ym;
+            summaryEl.textContent = summary;
+            return;
+        }
+
+        summaryEl.classList.toggle('cs-summary-warn', !lastFetchMeta.complete);
+        let summary = '';
+        if (!lastFetchMeta.complete) {
+            summary = '⚠ ดึงไม่ครบ — ได้ ' + lastFetchMeta.fetchedCount.toLocaleString();
+            if (lastFetchMeta.expectedCount != null) summary += ' จาก ' + lastFetchMeta.expectedCount.toLocaleString();
+            summary += ' แถว';
+        } else if (hasLocalFilter) {
+            summary = 'แสดง ' + rowsCache.length.toLocaleString() + ' จาก ' + rowsRawCache.length.toLocaleString() + ' แถว';
+            if (rowsCache.length === 0 && skuQ) {
+                summary += ' · ไม่พบตรงคำค้น';
+            }
+        } else {
+            summary = 'พบ ' + rowsRawCache.length.toLocaleString() + ' แถว';
+            if (lastFetchMeta.batches > 1) summary += ' · ดึงครบ ' + lastFetchMeta.batches + ' ชุด (ทีละ ' + PAGE_SIZE.toLocaleString() + ')';
+        }
+        if (lastFetchMeta.wh) summary += ' · คลัง ' + lastFetchMeta.wh;
+        if (lastFetchMeta.ym) summary += ' · เดือน ' + lastFetchMeta.ym;
+        summaryEl.textContent = summary;
+    }
+
+    function esc(s) {
+        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = 'toast ' + type;
+        t.innerHTML = '<i data-lucide="' + (type === 'success' ? 'check-circle-2' : 'alert-circle') + '"></i><span>' + esc(msg) + '</span>';
+        el.appendChild(t);
+        lucide.createIcons();
+        setTimeout(function () { t.remove(); }, 4500);
+    }
+
+    function bangkokYearMonth(iso) {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok',
+            year: 'numeric', month: '2-digit'
+        }).formatToParts(new Date(iso));
+        const get = function (t) { return parts.find(function (p) { return p.type === t; })?.value || ''; };
+        return get('year') + '-' + get('month');
+    }
+
+    function buildYearOptions() {
+        const sel = document.getElementById('qYear');
+        const cur = new Date().getFullYear();
+        sel.innerHTML = '<option value="">ทุกปี</option>';
+        for (let y = cur + 1; y >= cur - 4; y--) {
+            sel.innerHTML += '<option value="' + y + '"' + (y === cur ? ' selected' : '') + '>' + y + '</option>';
+        }
+    }
+
+    function buildMonthOptions(fromAvail) {
+        const sel = document.getElementById('qMonth');
+        monthFromAvailable = !!fromAvail;
+        if (fromAvail && fromAvail.length) {
+            sel.innerHTML = '<option value="">— เลือกเดือน —</option>' +
+                fromAvail.map(function (ym) {
+                    const m = Number(ym.split('-')[1]);
+                    return '<option value="' + ym + '">' + ym + ' (' + THAI_MONTHS[m - 1] + ')</option>';
+                }).join('');
+            document.getElementById('qYear').style.display = 'none';
+            return;
+        }
+        document.getElementById('qYear').style.display = '';
+        const curM = new Date().getMonth() + 1;
+        sel.innerHTML = '<option value="">ทุกเดือน</option>' +
+            THAI_MONTHS.map(function (name, i) {
+                const v = String(i + 1).padStart(2, '0');
+                return '<option value="' + v + '"' + (i + 1 === curM ? ' selected' : '') + '>' + v + ' — ' + name + '</option>';
+            }).join('');
+    }
+
+    function getSelectedYearMonth() {
+        const yearSel = document.getElementById('qYear');
+        const monthSel = document.getElementById('qMonth');
+        const mv = monthSel.value || '';
+        if (mv.includes('-')) return mv;
+        const y = yearSel.value;
+        return y && mv ? (y + '-' + mv) : '';
+    }
+
+    async function loadAvailableMonths() {
+        const btn = document.getElementById('btnLoadMonths');
+        const wh = document.getElementById('qWarehouse').value;
+        const client = RS.getClient();
+        if (!client) return showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+        btn.disabled = true;
+        try {
+            let q = client.from('inventory_counts').select('created_at');
+            if (wh) q = q.eq('warehouse', wh);
+            const { data, error } = await q.order('created_at', { ascending: false }).limit(8000);
+            if (error) throw error;
+            const months = new Set();
+            (data || []).forEach(function (r) {
+                if (r.created_at) months.add(bangkokYearMonth(r.created_at));
+            });
+            const sorted = Array.from(months).sort().reverse();
+            if (!sorted.length) {
+                showToast('ไม่พบข้อมูลการนับ' + (wh ? ' ในคลังนี้' : ''), 'error');
+            } else {
+                buildMonthOptions(sorted);
+                if (sorted.length) document.getElementById('qMonth').value = sorted[0];
+                showToast('พบ ' + sorted.length + ' เดือนที่มีข้อมูลนับ');
+            }
+        } catch (err) {
+            showToast(err.message || String(err), 'error');
+        } finally {
+            btn.disabled = false;
+            lucide.createIcons();
+        }
+    }
+
+    function formatDt(iso) {
+        if (!iso) return '—';
+        try {
+            return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+        } catch (e) {
+            return iso;
+        }
+    }
+
+    async function fetchAllRowsInRange(filters, onProgress) {
+        const client = window.apiService.getClient();
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+        onProgress?.({ phase: 'count', status: 'กำลังนับจำนวนข้อมูลทั้งหมด...', fetched: 0, expected: null, batch: 0 });
+
+        let countQ = client.from('inventory_counts').select('id', { count: 'exact', head: true });
+        countQ = applyDbFilters(countQ, filters);
+        const countRes = await countQ;
+        if (countRes.error) {
+            return {
+                rows: [],
+                expectedCount: null,
+                fetchedCount: 0,
+                batches: 0,
+                complete: false,
+                reason: 'นับจำนวนข้อมูลไม่สำเร็จ: ' + countRes.error.message
+            };
+        }
+
+        const expectedCount = countRes.count ?? 0;
+        if (expectedCount === 0) {
+            onProgress?.({ phase: 'done', status: 'ไม่พบข้อมูลในช่วงที่เลือก', fetched: 0, expected: 0, batch: 0 });
+            return { rows: [], expectedCount: 0, fetchedCount: 0, batches: 0, complete: true, reason: null };
+        }
+
+        const all = [];
+        let from = 0;
+        let batch = 0;
+
+        while (true) {
+            batch += 1;
+            onProgress?.({
+                phase: 'fetch',
+                status: 'กำลังดึงชุดที่ ' + batch + ' (แถว ' + (from + 1).toLocaleString() + '–' + (from + PAGE_SIZE).toLocaleString() + ')',
+                fetched: all.length,
+                expected: expectedCount,
+                batch
+            });
+
+            let q = client.from('inventory_counts').select('id, sku_id, location, warehouse, counted_qty, counter_name, created_at, cycle_id');
+            q = applyDbFilters(q, filters);
+            q = q.order('created_at', { ascending: false }).range(from, from + PAGE_SIZE - 1);
+            const res = await q;
+            if (res.error) {
+                return {
+                    rows: all,
+                    expectedCount,
+                    fetchedCount: all.length,
+                    batches: batch,
+                    complete: false,
+                    reason: 'ดึงข้อมูลไม่สำเร็จที่ชุดที่ ' + batch + ': ' + res.error.message
+                };
+            }
+
+            const chunk = res.data || [];
+            all.push.apply(all, chunk);
+            onProgress?.({
+                phase: 'fetch',
+                status: 'ดึงชุดที่ ' + batch + ' สำเร็จ (' + chunk.length.toLocaleString() + ' แถว)',
+                fetched: all.length,
+                expected: expectedCount,
+                batch
+            });
+
+            if (chunk.length < PAGE_SIZE) break;
+            if (batch >= MAX_BATCHES) {
+                return {
+                    rows: all,
+                    expectedCount,
+                    fetchedCount: all.length,
+                    batches: batch,
+                    complete: false,
+                    reason: 'ถึงขีดจำกัดสูงสุด ' + (MAX_BATCHES * PAGE_SIZE).toLocaleString() + ' แถว — กรุณาจำกัดช่วงเวลาให้แคบลง'
+                };
+            }
+            from += PAGE_SIZE;
+        }
+
+        if (all.length !== expectedCount) {
+            return {
+                rows: all,
+                expectedCount,
+                fetchedCount: all.length,
+                batches: batch,
+                complete: false,
+                reason: 'ดึงข้อมูลไม่ครบ — ได้ ' + all.length.toLocaleString() + ' จาก ' + expectedCount.toLocaleString() + ' แถว (ข้อมูลอาจเปลี่ยนระหว่างดึง หรือเซิร์ฟเวอร์ตอบไม่ครบ)'
+            };
+        }
+
+        onProgress?.({
+            phase: 'done',
+            status: 'ดึงครบแล้ว ' + all.length.toLocaleString() + ' แถว',
+            fetched: all.length,
+            expected: expectedCount,
+            batch
+        });
+        return { rows: all, expectedCount, fetchedCount: all.length, batches: batch, complete: true, reason: null };
+    }
+
+    async function runSearch() {
+        if (searchRunning) return;
+        setSearchBusy(true);
+        setLoading(true, { status: 'กำลังเตรียมค้นหา...', fetched: 0, expected: null });
+        let fetchOk = false;
+        try {
+            const filters = buildDbFilters();
+
+            const result = await fetchAllRowsInRange(filters, function (p) {
+                setLoading(true, p);
+            });
+
+            rowsRawCache = result.rows;
+            lastFetchMeta = {
+                wh: filters.wh,
+                ym: filters.ym,
+                complete: result.complete,
+                fetchedCount: result.fetchedCount,
+                expectedCount: result.expectedCount,
+                batches: result.batches
+            };
+            fetchOk = true;
+
+            if (!result.complete && result.reason) showToast(result.reason, 'error');
+            if (result.complete && rowsRawCache.length) {
+                showToast('ดึงข้อมูลครบ ' + result.fetchedCount.toLocaleString() + ' แถว (' + result.batches + ' ชุด)');
+            }
+        } catch (err) {
+            rowsRawCache = [];
+            rowsCache = [];
+            lastFetchMeta = null;
+            document.getElementById('summaryText').textContent = 'ค้นหาไม่สำเร็จ';
+            showToast(err.message || String(err), 'error');
+        } finally {
+            setLoading(false);
+            setSearchBusy(false);
+            if (fetchOk) applyLocalFilters();
+            else renderTable();
+        }
+    }
+
+    function renderTable() {
+        const body = document.getElementById('resultBody');
+        if (!rowsCache.length) {
+            const msg = lastFetchMeta ? 'ไม่พบข้อมูล' : 'ยังไม่ได้ค้นหา';
+            body.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted);">' + msg + '</td></tr>';
+            return;
+        }
+        body.innerHTML = rowsCache.map(function (r, i) {
+            return '<tr>' +
+                '<td style="color:var(--text-muted);">' + (i + 1) + '</td>' +
+                '<td class="cs-sku">' + esc(r.sku_id || '—') + '</td>' +
+                '<td>' + esc(r.location || '—') + '</td>' +
+                '<td>' + esc(r.warehouse || '—') + '</td>' +
+                '<td style="text-align:right;font-weight:600;">' + Number(r.counted_qty).toLocaleString() + '</td>' +
+                '<td>' + esc(r.counter_name || '—') + '</td>' +
+                '<td style="font-size:0.76rem;color:var(--text-muted);">' + esc(formatDt(r.created_at)) + '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    document.getElementById('btnSearch').addEventListener('click', runSearch);
+    document.getElementById('btnExport').addEventListener('click', function () {
+        if (!rowsCache.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
+        const data = rowsCache.map(function (r, i) {
+            return {
+                '#': i + 1,
+                SKU: r.sku_id || '',
+                'ตำแหน่ง': r.location || '',
+                'คลัง': r.warehouse || '',
+                'จำนวน': Number(r.counted_qty),
+                'ผู้นับ': r.counter_name || '',
+                'วันที่บันทึก': r.created_at || ''
+            };
+        });
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'ผลนับ');
+        XLSX.writeFile(wb, 'CountSearch_' + (getSelectedYearMonth() || 'all') + '.xlsx');
+        showToast('Export ' + data.length + ' แถว');
+    });
+
+    ['qSku', 'qLocation', 'qCounter'].forEach(function (id) {
+        const el = document.getElementById(id);
+        el.addEventListener('input', applyLocalFilters);
+        el.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                if (rowsRawCache.length) applyLocalFilters();
+                else runSearch();
+            }
+        });
+    });
+
+    document.getElementById('btnLoadMonths').addEventListener('click', loadAvailableMonths);
+    document.getElementById('qWarehouse').addEventListener('change', function () {
+        document.getElementById('qYear').style.display = '';
+        buildMonthOptions();
+    });
+
+    (async function init() {
+        buildYearOptions();
+        buildMonthOptions();
+        const savedWh = localStorage.getItem('saved_warehouse') || localStorage.getItem('import_counts_warehouse');
+        if (savedWh && WAREHOUSES.includes(savedWh)) document.getElementById('qWarehouse').value = savedWh;
+        await window.checkSupabaseConnection?.();
+        lucide.createIcons();
+    })();
+</script>
+</body>
+</html>

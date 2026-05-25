@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Match ยอด — Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .rc-page { max-width: 1480px; width: 100%; display: flex; flex-direction: column; gap: 1.25rem; }
+
+        .rc-panel {
+            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+
+        .rc-toolbar {
+            display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end;
+            padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+            background: rgba(255,255,255,0.02);
+        }
+        .rc-field { display: flex; flex-direction: column; gap: 0.3rem; }
+        .rc-field label { font-size: 0.75rem; color: var(--text-muted); }
+        .rc-field select {
+            min-width: 300px; padding: 0.55rem 0.75rem; border-radius: 9px;
+            border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+            font-size: 0.88rem;
+        }
+        .rc-field select:focus { outline: none; border-color: rgba(59,130,246,0.7); box-shadow: 0 0 0 3px rgba(59,130,246,0.18); }
+
+        .rc-btn {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.52rem 1.05rem; border-radius: 9px; border: none; font-size: 0.85rem;
+            font-family: 'Kanit', sans-serif; font-weight: 500; cursor: pointer;
+            transition: filter 0.15s, transform 0.12s; text-decoration: none; white-space: nowrap;
+        }
+        .rc-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+        .rc-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
+        .rc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+        .rc-btn-primary { background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%); color: #fff; box-shadow: 0 4px 14px rgba(59,130,246,0.35); }
+        .rc-btn-green { background: linear-gradient(135deg, #065f46 0%, #10b981 100%); color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,0.3); }
+        .rc-btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid rgba(255,255,255,0.14); }
+        .rc-btn-warn { background: rgba(245,158,11,0.18); color: #fde68a; border: 1px solid rgba(251,191,36,0.35); }
+        .rc-btn-warn:hover:not(:disabled) { background: rgba(245,158,11,0.28); }
+        .rc-btn-auto { width: 100%; justify-content: center; margin-bottom: 0.75rem; }
+        .rc-btn-auto:disabled { opacity: 0.35; }
+        .rc-btn-danger { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+        .rc-btn-sm { padding: 0.38rem 0.7rem; font-size: 0.78rem; }
+
+        .rc-hint-bar {
+            padding: 0.55rem 1.25rem; font-size: 0.8rem; color: var(--text-muted);
+            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.15);
+            display: none; align-items: center; gap: 0.5rem;
+        }
+        .rc-hint-bar.show { display: flex; }
+
+        /* KPIs */
+        .rc-kpis {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            gap: 0.65rem; padding: 1.25rem 1.25rem 0.75rem;
+        }
+        .rc-kpi {
+            position: relative; padding: 1rem 1rem 0.85rem 1.1rem;
+            border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
+            background: rgba(255,255,255,0.03); overflow: hidden;
+            transition: border-color 0.2s, background 0.2s, transform 0.12s;
+        }
+        .rc-kpi.clickable { cursor: pointer; }
+        .rc-kpi.clickable:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); }
+        .rc-kpi.clickable.active.ok   { border-color: rgba(52,211,153,0.5);  background: rgba(16,185,129,0.1); box-shadow: 0 0 0 2px rgba(16,185,129,0.18); }
+        .rc-kpi.clickable.active.short { border-color: rgba(248,113,113,0.5); background: rgba(239,68,68,0.1);  box-shadow: 0 0 0 2px rgba(239,68,68,0.18); }
+        .rc-kpi.clickable.active.over  { border-color: rgba(251,191,36,0.5);  background: rgba(245,158,11,0.1);  box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
+        .rc-kpi.clickable.active.mute  { border-color: rgba(148,163,184,0.5); background: rgba(100,116,139,0.12); box-shadow: 0 0 0 2px rgba(100,116,139,0.18); }
+        .rc-kpi::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+            width: 4px; border-radius: 4px 0 0 4px;
+        }
+        .rc-kpi.date::before { background: linear-gradient(180deg,#60a5fa,#3b82f6); }
+        .rc-kpi.ok::before  { background: linear-gradient(180deg,#34d399,#10b981); }
+        .rc-kpi.short::before { background: linear-gradient(180deg,#f87171,#ef4444); }
+        .rc-kpi.over::before { background: linear-gradient(180deg,#fbbf24,#f59e0b); }
+        .rc-kpi.mute::before { background: linear-gradient(180deg,#94a3b8,#64748b); }
+        .rc-kpi-label { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.3rem; }
+        .rc-kpi strong { display: block; font-family:'Kanit',sans-serif; font-size: 1.55rem; line-height:1.1; }
+        .rc-kpi span { font-size: 0.72rem; color: var(--text-muted); }
+        .rc-kpi .rc-kpi-sub { font-size: 0.72rem; margin-top: 0.35rem; font-weight: 500; }
+        .rc-kpi.ok strong  { color: #34d399; }
+        .rc-kpi.short strong { color: #f87171; }
+        .rc-kpi.over strong { color: #fbbf24; }
+        .rc-kpi.mute strong { color: #94a3b8; }
+        .rc-kpi.date strong { color: #93c5fd; font-size: 1.05rem; line-height: 1.35; }
+        .rc-kpi-sub.short { color: #fca5a5; }
+        .rc-kpi-sub.over { color: #fde68a; }
+
+        /* Grid: panel + table */
+        .rc-grid {
+            display: grid; grid-template-columns: minmax(300px, 360px) 1fr;
+            gap: 0; border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        @media (max-width: 960px) { .rc-grid { grid-template-columns: 1fr; } }
+
+        .rc-side {
+            padding: 1.15rem; border-right: 1px solid rgba(255,255,255,0.06);
+            background: rgba(0,0,0,0.12);
+        }
+        .rc-side-title {
+            font-family: 'Kanit', sans-serif; font-size: 0.95rem; font-weight: 500;
+            display: flex; align-items: center; gap: 0.4rem; margin-bottom: 0.85rem;
+        }
+        .rc-mode-btns { display: flex; gap: 0.35rem; margin-bottom: 0.85rem; flex-wrap: wrap; }
+        .rc-mode-btn {
+            flex: 1; min-width: 90px; padding: 0.42rem 0.5rem; border-radius: 8px; font-size: 0.75rem;
+            border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04);
+            color: var(--text-muted); cursor: pointer; font-family: 'Kanit', sans-serif;
+        }
+        .rc-mode-btn.active { color: #fff; border-color: rgba(96,165,250,0.5); background: rgba(59,130,246,0.18); }
+        .rc-mode-btn.active.short { border-color: rgba(248,113,113,0.45); background: rgba(239,68,68,0.12); color: #fca5a5; }
+        .rc-mode-btn.active.over { border-color: rgba(251,191,36,0.45); background: rgba(245,158,11,0.12); color: #fde68a; }
+
+        .rc-form-group { margin-bottom: 0.75rem; }
+        .rc-form-group label { display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.3rem; }
+        .rc-form-group input, .rc-form-group textarea {
+            width: 100%; padding: 0.48rem 0.65rem; border-radius: 8px; font-size: 0.82rem;
+            border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+        }
+        .rc-search-wrap { position: relative; }
+        .rc-search-list {
+            position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
+            max-height: 180px; overflow: auto; margin-top: 2px;
+            background: #1e293b; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+            display: none;
+        }
+        .rc-search-list.show { display: block; }
+        .rc-search-item {
+            padding: 0.45rem 0.65rem; font-size: 0.78rem; cursor: pointer;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .rc-search-item:hover { background: rgba(59,130,246,0.15); }
+        .rc-search-item small { display: block; color: var(--text-muted); font-size: 0.68rem; margin-top: 0.1rem; }
+
+        .rc-adj-hint {
+            font-size: 0.72rem; color: #93c5fd; padding: 0.5rem 0.65rem; border-radius: 8px;
+            background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); margin-bottom: 0.75rem;
+            display: none;
+        }
+        .rc-adj-hint.show { display: block; }
+
+        .rc-draft-list { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.85rem; }
+        .rc-draft-list h4 { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin: 0 0 0.5rem; }
+        .rc-draft-item {
+            display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.75rem;
+        }
+        .rc-draft-item .sku { font-family: ui-monospace, monospace; color: #e0f2fe; flex: 1; }
+        .rc-draft-item .qty { font-weight: 600; }
+        .rc-draft-item .qty.neg { color: #fca5a5; }
+        .rc-draft-item .qty.pos { color: #fde68a; }
+
+        .rc-main { min-width: 0; display: flex; flex-direction: column; }
+
+        .rc-table-head {
+            padding: 0.85rem 1.15rem 0.5rem; display: flex; flex-wrap: wrap;
+            align-items: center; gap: 0.65rem; justify-content: space-between;
+        }
+        .rc-table-head-title { font-family: 'Kanit', sans-serif; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem; }
+
+        .rc-filter-bar {
+            padding: 0 1.15rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+        }
+        .rc-filter-bar select, .rc-filter-bar input {
+            padding: 0.38rem 0.65rem; border-radius: 8px; font-size: 0.82rem;
+            border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+        }
+        .rc-filter-bar input[type="text"] { min-width: 140px; }
+
+        .rc-adv-panel {
+            display: none; padding: 0.85rem 1.15rem; background: rgba(255,255,255,0.02);
+            border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .rc-adv-panel.show { display: block; }
+        .rc-adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.65rem; }
+
+        .rc-table-wrap { overflow: auto; max-height: 520px; }
+        .rc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .rc-table th {
+            position: sticky; top: 0; background: #1e293b; text-align: left;
+            padding: 0.55rem 0.8rem; font-weight: 500; color: #e2e8f0;
+            border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;
+        }
+        .rc-table td { padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
+        .rc-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+        .rc-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
+        .rc-table .col-sku { font-family: ui-monospace, monospace; font-size: 0.8rem; color: #e0f2fe; }
+        .rc-table .col-name { color: var(--text-muted); font-size: 0.76rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        .rc-badge { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 0.25rem; }
+        .rc-badge.match { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(34,197,94,0.3); }
+        .rc-badge.short { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .rc-badge.over  { background: rgba(251,191,36,0.12); color: #fde68a; border: 1px solid rgba(251,191,36,0.3); }
+        .rc-badge.other {
+            background: rgba(148,163,184,0.1); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2);
+            max-width: 11rem; white-space: normal; line-height: 1.25; text-align: left;
+        }
+
+        .rc-empty { text-align: center; padding: 2rem 1.5rem; color: var(--text-muted); }
+        .rc-empty i { width: 40px; height: 40px; opacity: 0.3; margin-bottom: 0.75rem; }
+
+        .rc-loading {
+            position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+        }
+        .rc-loading.active { display: flex; }
+        .rc-loading-box {
+            background: linear-gradient(165deg, #1a1d24, #12141a);
+            border: 1px solid rgba(59,130,246,0.35); border-radius: 16px;
+            padding: 2rem 2.5rem; text-align: center; min-width: 240px;
+        }
+        .rc-spin { animation: rc-spin 0.9s linear infinite; width: 42px; height: 42px; color: #3b82f6; margin: 0 auto 0.75rem; display: block; }
+        @keyframes rc-spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="has-sidebar">
+<div class="app-layout">
+    <aside class="sidebar" id="appSidebar" data-active-page="reconcile" aria-label="เมนูหลัก"></aside>
+    <main class="main-area">
+        <div class="rc-page dashboard-container">
+
+            <header class="dashboard-header" style="border:none;padding:0;background:transparent;">
+                <div class="header-content" style="align-items:flex-start;text-align:left;">
+                    <h1 style="font-family:'Kanit',sans-serif;font-size:1.65rem;">Match ยอด</h1>
+                    <p style="font-size:0.85rem;color:var(--text-muted);margin:0.2rem 0 0;">
+                        เทียบไฟล์ Excel vs ผลนับ · ปรับยอดตาม Excel เท่านั้น · <strong style="color:#fde68a;">ไม่แก้ counted_qty</strong>
+                    </p>
+                </div>
+                <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                    <i data-lucide="wifi-off" data-badge-icon></i><span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                </div>
+            </header>
+
+            <section class="rc-panel">
+                <div class="rc-toolbar">
+                    <div class="rc-field">
+                        <label for="cycleSelect">เลือกรอบที่ต้องการ Match</label>
+                        <select id="cycleSelect"><option value="">— กำลังโหลด —</option></select>
+                    </div>
+                    <button type="button" class="rc-btn rc-btn-primary" id="btnRefresh">
+                        <i data-lucide="refresh-cw"></i> คำนวณ Match
+                    </button>
+                    <button type="button" class="rc-btn rc-btn-green" id="btnExport">
+                        <i data-lucide="download"></i> Export Excel
+                    </button>
+                    <a class="rc-btn rc-btn-ghost" href="cycle_config.html">
+                        <i data-lucide="calendar-range"></i> ตั้งค่ารอบ
+                    </a>
+                </div>
+                <div class="rc-hint-bar" id="cycleHintBar">
+                    <i data-lucide="info" style="width:14px;height:14px;flex-shrink:0;color:#60a5fa;"></i>
+                    <span id="cycleHint"></span>
+                </div>
+            </section>
+
+            <section class="rc-panel" id="resultsPanel" style="display:none;">
+                <div class="rc-kpis" id="kpiRow"></div>
+
+                <div class="rc-grid">
+                    <!-- แผนปรับยอด -->
+                    <aside class="rc-side">
+                        <div class="rc-side-title"><i data-lucide="sliders-horizontal" style="width:16px;"></i> ปรับยอด Book</div>
+                        <div class="rc-mode-btns">
+                            <button type="button" class="rc-mode-btn active" data-mode="all" id="modeAll">ดูทั้งหมด</button>
+                            <button type="button" class="rc-mode-btn short" data-mode="short" id="modeShort">ขาด</button>
+                            <button type="button" class="rc-mode-btn over" data-mode="over" id="modeOver">เกิน</button>
+                        </div>
+
+                        <button type="button" class="rc-btn rc-btn-warn rc-btn-auto" id="btnAutoAdjust" disabled title="สร้าง Draft ปรับยอดทุก SKU ในโหมดที่เลือก">
+                            <i data-lucide="wand-2"></i> ปรับยอด Auto
+                        </button>
+
+                        <div class="rc-adj-hint" id="adjHint"></div>
+
+                        <div class="rc-form-group">
+                            <label>ค้นหา SKU</label>
+                            <div class="rc-search-wrap">
+                                <input type="text" id="adjSkuSearch" placeholder="พิมพ์รหัสสินค้า..." autocomplete="off">
+                                <div class="rc-search-list" id="adjSkuList"></div>
+                            </div>
+                        </div>
+
+                        <div class="rc-form-group">
+                            <label for="adjQty">จำนวนปรับ (บวก/ลบ Book)</label>
+                            <input type="number" id="adjQty" step="any" placeholder="เช่น -10 หรือ +5">
+                        </div>
+
+                        <div class="rc-form-group">
+                            <label for="adjNote">หมายเหตุ (ไม่บังคับ)</label>
+                            <input type="text" id="adjNote" placeholder="เหตุผลการปรับ">
+                        </div>
+
+                        <button type="button" class="rc-btn rc-btn-primary" id="btnSaveDraft" style="width:100%;justify-content:center;">
+                            <i data-lucide="save"></i> บันทึก Draft
+                        </button>
+
+                        <div class="rc-draft-list" id="draftSection" style="display:none;">
+                            <h4>รายการ Draft (<span id="draftCount">0</span>)</h4>
+                            <div id="draftList"></div>
+                            <button type="button" class="rc-btn rc-btn-green rc-btn-sm" id="btnApplyAll" style="width:100%;margin-top:0.5rem;justify-content:center;">
+                                <i data-lucide="check-check"></i> Apply ทั้งหมด
+                            </button>
+                        </div>
+                    </aside>
+
+                    <!-- ตาราง -->
+                    <div class="rc-main">
+                        <div class="rc-table-head">
+                            <div class="rc-table-head-title"><i data-lucide="table" style="width:16px;"></i> รายการ Match</div>
+                            <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" id="btnAdvFilter">
+                                <i data-lucide="search"></i> ค้นหาพิเศษ
+                                <i data-lucide="chevron-down" id="advChevron" style="width:14px;transition:transform 0.2s;"></i>
+                            </button>
+                        </div>
+
+                        <div class="rc-adv-panel" id="advPanel">
+                            <div class="rc-adv-grid">
+                                <div class="rc-form-group" style="margin:0;">
+                                    <label>SKU</label>
+                                    <input type="text" id="filterSku" placeholder="ค้นหา SKU...">
+                                </div>
+                                <div class="rc-form-group" style="margin:0;">
+                                    <label>ชื่อสินค้า</label>
+                                    <input type="text" id="filterName" placeholder="ค้นหาชื่อ...">
+                                </div>
+                                <div class="rc-form-group" style="margin:0;">
+                                    <label>สถานะ</label>
+                                    <select id="filterStatus">
+                                        <option value="">ทั้งหมด</option>
+                                        <option value="match">✓ ถูกต้อง</option>
+                                        <option value="short">↓ ขาด</option>
+                                        <option value="over">↑ เกิน</option>
+                                        <option value="__other__">อื่น ๆ</option>
+                                        <option value="count_only">นับเจอ แต่ไม่พบSKUในExcel</option>
+                                        <option value="book_only">ยังไม่ได้นับ</option>
+                                    </select>
+                                </div>
+                                <div class="rc-form-group" style="margin:0;display:flex;align-items:flex-end;">
+                                    <button type="button" class="rc-btn rc-btn-danger rc-btn-sm" id="btnClearFilters" style="width:100%;justify-content:center;">
+                                        <i data-lucide="rotate-ccw"></i> ล้างตัวกรอง
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rc-filter-bar">
+                            <span id="filterCount" style="font-size:0.78rem;color:var(--text-muted);"></span>
+                        </div>
+
+                        <div class="rc-table-wrap">
+                            <table class="rc-table">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>SKU</th>
+                                        <th>ชื่อ</th>
+                                        <th style="text-align:right;">ไฟล์ Excel</th>
+                                        <th style="text-align:right;">ปรับแล้ว</th>
+                                        <th style="text-align:right;">Excel ใช้เทียบ</th>
+                                        <th style="text-align:right;">ผลนับ</th>
+                                        <th style="text-align:right;">ต่าง</th>
+                                        <th style="text-align:right;">%</th>
+                                        <th>สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="resultBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="rc-panel" id="emptyPanel">
+                <div class="rc-empty">
+                    <i data-lucide="scale"></i>
+                    <p style="font-family:'Kanit',sans-serif;font-size:1rem;margin:0 0 0.35rem;">เลือกรอบและกด คำนวณ Match</p>
+                    <p style="font-size:0.82rem;">ถ้ายังไม่มีรอบ ไปที่ <a href="cycle_config.html" style="color:#60a5fa;">ตั้งค่ารอบ</a> ก่อน</p>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div class="rc-loading" id="loading">
+    <div class="rc-loading-box">
+        <i data-lucide="loader-2" class="rc-spin"></i>
+        <p id="loadingText" style="font-family:'Kanit',sans-serif;margin:0;color:var(--text);">กำลังคำนวณ Match...</p>
+    </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../Js/sidebar-shared.js"></script>
+<script src="../Js/api.js"></script>
+<script src="../Js/settings-shared.js"></script>
+<script src="../Js/reconcile-shared.js"></script>
+<script>
+    lucide.createIcons();
+    const RS = window.reconcileService;
+
+    let linesCache = [];
+    let skuNameMap = {};
+    let adjustmentsCache = [];
+    let currentCycle = null;
+    let activeStatusFilter = '';
+    let adjustViewMode = 'all';
+    let selectedAdjLine = null;
+    let advFilterOpen = false;
+
+    const STATUS_MAP = {
+        match:      { th: 'ถูกต้อง',         icon: 'check',         cls: 'match' },
+        short:      { th: 'ขาด',             icon: 'arrow-down',    cls: 'short' },
+        over:       { th: 'เกิน',            icon: 'arrow-up',      cls: 'over' },
+        count_only: { th: 'นับเจอ แต่ไม่พบSKUในExcel', icon: 'scan-barcode', cls: 'other' },
+        book_only:  { th: 'ยังไม่ได้นับ',             icon: 'file-spreadsheet', cls: 'other' }
+    };
+
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = `toast ${type}`;
+        t.innerHTML = `<i data-lucide="${type === 'success' ? 'check-circle-2' : 'alert-circle'}"></i><span>${RS.escapeHtml(msg)}</span>`;
+        el.appendChild(t);
+        lucide.createIcons();
+        setTimeout(() => { t.classList.add('toast-closing'); t.addEventListener('animationend', () => t.remove()); }, 4500);
+    }
+
+    function statusBadge(s) {
+        const d = STATUS_MAP[s] || { th: s, icon: 'minus', cls: 'other' };
+        return `<span class="rc-badge ${d.cls}"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
+    }
+
+    function filterLines(lines, status) {
+        if (!status) return lines;
+        if (status === '__other__') {
+            return lines.filter(l => {
+                const s = resolveDisplayStatus(l);
+                return s === 'count_only' || s === 'book_only';
+            });
+        }
+        return lines.filter(l => resolveDisplayStatus(l) === status);
+    }
+
+    function applyTextFilters(lines) {
+        const skuQ = document.getElementById('filterSku').value.trim().toLowerCase();
+        const nameQ = document.getElementById('filterName').value.trim().toLowerCase();
+        return lines.filter(l => {
+            const sku = String(l.sku_id || '').toLowerCase();
+            const name = String(skuNameMap[l.sku_id] || '').toLowerCase();
+            if (skuQ && !sku.includes(skuQ)) return false;
+            if (nameQ && !name.includes(nameQ)) return false;
+            const displayStatus = resolveDisplayStatus(l);
+            if (adjustViewMode === 'short' && displayStatus !== 'short') return false;
+            if (adjustViewMode === 'over' && displayStatus !== 'over') return false;
+            return true;
+        });
+    }
+
+    function getVisibleLines() {
+        return applyTextFilters(filterLines(linesCache, activeStatusFilter));
+    }
+
+    function updateKpiActiveState() {
+        document.querySelectorAll('#kpiRow [data-filter]').forEach(el => {
+            el.classList.toggle('active', el.dataset.filter === activeStatusFilter);
+        });
+    }
+
+    function setStatusFilter(status) {
+        activeStatusFilter = status || '';
+        document.getElementById('filterStatus').value = activeStatusFilter;
+        updateKpiActiveState();
+        renderTable();
+    }
+
+    function toggleStatusFilter(status) {
+        setStatusFilter(activeStatusFilter === status ? '' : status);
+    }
+
+    /** ค่า "ต่าง" ที่แสดง — ขาด: Book−ผลนับ−ปรับแล้ว, เกิน: ผลนับ−Book−ปรับแล้ว */
+    function getDraftAdjustmentSum(skuId) {
+        return adjustmentsCache
+            .filter(a => a.status === 'draft' && a.sku_id === skuId)
+            .reduce((sum, a) => sum + Number(a.adjustment_qty), 0);
+    }
+
+    function getTotalAdjustment(line) {
+        return Number(line.adjustment_applied) + getDraftAdjustmentSum(line.sku_id);
+    }
+
+    function resolveDisplayStatus(line) {
+        const book = Number(line.book_qty);
+        const counted = Number(line.counted_qty);
+        const adj = getTotalAdjustment(line);
+        const effective = book + adj;
+
+        if (effective === 0 && counted > 0) return 'count_only';
+        if (effective > 0 && counted === 0) return 'book_only';
+        if (Math.abs(effective - counted) < 1e-6) return 'match';
+        if (counted < effective) return 'short';
+        if (counted > effective) return 'over';
+        return line.match_status;
+    }
+
+    function computeDisplayVariance(line) {
+        const book = Number(line.book_qty);
+        const counted = Number(line.counted_qty);
+        const adj = getTotalAdjustment(line);
+        const status = resolveDisplayStatus(line);
+        if (status === 'match') return 0;
+        if (status === 'short') return book - counted - adj;
+        if (status === 'over') return counted - book - adj;
+        return counted - (book + adj);
+    }
+
+    function computeAutoAdjustmentQty(line) {
+        return Number(line.counted_qty) - Number(line.book_qty) - Number(line.adjustment_applied);
+    }
+
+    function updateAutoAdjustButton() {
+        const btn = document.getElementById('btnAutoAdjust');
+        const enabled = adjustViewMode === 'short' || adjustViewMode === 'over';
+        btn.disabled = !enabled || !linesCache.length;
+        const label = adjustViewMode === 'short' ? 'ขาด' : adjustViewMode === 'over' ? 'เกิน' : '';
+        btn.title = enabled
+            ? `สร้าง Draft ปรับยอดทุก SKU โหมด${label} ตามจำนวนที่ต่าง`
+            : 'เลือกโหมด ขาด หรือ เกิน ก่อน';
+    }
+
+    function computeKpiStats(lines) {
+        const counts = { match: 0, short: 0, over: 0, other: 0 };
+        let qtyShort = 0, qtyOver = 0;
+        lines.forEach(l => {
+            const status = resolveDisplayStatus(l);
+            const dv = computeDisplayVariance(l);
+            if (status in counts) counts[status]++;
+            else counts.other++;
+            if (status === 'short') qtyShort += Math.abs(dv);
+            if (status === 'over') qtyOver += Math.abs(dv);
+        });
+        const pct = lines.length ? Math.round((counts.match / lines.length) * 100) : 0;
+        return { counts, qtyShort, qtyOver, pct };
+    }
+
+    function renderKpis(lines) {
+        const { counts, qtyShort, qtyOver, pct } = computeKpiStats(lines);
+        const cycleLabel = currentCycle ? RS.formatCycleLabel(currentCycle) : '—';
+        const rangeLabel = currentCycle ? RS.formatDateRangeLabel(currentCycle) : '';
+        document.getElementById('kpiRow').innerHTML = `
+            <div class="rc-kpi date" title="รอบที่เลือก">
+                <div class="rc-kpi-label"><i data-lucide="calendar" style="width:12px;"></i> รอบนับ</div>
+                <strong>${RS.escapeHtml(cycleLabel)}</strong>
+                <span>${RS.escapeHtml(rangeLabel !== 'ทั้งเดือน' ? rangeLabel : (currentCycle?.year_month || ''))}</span>
+            </div>
+            <div class="rc-kpi ok clickable" data-filter="match" title="คลิกเพื่อกรอง">
+                <div class="rc-kpi-label"><i data-lucide="check-circle" style="width:12px;"></i> ถูกต้อง</div>
+                <strong>${counts.match.toLocaleString()}</strong>
+                <span>${pct}% ของทั้งหมด</span>
+            </div>
+            <div class="rc-kpi short clickable" data-filter="short" title="คลิกเพื่อกรอง">
+                <div class="rc-kpi-label"><i data-lucide="arrow-down" style="width:12px;"></i> ขาด</div>
+                <strong>${counts.short.toLocaleString()}</strong>
+                <span>รายการ</span>
+                <div class="rc-kpi-sub short">รวมขาด: ${qtyShort.toLocaleString()} ชิ้น</div>
+            </div>
+            <div class="rc-kpi over clickable" data-filter="over" title="คลิกเพื่อกรอง">
+                <div class="rc-kpi-label"><i data-lucide="arrow-up" style="width:12px;"></i> เกิน</div>
+                <strong>${counts.over.toLocaleString()}</strong>
+                <span>รายการ</span>
+                <div class="rc-kpi-sub over">รวมเกิน: ${qtyOver.toLocaleString()} ชิ้น</div>
+            </div>
+            <div class="rc-kpi mute clickable" data-filter="__other__" title="คลิกเพื่อกรอง">
+                <div class="rc-kpi-label"><i data-lucide="help-circle" style="width:12px;"></i> อื่น ๆ</div>
+                <strong>${counts.other.toLocaleString()}</strong>
+                <span>ยังไม่นับ / ไม่พบใน Excel</span>
+            </div>`;
+        updateKpiActiveState();
+        lucide.createIcons();
+    }
+
+    function renderTable() {
+        const filtered = getVisibleLines();
+        const body = document.getElementById('resultBody');
+        document.getElementById('filterCount').textContent =
+            `แสดง ${filtered.length.toLocaleString()} / ${linesCache.length.toLocaleString()} SKU`;
+
+        if (!filtered.length) {
+            body.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted);">ไม่มีข้อมูลในกลุ่มนี้</td></tr>`;
+            return;
+        }
+        body.innerHTML = filtered.map((l, i) => {
+            const displayStatus = resolveDisplayStatus(l);
+            const v = computeDisplayVariance(l);
+            const vColor = displayStatus === 'short' ? '#f87171' : displayStatus === 'over' ? '#fbbf24' : (v < 0 ? '#f87171' : v > 0 ? '#fbbf24' : '#34d399');
+            const sign = (displayStatus === 'over' || v > 0) && v !== 0 ? '+' : '';
+            const applied = Number(l.adjustment_applied);
+            const draft = getDraftAdjustmentSum(l.sku_id);
+            const totalAdj = applied + draft;
+            const effectiveDisplay = Number(l.book_qty) + totalAdj;
+            let adjHtml = '—';
+            if (totalAdj !== 0) {
+                const color = totalAdj > 0 ? '#fde68a' : '#fca5a5';
+                const draftHint = draft !== 0 && applied === 0 ? ' (draft)' : draft !== 0 ? '*' : '';
+                adjHtml = `<span style="color:${color};" title="${draft ? `Applied ${applied}, Draft ${draft}` : ''}">${totalAdj > 0 ? '+' : ''}${totalAdj.toLocaleString()}${draftHint}</span>`;
+            }
+            return `
+                <tr data-sku="${RS.escapeHtml(l.sku_id)}" style="cursor:pointer;" title="คลิกเพื่อเลือกในแผนปรับยอด">
+                    <td style="color:var(--text-muted);font-size:0.75rem;">${i + 1}</td>
+                    <td class="col-sku">${RS.escapeHtml(l.sku_id)}</td>
+                    <td class="col-name" title="${RS.escapeHtml(skuNameMap[l.sku_id] || '')}">${RS.escapeHtml(skuNameMap[l.sku_id] || '—')}</td>
+                    <td style="text-align:right;">${Number(l.book_qty).toLocaleString()}</td>
+                    <td style="text-align:right;">${adjHtml}</td>
+                    <td style="text-align:right;">${effectiveDisplay.toLocaleString()}</td>
+                    <td style="text-align:right;font-weight:500;">${Number(l.counted_qty).toLocaleString()}</td>
+                    <td style="text-align:right;font-weight:600;color:${vColor};">${sign}${v.toLocaleString()}</td>
+                    <td style="text-align:right;">${l.variance_pct != null && displayStatus !== 'match' ? Number(l.variance_pct).toFixed(1) + '%' : displayStatus === 'match' ? '0%' : '—'}</td>
+                    <td>${statusBadge(displayStatus)}</td>
+                </tr>`;
+        }).join('');
+        lucide.createIcons();
+    }
+
+    function setAdjustViewMode(mode) {
+        adjustViewMode = mode;
+        document.querySelectorAll('.rc-mode-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.mode === mode);
+        });
+        if (mode === 'short') setStatusFilter('short');
+        else if (mode === 'over') setStatusFilter('over');
+        else setStatusFilter('');
+        updateAutoAdjustButton();
+        renderTable();
+    }
+
+    function selectAdjLine(line) {
+        selectedAdjLine = line;
+        document.getElementById('adjSkuSearch').value = line.sku_id;
+        document.getElementById('adjQty').value = computeAutoAdjustmentQty(line);
+        const hint = document.getElementById('adjHint');
+        const displayDiff = computeDisplayVariance(line);
+        hint.classList.add('show');
+        hint.innerHTML = `ไฟล์ Excel ${Number(line.book_qty).toLocaleString()} · นับ ${Number(line.counted_qty).toLocaleString()} · ปรับแล้ว ${Number(line.adjustment_applied).toLocaleString()}<br>ต่าง (แสดง) <strong>${displayDiff.toLocaleString()}</strong> · แนะนำปรับ Excel <strong>${computeAutoAdjustmentQty(line).toLocaleString()}</strong>`;
+        document.getElementById('adjSkuList').classList.remove('show');
+    }
+
+    function filterAdjSkus() {
+        const q = document.getElementById('adjSkuSearch').value.trim().toLowerCase();
+        const list = document.getElementById('adjSkuList');
+        if (!q || !linesCache.length) { list.classList.remove('show'); return; }
+        let pool = linesCache;
+        if (adjustViewMode === 'short' || adjustViewMode === 'over') {
+            pool = pool.filter(l => resolveDisplayStatus(l) === adjustViewMode);
+        }
+        const hits = pool.filter(l => String(l.sku_id).toLowerCase().includes(q)).slice(0, 12);
+        if (!hits.length) { list.classList.remove('show'); return; }
+        list.innerHTML = hits.map(l => `
+            <div class="rc-search-item" data-sku="${RS.escapeHtml(l.sku_id)}">
+                ${RS.escapeHtml(l.sku_id)}
+                <small>ต่าง ${computeDisplayVariance(l).toLocaleString()} · ${STATUS_MAP[l.match_status]?.th || l.match_status}</small>
+            </div>`).join('');
+        list.classList.add('show');
+        list.querySelectorAll('.rc-search-item').forEach(el => {
+            el.addEventListener('click', () => {
+                const line = linesCache.find(x => x.sku_id === el.dataset.sku);
+                if (line) selectAdjLine(line);
+            });
+        });
+    }
+
+    function renderDraftList() {
+        const drafts = adjustmentsCache.filter(a => a.status === 'draft');
+        const section = document.getElementById('draftSection');
+        const list = document.getElementById('draftList');
+        document.getElementById('draftCount').textContent = drafts.length;
+        if (!drafts.length) { section.style.display = 'none'; return; }
+        section.style.display = '';
+        list.innerHTML = drafts.map(a => {
+            const q = Number(a.adjustment_qty);
+            return `
+                <div class="rc-draft-item">
+                    <span class="sku">${RS.escapeHtml(a.sku_id)}</span>
+                    <span class="qty ${q < 0 ? 'neg' : 'pos'}">${q > 0 ? '+' : ''}${q.toLocaleString()}</span>
+                    <button type="button" class="rc-btn rc-btn-danger rc-btn-sm" data-del-adj="${a.id}" title="ลบ draft">
+                        <i data-lucide="trash-2" style="width:12px;"></i>
+                    </button>
+                </div>`;
+        }).join('');
+        list.querySelectorAll('[data-del-adj]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                try {
+                    await RS.deleteDraftAdjustment(btn.dataset.delAdj);
+                    adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+                    renderDraftList();
+                    renderKpis(linesCache);
+                    renderTable();
+                    showToast('ลบ draft แล้ว');
+                } catch (err) { showToast(err.message, 'error'); }
+            });
+        });
+        lucide.createIcons();
+    }
+
+    async function loadCycles() {
+        const sel = document.getElementById('cycleSelect');
+        try {
+            const cycles = await RS.fetchCycles();
+            if (!cycles.length) {
+                sel.innerHTML = '<option value="">— ยังไม่มีรอบ (ไปที่ ตั้งค่ารอบ) —</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">— เลือกรอบ —</option>' +
+                cycles.map(c => `<option value="${c.id}">${RS.escapeHtml(RS.formatCycleLabel(c))} [${RS.statusLabel(c.status)}]</option>`).join('');
+            const q = new URLSearchParams(location.search).get('cycle');
+            if (q) sel.value = q;
+        } catch (err) {
+            sel.innerHTML = `<option value="">— โหลดล้มเหลว: ${RS.escapeHtml(err.message)} —</option>`;
+        }
+    }
+
+    async function runRefresh() {
+        const id = document.getElementById('cycleSelect').value;
+        if (!id) return showToast('กรุณาเลือกรอบ', 'error');
+        const loadingEl = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        loadingEl.classList.add('active');
+        loadingText.textContent = 'กำลังคำนวณ Match...';
+        document.getElementById('emptyPanel').style.display = 'none';
+        try {
+            currentCycle = await RS.fetchCycleById(id);
+            await RS.refreshReconciliation(id);
+            loadingText.textContent = 'กำลังโหลดรายการ...';
+            linesCache = await RS.fetchReconciliationLines(id, {
+                onProgress: ({ loaded }) => { loadingText.textContent = `กำลังโหลดรายการ... ${loaded.toLocaleString()} SKU`; }
+            });
+            skuNameMap = await RS.fetchBookSkuNames(id);
+            adjustmentsCache = await RS.fetchAdjustments(id);
+
+            document.getElementById('resultsPanel').style.display = '';
+            document.getElementById('cycleHintBar').classList.add('show');
+            const whNote = RS.isAllWarehousesCycle(currentCycle) ? 'รวมทุกคลัง · ' : '';
+            document.getElementById('cycleHint').textContent =
+                `${RS.formatCycleLabel(currentCycle)} · ${linesCache.length.toLocaleString()} SKU · ${whNote}ผลนับจาก inventory_counts (อ่านอย่างเดียว)`;
+
+            activeStatusFilter = '';
+            adjustViewMode = 'all';
+            selectedAdjLine = null;
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterSku').value = '';
+            document.getElementById('filterName').value = '';
+            document.getElementById('adjSkuSearch').value = '';
+            document.getElementById('adjQty').value = '';
+            document.getElementById('adjNote').value = '';
+            document.getElementById('adjHint').classList.remove('show');
+            document.querySelectorAll('.rc-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === 'all'));
+
+            renderKpis(linesCache);
+            renderTable();
+            renderDraftList();
+            updateAutoAdjustButton();
+            showToast(`Match สำเร็จ ${linesCache.length.toLocaleString()} SKU`);
+        } catch (err) {
+            showToast(err.message, 'error');
+            document.getElementById('emptyPanel').style.display = '';
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
+    async function saveDraft() {
+        if (!currentCycle) return showToast('ยังไม่มีรอบ', 'error');
+        const sku = document.getElementById('adjSkuSearch').value.trim();
+        const qty = document.getElementById('adjQty').value;
+        const note = document.getElementById('adjNote').value.trim();
+        const line = linesCache.find(l => l.sku_id === sku) || selectedAdjLine;
+        try {
+            await RS.createStockAdjustment({
+                cycleId: currentCycle.id,
+                skuId: sku,
+                adjustmentQty: qty,
+                varianceBefore: line ? computeDisplayVariance(line) : null,
+                note: note || null,
+                reason: 'reconcile'
+            });
+            adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            showToast(`บันทึก draft: ${sku}`);
+        } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function autoAdjustAll() {
+        if (adjustViewMode !== 'short' && adjustViewMode !== 'over') {
+            return showToast('เลือกโหมด ขาด หรือ เกิน ก่อน', 'error');
+        }
+        if (!currentCycle) return showToast('ยังไม่มีรอบ', 'error');
+
+        const status = adjustViewMode;
+        const modeLabel = status === 'short' ? 'ขาด' : 'เกิน';
+        const draftSkus = new Set(
+            adjustmentsCache.filter(a => a.status === 'draft').map(a => a.sku_id)
+        );
+
+        const targets = linesCache.filter(l => resolveDisplayStatus(l) === status);
+        const toCreate = [];
+        for (const line of targets) {
+            if (draftSkus.has(line.sku_id)) continue;
+            if (resolveDisplayStatus(line) === 'match') continue;
+            const qty = computeAutoAdjustmentQty(line);
+            if (!qty || !Number.isFinite(qty)) continue;
+            toCreate.push({
+                cycleId: currentCycle.id,
+                skuId: line.sku_id,
+                adjustmentQty: qty,
+                varianceBefore: computeDisplayVariance(line),
+                note: `Auto ${modeLabel}`,
+                reason: 'reconcile'
+            });
+        }
+
+        if (!toCreate.length) {
+            return showToast('ไม่มีรายการให้ปรับ (อาจมี Draft อยู่แล้ว)', 'error');
+        }
+
+        const sample = toCreate.slice(0, 3).map(i => `${i.skuId} ${i.adjustmentQty > 0 ? '+' : ''}${i.adjustmentQty}`).join(', ');
+        const more = toCreate.length > 3 ? ` ... (+${toCreate.length - 3})` : '';
+        if (!confirm(`ปรับยอด Auto โหมด${modeLabel} ${toCreate.length} SKU?\n${sample}${more}\n\nบันทึกเป็น Draft — กด Apply ทั้งหมดเพื่อยืนยัน`)) {
+            return;
+        }
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = `กำลังสร้าง Draft ${toCreate.length} รายการ...`;
+        try {
+            await RS.createStockAdjustmentsBatch(toCreate);
+            adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            showToast(`สร้าง Draft Auto ${toCreate.length} SKU (โหมด${modeLabel})`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
+    async function applyAllDrafts() {
+        const drafts = adjustmentsCache.filter(a => a.status === 'draft');
+        if (!drafts.length) return showToast('ไม่มี draft', 'error');
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = 'กำลัง Apply...';
+        try {
+            for (const d of drafts) await RS.applyStockAdjustment(d.id);
+            await runRefresh();
+            showToast(`Apply สำเร็จ ${drafts.length} รายการ`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
+  /* ── Events ── */
+    document.getElementById('kpiRow').addEventListener('click', (e) => {
+        const card = e.target.closest('[data-filter]');
+        if (card) toggleStatusFilter(card.dataset.filter);
+    });
+
+    document.getElementById('filterStatus').addEventListener('change', (e) => setStatusFilter(e.target.value));
+    document.getElementById('filterSku').addEventListener('input', renderTable);
+    document.getElementById('filterName').addEventListener('input', renderTable);
+
+    document.getElementById('btnAdvFilter').addEventListener('click', () => {
+        advFilterOpen = !advFilterOpen;
+        document.getElementById('advPanel').classList.toggle('show', advFilterOpen);
+        document.getElementById('advChevron').style.transform = advFilterOpen ? 'rotate(180deg)' : '';
+    });
+
+    document.getElementById('btnClearFilters').addEventListener('click', () => {
+        document.getElementById('filterSku').value = '';
+        document.getElementById('filterName').value = '';
+        setStatusFilter('');
+        setAdjustViewMode('all');
+    });
+
+    document.querySelectorAll('.rc-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => setAdjustViewMode(btn.dataset.mode));
+    });
+
+    document.getElementById('adjSkuSearch').addEventListener('input', filterAdjSkus);
+    document.getElementById('btnAutoAdjust').addEventListener('click', autoAdjustAll);
+    document.getElementById('btnSaveDraft').addEventListener('click', saveDraft);
+    document.getElementById('btnApplyAll').addEventListener('click', applyAllDrafts);
+
+    document.getElementById('resultBody').addEventListener('click', (e) => {
+        const row = e.target.closest('tr[data-sku]');
+        if (!row) return;
+        const line = linesCache.find(l => l.sku_id === row.dataset.sku);
+        if (line) selectAdjLine(line);
+    });
+
+    document.getElementById('btnRefresh').addEventListener('click', runRefresh);
+
+    document.getElementById('btnExport').addEventListener('click', () => {
+        const rows = getVisibleLines();
+        if (!rows.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
+        const data = rows.map((l, i) => ({
+            '#': i + 1,
+            SKU: l.sku_id,
+            'ชื่อ': skuNameMap[l.sku_id] || '',
+            'ไฟล์ Excel (ก่อนนับ)': Number(l.book_qty),
+            'ปรับแล้ว': Number(l.adjustment_applied),
+            'Excel ใช้เทียบ': Number(l.effective_book_qty),
+            'ผลนับ': Number(l.counted_qty),
+            'ต่าง': computeDisplayVariance(l),
+            '%': l.variance_pct != null ? Number(l.variance_pct) : '',
+            'สถานะ': STATUS_MAP[resolveDisplayStatus(l)]?.th || resolveDisplayStatus(l)
+        }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Match');
+        const ym = currentCycle?.year_month || 'cycle';
+        const wh = (currentCycle?.warehouse || 'wh').replace(/[^\w\u0E00-\u0E7F]+/g, '_');
+        XLSX.writeFile(wb, `Reconcile_${wh}_${ym}.xlsx`);
+        showToast(`Export ${rows.length} SKU`);
+    });
+
+    (async function init() {
+        const ready = await RS.checkSchemaReady();
+        if (!ready.ok) { showToast(ready.message, 'error'); return; }
+        await loadCycles();
+        if (document.getElementById('cycleSelect').value) await runRefresh();
+        lucide.createIcons();
+    })();
+</script>
+</body>
+</html>

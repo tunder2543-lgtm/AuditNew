@@ -244,6 +244,49 @@
             display: block;
         }
 
+        .btn-gs.btn-swap-sku-loc.active-mode {
+            background: rgba(168, 85, 247, 0.18);
+            border-color: rgba(168, 85, 247, 0.55);
+            color: #e9d5ff;
+        }
+
+        .btn-gs.btn-apply-swap {
+            background: rgba(168, 85, 247, 0.14);
+            border-color: rgba(168, 85, 247, 0.45);
+            color: #e9d5ff;
+        }
+
+        .btn-gs.btn-apply-swap:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .swap-sku-loc-banner {
+            display: none;
+            margin: 0 0 0.75rem;
+            padding: 0.65rem 1rem;
+            border-radius: 10px;
+            border: 1px solid rgba(168, 85, 247, 0.35);
+            background: rgba(168, 85, 247, 0.1);
+            color: #e9d5ff;
+            font-size: 0.85rem;
+        }
+
+        .swap-sku-loc-banner.active {
+            display: block;
+        }
+
+        #auditSheet.swap-sku-loc-mode tr[data-record-id].swap-eligible .col-sku .gs-cell,
+        #auditSheet.swap-sku-loc-mode tr[data-record-id].swap-eligible .col-loc .gs-cell {
+            background: #faf5ff;
+        }
+
+        #auditSheet.swap-sku-loc-mode tr.swap-target .col-sku .gs-cell,
+        #auditSheet.swap-sku-loc-mode tr.swap-target .col-loc .gs-cell {
+            box-shadow: inset 0 0 0 2px #a855f7;
+            background: #f3e8ff;
+        }
+
         .gs-cell {
             width: 100%;
             height: 28px;
@@ -786,35 +829,7 @@
 </head>
 <body class="has-sidebar">
     <div class="app-layout">
-        <aside class="sidebar" aria-label="เมนูหลัก">
-            <div class="sidebar-brand">เมนู</div>
-            <nav class="sidebar-nav">
-                <a href="../index.html" class="sidebar-nav-item" title="หน้านับสต็อก">
-                    <i data-lucide="clipboard-list"></i>
-                    <span>นับสต็อก</span>
-                </a>
-                <a href="import_counts.html" class="sidebar-nav-item" title="นำเข้าผลการนับจาก Excel">
-                    <i data-lucide="file-input"></i>
-                    <span>Import นับ</span>
-                </a>
-                <a href="audit_check.html" class="sidebar-nav-item active" title="ตรวจสอบความถูกต้อง">
-                    <i data-lucide="shield-check"></i>
-                    <span>ตรวจสอบ</span>
-                </a>
-                <a href="sku_master.html" class="sidebar-nav-item" title="จัดการ SKU">
-                    <i data-lucide="database"></i>
-                    <span>SKU Master</span>
-                </a>
-                <a href="dashboard.html" class="sidebar-nav-item" title="ภาพรวมและรายงาน">
-                    <i data-lucide="layout-dashboard"></i>
-                    <span>Dashboard</span>
-                </a>
-                <a href="settings.html" class="sidebar-nav-item" title="ตั้งค่าและเชื่อมต่อ">
-                    <i data-lucide="settings"></i>
-                    <span>ตั้งค่า</span>
-                </a>
-            </nav>
-        </aside>
+        <aside class="sidebar" id="appSidebar" data-active-page="audit_check" aria-label="เมนูหลัก"></aside>
         <main class="main-area">
             <div class="audit-page dashboard-container">
                 <header class="dashboard-header">
@@ -867,6 +882,14 @@
                         <button type="button" class="btn-gs btn-save-loc" id="btnSaveLocChanges" style="display:none;" disabled>
                             <i data-lucide="save" style="width:16px;height:16px"></i>
                             บันทึกตำแหน่ง (<span id="locDirtyCount">0</span>)
+                        </button>
+                        <button type="button" class="btn-gs btn-swap-sku-loc" id="btnSwapSkuLocMode" title="โหมดสลับค่า SKU กับตำแหน่งใน Supabase">
+                            <i data-lucide="arrow-left-right" style="width:16px;height:16px"></i>
+                            โหมดสลับ SKU/ตำแหน่ง
+                        </button>
+                        <button type="button" class="btn-gs btn-apply-swap" id="btnApplySwapSkuLoc" style="display:none;" disabled>
+                            <i data-lucide="repeat" style="width:16px;height:16px"></i>
+                            สลับค่าที่เลือก (<span id="swapSelectedCount">0</span>)
                         </button>
                         <button type="button" class="btn-gs" id="btnReloadRef">
                             <i data-lucide="refresh-cw" style="width:16px;height:16px"></i>
@@ -947,6 +970,10 @@
 
                 <div class="edit-loc-banner" id="editLocBanner">
                     <strong>โหมดแก้ไขตำแหน่ง</strong> — แก้เฉพาะแถวที่โหลดจากระบบ (มี ID) · ไม่แสดงสถานะ/หมายเหตุ · กด「บันทึกตำแหน่ง」แล้วยืนยัน 2 ครั้ง
+                </div>
+
+                <div class="swap-sku-loc-banner" id="swapSkuLocBanner">
+                    <strong>โหมดสลับ SKU ↔ ตำแหน่ง</strong> — เลือกแถวที่ติ๊ก (ต้องมี ID จากระบบ) · กด「สลับค่าที่เลือก」เพื่อสลับ <code>sku_id</code> กับ <code>location</code> ใน Supabase · ยืนยัน 2 ครั้ง
                 </div>
 
                 <div class="gs-wrap">
@@ -1088,7 +1115,8 @@
         </div>
     </div>
 
-    <script src="../Js/api.js"></script>
+    <script src="../Js/sidebar-shared.js"></script>
+<script src="../Js/api.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script>
         lucide.createIcons();
@@ -1099,6 +1127,7 @@
         let supabaseClient = null;
         let activeStatusFilter = null;
         let editLocationMode = false;
+        let swapSkuLocMode = false;
 
         const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
         /** @type {Map<string, { sku_id, location, counted_qty, warehouse, counter_name, record_count }>} */
@@ -2113,12 +2142,23 @@
         function updateSelectionUI() {
             const checked = getCheckedRows();
             const count = checked.length;
+            const withDb = checked.filter(tr => tr.dataset.recordId);
             const btn = document.getElementById('btnDeleteSelected');
             const countEl = document.getElementById('selectedCount');
             const selectAll = document.getElementById('selectAllRows');
+            const btnSwapApply = document.getElementById('btnApplySwapSkuLoc');
+            const swapCountEl = document.getElementById('swapSelectedCount');
 
             if (countEl) countEl.textContent = count;
-            if (btn) btn.disabled = count === 0;
+            if (btn) btn.disabled = count === 0 || swapSkuLocMode;
+            if (swapCountEl) swapCountEl.textContent = withDb.length;
+            if (btnSwapApply) btnSwapApply.disabled = withDb.length === 0;
+
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                const cb = tr.querySelector('.row-select-cb');
+                const on = swapSkuLocMode && cb && cb.checked && tr.dataset.recordId;
+                tr.classList.toggle('swap-target', !!on);
+            });
 
             const visible = getVisibleRows();
             const visibleWithCb = visible.filter(tr => tr.querySelector('.row-select-cb'));
@@ -2297,7 +2337,141 @@
             updateLocDirtyUI();
         }
 
+        function syncRowSwapModeState(tr) {
+            const hasId = !!tr.dataset.recordId;
+            tr.classList.toggle('swap-eligible', swapSkuLocMode && hasId);
+            if (!swapSkuLocMode) {
+                tr.classList.remove('swap-eligible', 'swap-target');
+            }
+        }
+
+        function applySwapModeToAllRows() {
+            sheetBody.querySelectorAll('tr').forEach(tr => syncRowSwapModeState(tr));
+            updateSelectionUI();
+        }
+
+        function setSwapSkuLocMode(enabled) {
+            if (enabled && editLocationMode) setEditLocationMode(false);
+            swapSkuLocMode = !!enabled;
+
+            const table = document.getElementById('auditSheet');
+            const btnMode = document.getElementById('btnSwapSkuLocMode');
+            const btnApply = document.getElementById('btnApplySwapSkuLoc');
+            const banner = document.getElementById('swapSkuLocBanner');
+            const btnVerify = document.getElementById('btnVerifyAll');
+            const hint = document.getElementById('sheetToolbarHint');
+
+            if (table) table.classList.toggle('swap-sku-loc-mode', swapSkuLocMode);
+            if (btnMode) btnMode.classList.toggle('active-mode', swapSkuLocMode);
+            if (btnApply) btnApply.style.display = swapSkuLocMode ? '' : 'none';
+            if (banner) banner.classList.toggle('active', swapSkuLocMode);
+            if (btnVerify) btnVerify.disabled = swapSkuLocMode || editLocationMode;
+
+            if (hint) {
+                hint.textContent = swapSkuLocMode
+                    ? '· เลือกแถวที่ติ๊ก (มี ID) · กดสลับค่าที่เลือก — SKU ↔ ตำแหน่งใน DB'
+                    : (editLocationMode
+                        ? '· แก้ตำแหน่งในแถวที่โหลดจากระบบ · SKU/จำนวนล็อก · กดบันทึกแล้วยืนยัน 2 ครั้ง'
+                        : '· กรอกรหัสสินค้า | ตำแหน่ง | จำนวน แล้วกด Tab หรือปุ่มตรวจสอบ');
+            }
+
+            applySwapModeToAllRows();
+
+            if (!swapSkuLocMode) {
+                const rows = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
+                rows.forEach(tr => verifyRowElement(tr));
+                updateStats();
+                applyTableView();
+            }
+        }
+
+        async function applySwapSkuLocSelected() {
+            const rows = getCheckedRows().filter(tr => tr.dataset.recordId);
+            if (!rows.length) {
+                showToast('เลือกแถวที่โหลดจากระบบ (มี ID) — กด「ใส่รายการลงตาราง」ก่อน', 'error');
+                return;
+            }
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+
+            const previews = rows.slice(0, 12).map(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim() || '-';
+                const loc = tr.querySelector('[data-field="loc"]').value.trim() || '-';
+                const idShort = String(tr.dataset.recordId).slice(0, 8);
+                return `• [${idShort}…] SKU: ${sku} → ${loc} · ตำแหน่ง: ${loc} → ${sku}`;
+            });
+            const more = rows.length > 12 ? `\n... และอีก ${rows.length - 12} รายการ` : '';
+
+            const msg1 = `ยืนยันครั้งที่ 1\n\nสลับ SKU ↔ ตำแหน่ง ${rows.length} รายการใน Supabase?\n\n${previews.join('\n')}${more}`;
+            if (!confirm(msg1)) return;
+
+            const msg2 = `ยืนยันครั้งที่ 2 (สุดท้าย)\n\nอัปเดต inventory_counts ${rows.length} แถว\n(sku_id ↔ location สลับกัน)\n\nไม่สามารถยกเลิกได้ — ต้องการดำเนินการต่อหรือไม่?`;
+            if (!confirm(msg2)) return;
+
+            const btnApply = document.getElementById('btnApplySwapSkuLoc');
+            if (btnApply) btnApply.disabled = true;
+            setLoading(true, 'กำลังสลับ SKU ↔ ตำแหน่ง...', `0 / ${rows.length}`);
+
+            let ok = 0;
+            let fail = 0;
+
+            try {
+                for (let i = 0; i < rows.length; i++) {
+                    const tr = rows[i];
+                    const skuInput = tr.querySelector('[data-field="sku"]');
+                    const locInput = tr.querySelector('[data-field="loc"]');
+                    const oldSku = skuInput.value.trim();
+                    const oldLoc = locInput.value.trim();
+                    const id = tr.dataset.recordId;
+
+                    const { error } = await supabaseClient
+                        .from('inventory_counts')
+                        .update({ sku_id: oldLoc, location: oldSku })
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error(error);
+                        fail += 1;
+                    } else {
+                        skuInput.value = oldLoc;
+                        locInput.value = oldSku;
+                        tr.dataset.originalLoc = oldSku;
+                        tr.classList.remove('loc-dirty');
+                        ok += 1;
+                    }
+
+                    setLoadingProgress(i + 1, rows.length, 'กำลังสลับ SKU ↔ ตำแหน่ง...');
+                    if ((i + 1) % 20 === 0) await yieldToBrowser();
+                }
+
+                await loadReferenceData();
+
+                const trList = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
+                setLoadingMessage('กำลังตรวจสอบรายการหลังสลับ...', `${trList.length.toLocaleString()} แถว`);
+                await verifyRowsInBatches(trList);
+
+                showToast(
+                    `สลับสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
+                    fail > 0 ? 'error' : 'success'
+                );
+            } catch (err) {
+                console.error(err);
+                showToast(`สลับล้มเหลว: ${err.message}`, 'error');
+                await loadReferenceData();
+            } finally {
+                setLoading(false);
+                if (btnApply) btnApply.disabled = false;
+                updateSelectionUI();
+                refreshLocationFilterOptions();
+                applyTableView();
+                updateStats();
+            }
+        }
+
         function setEditLocationMode(enabled) {
+            if (enabled && swapSkuLocMode) setSwapSkuLocMode(false);
             if (enabled && isLooseAuditScope()) {
                 const ok = confirm(
                     'ขอบเขตข้อมูลกว้าง (ทุกคลัง หรือทุกช่วงเวลา)\n\nแนะนำเลือกคลังและเดือนก่อนแก้ตำแหน่ง\n\nเปิดโหมดแก้ไขต่อหรือไม่?'
@@ -2316,7 +2490,7 @@
             if (btnMode) btnMode.classList.toggle('active-mode', editLocationMode);
             if (btnSave) btnSave.style.display = editLocationMode ? '' : 'none';
             if (banner) banner.classList.toggle('active', editLocationMode);
-            if (btnVerify) btnVerify.disabled = editLocationMode;
+            if (btnVerify) btnVerify.disabled = editLocationMode || swapSkuLocMode;
 
             if (hint) {
                 hint.textContent = editLocationMode
@@ -2456,6 +2630,7 @@
             });
 
             syncRowEditLocState(tr);
+            syncRowSwapModeState(tr);
             return tr;
         }
 
@@ -2505,6 +2680,7 @@
                 tr.querySelector('[data-field="loc"]').value = item.loc || '';
                 tr.querySelector('[data-field="qty"]').value = item.qty ?? '';
                 syncRowEditLocState(tr);
+                syncRowSwapModeState(tr);
                 trList.push(tr);
             });
 
@@ -2522,6 +2698,7 @@
                 if (qtyIn) qtyIn.value = '';
                 clearRowAuditUI(tr);
                 syncRowEditLocState(tr);
+                syncRowSwapModeState(tr);
             }
 
             renumberRows();
@@ -2543,6 +2720,11 @@
             showToast(editLocationMode ? 'เปิดโหมดแก้ไขตำแหน่ง' : 'ปิดโหมดแก้ไขตำแหน่ง — กลับโหมดตรวจสอบ');
         });
         document.getElementById('btnSaveLocChanges').addEventListener('click', saveLocationChanges);
+        document.getElementById('btnSwapSkuLocMode').addEventListener('click', () => {
+            setSwapSkuLocMode(!swapSkuLocMode);
+            showToast(swapSkuLocMode ? 'เปิดโหมดสลับ SKU/ตำแหน่ง' : 'ปิดโหมดสลับ — กลับโหมดตรวจสอบ');
+        });
+        document.getElementById('btnApplySwapSkuLoc').addEventListener('click', applySwapSkuLocSelected);
         document.getElementById('btnAddRows').addEventListener('click', () => {
             addRows();
             renumberRows();

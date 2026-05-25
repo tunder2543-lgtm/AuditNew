@@ -546,23 +546,45 @@
             : 'เลือกโหมด ขาด หรือ เกิน ก่อน';
     }
 
+    /** ไม่นำ count_only (นับเจอแต่ไม่พบใน Excel) มาคำนวณ % */
+    function isExcludedFromPct(status) {
+        return status === 'count_only';
+    }
+
+    function formatRowVariancePct(line, displayStatus) {
+        if (isExcludedFromPct(displayStatus)) return '—';
+        if (displayStatus === 'match') return '0%';
+        if (line.variance_pct != null) return Number(line.variance_pct).toFixed(1) + '%';
+        return '—';
+    }
+
     function computeKpiStats(lines) {
         const counts = { match: 0, short: 0, over: 0, other: 0 };
         let qtyShort = 0, qtyOver = 0;
+        let pctBase = 0;
         lines.forEach(l => {
             const status = resolveDisplayStatus(l);
             const dv = computeDisplayVariance(l);
-            if (status in counts) counts[status]++;
-            else counts.other++;
+            if (isExcludedFromPct(status)) {
+                counts.other++;
+            } else {
+                pctBase++;
+                if (status === 'match') counts.match++;
+                else if (status === 'short') counts.short++;
+                else if (status === 'over') counts.over++;
+                else counts.other++;
+            }
             if (status === 'short') qtyShort += Math.abs(dv);
             if (status === 'over') qtyOver += Math.abs(dv);
         });
-        const pct = lines.length ? Math.round((counts.match / lines.length) * 100) : 0;
-        return { counts, qtyShort, qtyOver, pct };
+        const pctMatch = pctBase ? Math.round((counts.match / pctBase) * 100) : 0;
+        const pctShort = pctBase ? Math.round((counts.short / pctBase) * 100) : 0;
+        const pctOver = pctBase ? Math.round((counts.over / pctBase) * 100) : 0;
+        return { counts, qtyShort, qtyOver, pctBase, pctMatch, pctShort, pctOver };
     }
 
     function renderKpis(lines) {
-        const { counts, qtyShort, qtyOver, pct } = computeKpiStats(lines);
+        const { counts, qtyShort, qtyOver, pctMatch, pctShort, pctOver } = computeKpiStats(lines);
         const cycleLabel = currentCycle ? RS.formatCycleLabel(currentCycle) : '—';
         const rangeLabel = currentCycle ? RS.formatDateRangeLabel(currentCycle) : '';
         document.getElementById('kpiRow').innerHTML = `
@@ -574,18 +596,18 @@
             <div class="rc-kpi ok clickable" data-filter="match" title="คลิกเพื่อกรอง">
                 <div class="rc-kpi-label"><i data-lucide="check-circle" style="width:12px;"></i> ถูกต้อง</div>
                 <strong>${counts.match.toLocaleString()}</strong>
-                <span>${pct}% ของทั้งหมด</span>
+                <span>${pctMatch}% ของทั้งหมด</span>
             </div>
             <div class="rc-kpi short clickable" data-filter="short" title="คลิกเพื่อกรอง">
                 <div class="rc-kpi-label"><i data-lucide="arrow-down" style="width:12px;"></i> ขาด</div>
                 <strong>${counts.short.toLocaleString()}</strong>
-                <span>รายการ</span>
+                <span>${pctShort}% ของทั้งหมด</span>
                 <div class="rc-kpi-sub short">รวมขาด: ${qtyShort.toLocaleString()} ชิ้น</div>
             </div>
             <div class="rc-kpi over clickable" data-filter="over" title="คลิกเพื่อกรอง">
                 <div class="rc-kpi-label"><i data-lucide="arrow-up" style="width:12px;"></i> เกิน</div>
                 <strong>${counts.over.toLocaleString()}</strong>
-                <span>รายการ</span>
+                <span>${pctOver}% ของทั้งหมด</span>
                 <div class="rc-kpi-sub over">รวมเกิน: ${qtyOver.toLocaleString()} ชิ้น</div>
             </div>
             <div class="rc-kpi mute clickable" data-filter="__other__" title="คลิกเพื่อกรอง">
@@ -632,7 +654,7 @@
                     <td style="text-align:right;">${effectiveDisplay.toLocaleString()}</td>
                     <td style="text-align:right;font-weight:500;">${Number(l.counted_qty).toLocaleString()}</td>
                     <td style="text-align:right;font-weight:600;color:${vColor};">${sign}${v.toLocaleString()}</td>
-                    <td style="text-align:right;">${l.variance_pct != null && displayStatus !== 'match' ? Number(l.variance_pct).toFixed(1) + '%' : displayStatus === 'match' ? '0%' : '—'}</td>
+                    <td style="text-align:right;">${formatRowVariancePct(l, displayStatus)}</td>
                     <td>${statusBadge(displayStatus)}</td>
                 </tr>`;
         }).join('');
@@ -935,18 +957,22 @@
     document.getElementById('btnExport').addEventListener('click', () => {
         const rows = getVisibleLines();
         if (!rows.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
-        const data = rows.map((l, i) => ({
-            '#': i + 1,
-            SKU: l.sku_id,
-            'ชื่อ': skuNameMap[l.sku_id] || '',
-            'ไฟล์ Excel (ก่อนนับ)': Number(l.book_qty),
-            'ปรับแล้ว': Number(l.adjustment_applied),
-            'Excel ใช้เทียบ': Number(l.effective_book_qty),
-            'ผลนับ': Number(l.counted_qty),
-            'ต่าง': computeDisplayVariance(l),
-            '%': l.variance_pct != null ? Number(l.variance_pct) : '',
-            'สถานะ': STATUS_MAP[resolveDisplayStatus(l)]?.th || resolveDisplayStatus(l)
-        }));
+        const data = rows.map((l, i) => {
+            const displayStatus = resolveDisplayStatus(l);
+            const pctCell = formatRowVariancePct(l, displayStatus);
+            return {
+                '#': i + 1,
+                SKU: l.sku_id,
+                'ชื่อ': skuNameMap[l.sku_id] || '',
+                'ไฟล์ Excel (ก่อนนับ)': Number(l.book_qty),
+                'ปรับแล้ว': Number(l.adjustment_applied),
+                'Excel ใช้เทียบ': Number(l.effective_book_qty),
+                'ผลนับ': Number(l.counted_qty),
+                'ต่าง': computeDisplayVariance(l),
+                '%': pctCell === '—' ? '' : pctCell,
+                'สถานะ': STATUS_MAP[displayStatus]?.th || displayStatus
+            };
+        });
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Match');

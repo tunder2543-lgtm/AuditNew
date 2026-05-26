@@ -205,6 +205,13 @@
         .rc-btn-icon:hover { background: rgba(239,68,68,0.22); color: #fecaca; }
         .rc-btn-icon svg { width: 14px; height: 14px; }
         .rc-btn-icon:disabled { opacity: 0.35; cursor: not-allowed; }
+        .rc-btn-icon.add {
+            border-color: rgba(34,197,94,0.4);
+            background: rgba(16,185,129,0.15);
+            color: #6ee7b7;
+        }
+        .rc-btn-icon.add:hover { background: rgba(16,185,129,0.28); color: #a7f3d0; }
+        .rc-col-actions { display: flex; gap: 0.3rem; justify-content: center; align-items: center; flex-wrap: nowrap; }
         .rc-table .col-sku { font-family: ui-monospace, monospace; font-size: 0.8rem; color: #e0f2fe; }
         .rc-table .col-name { color: var(--text-muted); font-size: 0.76rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -366,6 +373,9 @@
 
                         <div class="rc-filter-bar">
                             <span id="filterCount" style="font-size:0.78rem;color:var(--text-muted);"></span>
+                            <button type="button" class="rc-btn rc-btn-green rc-btn-sm" id="btnBulkAddBook" style="display:none;margin-left:auto;">
+                                <i data-lucide="book-plus"></i> <span id="btnBulkAddBookLabel">สร้างลง Book ทั้งหมด</span>
+                            </button>
                         </div>
 
                         <div class="rc-table-wrap">
@@ -382,7 +392,7 @@
                                         <th style="text-align:right;">ต่าง</th>
                                         <th style="text-align:right;">%</th>
                                         <th>สถานะ</th>
-                                        <th class="col-actions" title="ลบรายการ Book">ลบ</th>
+                                        <th class="col-actions" title="สร้าง/ลบ Book">จัดการ</th>
                                     </tr>
                                 </thead>
                                 <tbody id="resultBody"></tbody>
@@ -430,6 +440,7 @@
     let adjustViewMode = 'all';
     let selectedAdjLine = null;
     let advFilterOpen = false;
+    let bookSkuSet = new Set();
 
     const STATUS_MAP = {
         match:      { th: 'ถูกต้อง',         icon: 'check',         cls: 'match' },
@@ -495,6 +506,7 @@
         document.getElementById('filterStatus').value = activeStatusFilter;
         updateKpiActiveState();
         renderTable();
+        updateBulkAddBookButton();
     }
 
     function toggleStatusFilter(status) {
@@ -655,11 +667,22 @@
                 const draftHint = draft !== 0 && applied === 0 ? ' (draft)' : draft !== 0 ? '*' : '';
                 adjHtml = `<span style="color:${color};" title="${draft ? `Applied ${applied}, Draft ${draft}` : ''}">${totalAdj > 0 ? '+' : ''}${totalAdj.toLocaleString()}${draftHint}</span>`;
             }
-            const canDeleteBook = Number(l.book_qty) > 0;
-            const delBtn = canDeleteBook
-                ? `<button type="button" class="rc-btn-icon" data-delete-book="${RS.escapeHtml(l.sku_id)}" title="ลบรายการ Book (ยอด Excel)">
+            const inBook = bookSkuSet.has(l.sku_id);
+            const canDeleteBook = inBook;
+            const canAddBook = displayStatus === 'count_only' && !inBook;
+            const actionParts = [];
+            if (canAddBook) {
+                actionParts.push(`<button type="button" class="rc-btn-icon add" data-add-book="${RS.escapeHtml(l.sku_id)}" title="สร้างลง Book (ยอด 0) ในรอบนี้">
+                        <i data-lucide="book-plus"></i>
+                   </button>`);
+            }
+            if (canDeleteBook) {
+                actionParts.push(`<button type="button" class="rc-btn-icon" data-delete-book="${RS.escapeHtml(l.sku_id)}" title="ลบรายการ Book (ยอด Excel)">
                         <i data-lucide="trash-2"></i>
-                   </button>`
+                   </button>`);
+            }
+            const actionsHtml = actionParts.length
+                ? `<div class="rc-col-actions">${actionParts.join('')}</div>`
                 : '<span style="color:var(--text-muted);font-size:0.7rem;">—</span>';
             return `
                 <tr data-sku="${RS.escapeHtml(l.sku_id)}" style="cursor:pointer;" title="คลิกเพื่อเลือกในแผนปรับยอด">
@@ -673,10 +696,36 @@
                     <td style="text-align:right;font-weight:600;color:${vColor};">${sign}${v.toLocaleString()}</td>
                     <td style="text-align:right;">${formatRowVariancePct(l, displayStatus)}</td>
                     <td>${statusBadge(displayStatus)}</td>
-                    <td class="col-actions">${delBtn}</td>
+                    <td class="col-actions">${actionsHtml}</td>
                 </tr>`;
         }).join('');
         lucide.createIcons();
+        updateBulkAddBookButton();
+    }
+
+    function canAddToBookLine(line) {
+        if (!line) return false;
+        return resolveDisplayStatus(line) === 'count_only' && !bookSkuSet.has(line.sku_id);
+    }
+
+    function getAddableBookLines(lines) {
+        return lines.filter(canAddToBookLine);
+    }
+
+    function updateBulkAddBookButton() {
+        const btn = document.getElementById('btnBulkAddBook');
+        const label = document.getElementById('btnBulkAddBookLabel');
+        if (!btn || !label) return;
+        const addable = getAddableBookLines(getVisibleLines());
+        const n = addable.length;
+        const show = n > 0 && (
+            activeStatusFilter === 'count_only' ||
+            activeStatusFilter === '__other__' ||
+            addable.length === getVisibleLines().length
+        );
+        btn.style.display = show ? 'inline-flex' : 'none';
+        btn.disabled = n === 0;
+        label.textContent = `สร้างลง Book ทั้งหมด (${n.toLocaleString()})`;
     }
 
     function setAdjustViewMode(mode) {
@@ -794,6 +843,7 @@
             skuCountPresence = await RS.fetchInventoryCountPresenceBySku(currentCycle);
             skuNameMap = await RS.fetchBookSkuNames(id);
             adjustmentsCache = await RS.fetchAdjustments(id);
+            bookSkuSet = await RS.fetchBookSkuIds(id);
 
             document.getElementById('resultsPanel').style.display = '';
             document.getElementById('cycleHintBar').classList.add('show');
@@ -817,6 +867,7 @@
             renderTable();
             renderDraftList();
             updateAutoAdjustButton();
+            updateBulkAddBookButton();
             showToast(`Match สำเร็จ ${linesCache.length.toLocaleString()} SKU`);
         } catch (err) {
             showToast(err.message, 'error');
@@ -915,7 +966,7 @@
     }
 
     function canDeleteBookLine(line) {
-        return Number(line?.book_qty) > 0;
+        return line?.sku_id && bookSkuSet.has(line.sku_id);
     }
 
     async function reloadMatchData() {
@@ -923,6 +974,123 @@
         linesCache = await RS.fetchReconciliationLines(currentCycle.id);
         adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
         skuNameMap = await RS.fetchBookSkuNames(currentCycle.id);
+        bookSkuSet = await RS.fetchBookSkuIds(currentCycle.id);
+    }
+
+    function getCycleLabelForConfirm() {
+        return currentCycle ? RS.formatCycleLabel(currentCycle) : '—';
+    }
+
+    async function addBookLine(line) {
+        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        if (!line || !canAddToBookLine(line)) {
+            return showToast('SKU นี้ไม่สามารถสร้างลง Book ได้', 'error');
+        }
+
+        const sku = line.sku_id;
+        const countedQty = Number(line.counted_qty).toLocaleString();
+        const name = skuNameMap[sku] || '';
+
+        const ok = await uiConfirm.twoStep({
+            title: 'สร้างลง Book',
+            variant: 'green',
+            step1: {
+                intro: `สร้าง SKU ${sku} ลง Book ของรอบนี้?`,
+                bullets: [
+                    `รอบ: ${getCycleLabelForConfirm()}`,
+                    name ? `ชื่อ: ${name}` : null,
+                    `ผลนับปัจจุบัน: ${countedQty} ชิ้น`,
+                    'ยอด Excel (Book) เริ่มต้น = 0',
+                    'ยังไม่ถือว่าถูกต้อง — ต้องปรับยอดหรือแก้ Book ภายหลัง'
+                ].filter(Boolean),
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: `ยืนยันสร้าง ${sku} ลง Book (ยอด 0)`,
+                note: 'ผลนับไม่ถูกลบ — ระบบจะคำนวณ Match ใหม่',
+                noteVariant: 'safe',
+                confirmLabel: 'สร้างลง Book',
+                confirmIcon: 'book-plus'
+            }
+        });
+        if (!ok) return;
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = `กำลังสร้าง Book: ${sku}...`;
+        try {
+            const masterNames = await RS.fetchSkuMasterNamesBySkus([sku]);
+            await RS.addBookFromCountOnly(currentCycle.id, {
+                skuId: sku,
+                namePro: masterNames[sku] || skuNameMap[sku] || null
+            });
+            await reloadMatchData();
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            showToast(`สร้าง ${sku} ลง Book แล้ว (ยอด 0) — คำนวณ Match ใหม่แล้ว`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
+    async function bulkAddBookLines() {
+        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        const targets = getAddableBookLines(getVisibleLines());
+        if (!targets.length) return showToast('ไม่มีรายการให้สร้างลง Book', 'error');
+
+        const sample = targets.slice(0, 5).map(l =>
+            `${l.sku_id} (นับ ${Number(l.counted_qty).toLocaleString()})`
+        );
+        if (targets.length > 5) sample.push(`… และอีก ${targets.length - 5} SKU`);
+
+        const ok = await uiConfirm.twoStep({
+            title: 'สร้างลง Book ทั้งหมด',
+            variant: 'green',
+            step1: {
+                intro: `สร้าง ${targets.length.toLocaleString()} SKU ลง Book ของรอบนี้?`,
+                bullets: [
+                    `รอบ: ${getCycleLabelForConfirm()}`,
+                    'ยอด Excel (Book) เริ่มต้น = 0 ทุกรายการ',
+                    'ข้าม SKU ที่มีใน Book แล้ว',
+                    ...sample
+                ],
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: `ยืนยันสร้างลง Book ${targets.length.toLocaleString()} รายการ`,
+                note: 'ผลนับไม่ถูกลบ — ระบบจะคำนวณ Match ใหม่เมื่อเสร็จ',
+                noteVariant: 'safe',
+                confirmLabel: 'สร้างลง Book',
+                confirmIcon: 'book-plus'
+            }
+        });
+        if (!ok) return;
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = `กำลังสร้าง Book ${targets.length.toLocaleString()} รายการ...`;
+        try {
+            const skus = targets.map(l => l.sku_id);
+            const masterNames = await RS.fetchSkuMasterNamesBySkus(skus);
+            const items = targets.map(l => ({
+                skuId: l.sku_id,
+                namePro: masterNames[l.sku_id] || skuNameMap[l.sku_id] || null
+            }));
+            const res = await RS.addBookFromCountOnlyBatch(currentCycle.id, items);
+            await reloadMatchData();
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            const skipNote = res.skipped ? ` (ข้าม ${res.skipped.toLocaleString()} ที่มีอยู่แล้ว)` : '';
+            showToast(`สร้างลง Book ${res.inserted.toLocaleString()} SKU${skipNote}`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
     }
 
     async function deleteBookLine(line) {
@@ -979,6 +1147,7 @@
             renderDraftList();
             renderKpis(linesCache);
             renderTable();
+            updateBulkAddBookButton();
             showToast(`ลบ Book ${sku} แล้ว — คำนวณ Match ใหม่แล้ว`);
         } catch (err) {
             showToast(err.message, 'error');
@@ -1011,8 +1180,9 @@
     });
 
     document.getElementById('filterStatus').addEventListener('change', (e) => setStatusFilter(e.target.value));
-    document.getElementById('filterSku').addEventListener('input', renderTable);
-    document.getElementById('filterName').addEventListener('input', renderTable);
+    document.getElementById('filterSku').addEventListener('input', () => { renderTable(); });
+    document.getElementById('filterName').addEventListener('input', () => { renderTable(); });
+    document.getElementById('btnBulkAddBook').addEventListener('click', bulkAddBookLines);
 
     document.getElementById('btnAdvFilter').addEventListener('click', () => {
         advFilterOpen = !advFilterOpen;
@@ -1037,6 +1207,13 @@
     document.getElementById('btnApplyAll').addEventListener('click', applyAllDrafts);
 
     document.getElementById('resultBody').addEventListener('click', (e) => {
+        const addBtn = e.target.closest('[data-add-book]');
+        if (addBtn) {
+            e.stopPropagation();
+            const line = linesCache.find(l => l.sku_id === addBtn.dataset.addBook);
+            if (line) addBookLine(line);
+            return;
+        }
         const delBtn = e.target.closest('[data-delete-book]');
         if (delBtn) {
             e.stopPropagation();

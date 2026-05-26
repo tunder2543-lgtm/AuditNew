@@ -1168,6 +1168,286 @@
 
 
 
+    /** ชุด SKU ที่มีแถวใน book_stock_lines ของรอบนี้แล้ว */
+
+    async function fetchBookSkuIds(cycleId) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+
+
+        const set = new Set();
+
+        let from = 0;
+
+        const PAGE = 1000;
+
+
+
+        while (true) {
+
+            const to = from + PAGE - 1;
+
+            const { data, error } = await client
+
+                .from('book_stock_lines')
+
+                .select('sku_id')
+
+                .eq('cycle_id', cycleId)
+
+                .range(from, to);
+
+            if (error) throw error;
+
+            const chunk = data || [];
+
+            chunk.forEach(r => {
+
+                const sku = String(r.sku_id ?? '').trim();
+
+                if (sku) set.add(sku);
+
+            });
+
+            if (chunk.length < PAGE) break;
+
+            from += PAGE;
+
+        }
+
+
+
+        return set;
+
+    }
+
+
+
+    async function bookSkuExists(cycleId, skuId) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+        const sku = String(skuId ?? '').trim();
+
+        if (!sku) return false;
+
+
+
+        const { data, error } = await client
+
+            .from('book_stock_lines')
+
+            .select('id')
+
+            .eq('cycle_id', cycleId)
+
+            .eq('sku_id', sku)
+
+            .limit(1);
+
+        if (error) throw error;
+
+        return !!(data && data.length);
+
+    }
+
+
+
+    function buildBookInsertPayload(cycleId, skuId, namePro) {
+
+        return {
+
+            cycle_id: cycleId,
+
+            sku_id: String(skuId).trim(),
+
+            location: null,
+
+            book_qty: 0,
+
+            name_pro: namePro ? String(namePro).trim() : null,
+
+            row_no: null
+
+        };
+
+    }
+
+
+
+    async function fetchSkuMasterNamesBySkus(skus) {
+
+        const client = getClient();
+
+        const map = {};
+
+        if (!client || !skus?.length) return map;
+
+
+
+        const unique = [...new Set(skus.map(s => String(s).trim()).filter(Boolean))];
+
+        const CHUNK = 200;
+
+
+
+        for (let i = 0; i < unique.length; i += CHUNK) {
+
+            const chunk = unique.slice(i, i + CHUNK);
+
+            const { data, error } = await client
+
+                .from('sku_master')
+
+                .select('sku_name, name_pro')
+
+                .in('sku_name', chunk);
+
+            if (error) {
+
+                console.warn('fetchSkuMasterNamesBySkus', error);
+
+                continue;
+
+            }
+
+            (data || []).forEach(r => {
+
+                const sku = String(r.sku_name ?? '').trim();
+
+                if (sku && r.name_pro && !map[sku]) map[sku] = String(r.name_pro).trim();
+
+            });
+
+        }
+
+
+
+        return map;
+
+    }
+
+
+
+    /** สร้างแถว Book (ยอด 0) จาก count_only — รอบเดียวกับ cycleId */
+
+    async function addBookFromCountOnly(cycleId, { skuId, namePro }) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+
+
+        const sku = String(skuId ?? '').trim();
+
+        if (!sku) throw new Error('SKU ไม่ถูกต้อง');
+
+
+
+        if (await bookSkuExists(cycleId, sku)) {
+
+            throw new Error(`SKU ${sku} มีใน Book ของรอบนี้แล้ว`);
+
+        }
+
+
+
+        const { error } = await client
+
+            .from('book_stock_lines')
+
+            .insert([buildBookInsertPayload(cycleId, sku, namePro)]);
+
+        if (error) throw error;
+
+
+
+        await refreshReconciliation(cycleId);
+
+        return { sku };
+
+    }
+
+
+
+    /** สร้าง Book หลาย SKU (ยอด 0) — ข้าม SKU ที่มีใน Book แล้ว */
+
+    async function addBookFromCountOnlyBatch(cycleId, items) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+        if (!items?.length) return { inserted: 0, skipped: 0 };
+
+
+
+        const existing = await fetchBookSkuIds(cycleId);
+
+        const payloads = [];
+
+        let skipped = 0;
+
+
+
+        for (const item of items) {
+
+            const sku = String(item?.skuId ?? '').trim();
+
+            if (!sku) {
+
+                skipped++;
+
+                continue;
+
+            }
+
+            if (existing.has(sku)) {
+
+                skipped++;
+
+                continue;
+
+            }
+
+            existing.add(sku);
+
+            payloads.push(buildBookInsertPayload(cycleId, sku, item.namePro));
+
+        }
+
+
+
+        if (!payloads.length) return { inserted: 0, skipped };
+
+
+
+        for (let i = 0; i < payloads.length; i += BOOK_CHUNK) {
+
+            const chunk = payloads.slice(i, i + BOOK_CHUNK);
+
+            const { error } = await client.from('book_stock_lines').insert(chunk);
+
+            if (error) throw error;
+
+        }
+
+
+
+        await refreshReconciliation(cycleId);
+
+        return { inserted: payloads.length, skipped };
+
+    }
+
+
+
     async function countLinkedInventory(cycleId) {
 
         const client = getClient();
@@ -2249,6 +2529,16 @@
         countBookLines,
 
         deleteBookStockBySku,
+
+        fetchBookSkuIds,
+
+        bookSkuExists,
+
+        addBookFromCountOnly,
+
+        addBookFromCountOnlyBatch,
+
+        fetchSkuMasterNamesBySkus,
 
         countLinkedInventory,
 

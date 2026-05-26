@@ -183,6 +183,40 @@
             outline: none;
         }
         .name-row input:focus { border-color: rgba(59,130,246,0.55); box-shadow: 0 0 0 2px rgba(59,130,246,0.18); }
+        .name-ip-row {
+            display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+            margin: 0.5rem 0 0.35rem; font-size: 0.8rem; color: var(--text-muted);
+        }
+        .name-ip-row button {
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(255,255,255,0.06);
+            color: #93c5fd;
+            border-radius: 8px;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.72rem;
+            cursor: pointer;
+            font-family: 'Kanit', sans-serif;
+        }
+        .name-ip-field label {
+            display: block;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin: 0.35rem 0 0.25rem;
+        }
+        .name-ip-field input {
+            width: 100%;
+            padding: 0.5rem 0.65rem;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(0,0,0,0.18);
+            color: #fff;
+            font-family: 'Kanit', sans-serif;
+        }
+        .chat-identity {
+            font-size: 0.82rem;
+            color: #93c5fd;
+            margin-top: 0.35rem;
+        }
 
         .bubble-file { margin-top: 0.35rem; }
         .bubble-file img {
@@ -217,8 +251,10 @@
                 <div>
                     <h1>หน้าต่างสนทนา</h1>
                     <p>แนบรูป/เอกสารได้สูงสุด 50MB · Realtime · <code>Enter</code> ส่ง · <code>Shift+Enter</code> ขึ้นบรรทัดใหม่</p>
+                    <div class="chat-identity" id="chatIdentity" hidden></div>
                 </div>
                 <div class="chat-actions">
+                    <button class="chat-btn" id="btnRename" type="button"><i data-lucide="user-pen" style="width:16px;height:16px;"></i> เปลี่ยนชื่อ</button>
                     <button class="chat-btn" id="btnExport"><i data-lucide="download" style="width:16px;height:16px;"></i> ส่งออก</button>
                     <button class="chat-btn danger" id="btnClear"><i data-lucide="trash-2" style="width:16px;height:16px;"></i> ล้างแชท</button>
                 </div>
@@ -247,13 +283,21 @@
     </main>
 </div>
 
-<div class="name-modal" id="nameModal" role="dialog" aria-modal="true" aria-label="กรอกชื่อก่อนเข้าแชท">
+<div class="name-modal" id="nameModal" role="dialog" aria-modal="true" aria-label="ตั้งชื่อในแชท">
     <div class="name-card">
-        <h2>กรอกชื่อก่อนเข้าแชท</h2>
-        <p>ระบบไม่มีการล็อกอิน จึงใช้ “ชื่อที่กรอก” สำหรับแสดงในกลุ่มแชท</p>
+        <h2 id="nameModalTitle">กรอกชื่อก่อนเข้าแชท</h2>
+        <p id="nameModalDesc">แสดงในแชทเป็น <strong>ชื่อ (IP:xxx)</strong> เช่น ADMIN (IP:192.168.1.10)</p>
         <div class="name-row">
-            <input id="nameInput" type="text" placeholder="เช่น Aom / โกดัง1 / ผู้ตรวจ" maxlength="40" autocomplete="off">
-            <button class="send-btn" id="btnEnterChat" type="button"><i data-lucide="log-in" style="width:16px;height:16px;"></i> เข้าแชท</button>
+            <input id="nameInput" type="text" placeholder="เช่น ADMIN / โกดัง1" maxlength="40" autocomplete="off">
+            <button class="send-btn" id="btnEnterChat" type="button"><i data-lucide="check" style="width:16px;height:16px;"></i> บันทึก</button>
+        </div>
+        <div class="name-ip-row">
+            <span id="nameIpLine">IP: กำลังตรวจสอบ...</span>
+            <button type="button" id="btnRefreshIp">ตรวจ IP อีกครั้ง</button>
+        </div>
+        <div class="name-ip-field">
+            <label for="ipInput">IP เครื่อง (แก้ไขได้ถ้าระบบหาไม่เจอ)</label>
+            <input id="ipInput" type="text" placeholder="192.168.1.10" maxlength="45" autocomplete="off">
         </div>
     </div>
 </div>
@@ -267,6 +311,7 @@
     const ROOM_ID = 'main';
     const STORAGE_KEY = 'audit_chat_v2';
     const NAME_KEY = 'audit_chat_name_v1';
+    const IP_KEY = 'audit_chat_client_ip_v1';
     const SESSION_KEY = 'audit_chat_session_v1';
     const CHAT_BUCKET = 'chat-attachments';
     const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -282,14 +327,22 @@
     const hintBar = document.getElementById('hintBar');
 
     const nameModal = document.getElementById('nameModal');
+    const nameModalTitle = document.getElementById('nameModalTitle');
+    const nameModalDesc = document.getElementById('nameModalDesc');
     const nameInput = document.getElementById('nameInput');
+    const ipInput = document.getElementById('ipInput');
+    const nameIpLine = document.getElementById('nameIpLine');
     const btnEnterChat = document.getElementById('btnEnterChat');
+    const chatIdentity = document.getElementById('chatIdentity');
 
     let supabaseClient = null;
     let realtimeChannel = null;
     let myName = '';
+    let clientIp = '';
     let clientSessionId = '';
     let pendingFile = null;
+    let nameModalMode = 'enter';
+    let chatReady = false;
 
     function escapeHtml(s) {
         return String(s ?? '')
@@ -416,6 +469,85 @@
         return id;
     }
 
+    function isPrivateIp(ip) {
+        if (!ip) return false;
+        if (ip.startsWith('192.168.') || ip.startsWith('10.')) return true;
+        return /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
+    }
+
+    function detectLocalIp() {
+        return new Promise((resolve) => {
+            if (!window.RTCPeerConnection) {
+                resolve(null);
+                return;
+            }
+            const found = new Set();
+            let done = false;
+            const finish = () => {
+                if (done) return;
+                done = true;
+                try { pc.close(); } catch { /* ignore */ }
+                const list = Array.from(found);
+                const priv = list.find(isPrivateIp);
+                resolve(priv || list[0] || null);
+            };
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pc.createDataChannel('x');
+            pc.onicecandidate = (e) => {
+                const c = e.candidate?.candidate || '';
+                const m = /(\d{1,3}(?:\.\d{1,3}){3})/g.exec(c);
+                if (m && m[1] && m[1] !== '0.0.0.0') found.add(m[1]);
+            };
+            pc.createOffer()
+                .then(offer => pc.setLocalDescription(offer))
+                .catch(() => finish());
+            setTimeout(finish, 2500);
+        });
+    }
+
+    async function ensureClientIp() {
+        const manual = normalizeText(ipInput?.value || localStorage.getItem(IP_KEY) || '');
+        if (manual) {
+            clientIp = manual;
+            localStorage.setItem(IP_KEY, clientIp);
+            return clientIp;
+        }
+        const cached = localStorage.getItem(IP_KEY);
+        if (cached) {
+            clientIp = cached;
+            return clientIp;
+        }
+        clientIp = await detectLocalIp() || '';
+        if (clientIp) localStorage.setItem(IP_KEY, clientIp);
+        return clientIp;
+    }
+
+    function getDisplayName() {
+        const base = normalizeText(myName);
+        if (!base) return '';
+        const ip = normalizeText(clientIp) || 'ไม่ทราบ';
+        return `${base} (IP:${ip})`;
+    }
+
+    function updateIdentityUi() {
+        const dn = getDisplayName();
+        if (!dn) {
+            chatIdentity.hidden = true;
+            return;
+        }
+        chatIdentity.hidden = false;
+        chatIdentity.textContent = 'คุณ: ' + dn;
+    }
+
+    async function refreshIpDisplay() {
+        nameIpLine.textContent = 'IP: กำลังตรวจสอบ...';
+        await ensureClientIp();
+        ipInput.value = clientIp || '';
+        nameIpLine.textContent = clientIp
+            ? 'IP อัตโนมัติ: ' + clientIp
+            : 'IP: ยังไม่ทราบ — พิมพ์ IP ด้านล่างได้';
+    }
+
     function getSupabase() {
         try { return window.apiService?.getClient?.() || null; } catch { return null; }
     }
@@ -462,9 +594,11 @@
         const meCount = messages.filter(m => m.client_session_id && clientSessionId && m.client_session_id === clientSessionId).length;
         const mode = supabaseClient ? 'Realtime: ON' : 'Realtime: OFF (local)';
         hintBar.style.color = '';
+        const who = getDisplayName() || '-';
         hintBar.textContent = total
-            ? `${mode} · ทั้งหมด ${total.toLocaleString()} ข้อความ · คุณส่ง ${meCount.toLocaleString()} ข้อความ · ชื่อ: ${myName || '-'}`
-            : `${mode} · ยังไม่มีข้อความ · ชื่อ: ${myName || '-'}`;
+            ? `${mode} · ทั้งหมด ${total.toLocaleString()} ข้อความ · คุณส่ง ${meCount.toLocaleString()} ข้อความ · ${who}`
+            : `${mode} · ยังไม่มีข้อความ · ${who}`;
+        updateIdentityUi();
     }
 
     function showChatStatus(msg, isError) {
@@ -531,7 +665,7 @@
         const payload = {
             room_id: ROOM_ID,
             event_type: eventType,
-            sender_name: myName || null,
+            sender_name: getDisplayName() || null,
             message: text || (fileMeta ? '' : ''),
             client_session_id: sid,
             client_msg_id: uuid(),
@@ -592,7 +726,7 @@
                 updateHint(loadMessages());
             } else {
                 const local = {
-                    role: 'me', event_type: 'message', sender_name: myName || null, text: text || (fileToSend ? '📎 ' + fileToSend.name : ''),
+                    role: 'me', event_type: 'message', sender_name: getDisplayName() || null, text: text || (fileToSend ? '📎 ' + fileToSend.name : ''),
                     ts: Date.now(), client_session_id: clientSessionId
                 };
                 if (fileToSend) {
@@ -645,7 +779,7 @@
         const key = 'join_sent_' + ROOM_ID;
         if (sessionStorage.getItem(key) === '1') return;
         sessionStorage.setItem(key, '1');
-        const text = `${myName} เข้าร่วมแชท`;
+        const text = `${getDisplayName()} เข้าร่วมแชท`;
         if (!supabaseClient) {
             pushMessageLocal({ role: 'sys', event_type: 'join', sender_name: null, text, ts: Date.now(), client_session_id: null });
             return;
@@ -657,6 +791,7 @@
 
     function openNameModal() {
         nameModal.classList.add('show');
+        lucide.createIcons();
         setTimeout(() => nameInput.focus(), 0);
     }
 
@@ -664,17 +799,70 @@
         nameModal.classList.remove('show');
     }
 
-    async function enterChat() {
+    function openEnterModal() {
+        nameModalMode = 'enter';
+        nameModalTitle.textContent = 'กรอกชื่อก่อนเข้าแชท';
+        nameModalDesc.innerHTML = 'แสดงในแชทเป็น <strong>ชื่อ (IP:xxx)</strong> เช่น ADMIN (IP:192.168.1.10)';
+        btnEnterChat.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> เข้าแชท';
+        nameInput.value = myName || '';
+        ipInput.value = clientIp || localStorage.getItem(IP_KEY) || '';
+        refreshIpDisplay();
+        openNameModal();
+    }
+
+    function openRenameModal() {
+        nameModalMode = 'rename';
+        nameModalTitle.textContent = 'เปลี่ยนชื่อ';
+        nameModalDesc.innerHTML = 'ข้อความใหม่จะแสดงเป็น <strong>ชื่อ (IP:xxx)</strong>';
+        btnEnterChat.innerHTML = '<i data-lucide="check" style="width:16px;height:16px;"></i> บันทึก';
+        nameInput.value = myName || '';
+        ipInput.value = clientIp || localStorage.getItem(IP_KEY) || '';
+        refreshIpDisplay();
+        openNameModal();
+    }
+
+    async function applyNameFromModal() {
         const name = normalizeText(nameInput.value);
         if (!name) return;
+
         myName = name.slice(0, 40);
         localStorage.setItem(NAME_KEY, myName);
-        closeNameModal();
 
+        const manualIp = normalizeText(ipInput.value);
+        if (manualIp) {
+            clientIp = manualIp;
+            localStorage.setItem(IP_KEY, clientIp);
+        } else {
+            await ensureClientIp();
+        }
+
+        closeNameModal();
+        updateIdentityUi();
+
+        if (nameModalMode === 'rename') {
+            updateHint(loadMessages());
+            showChatStatus('เปลี่ยนชื่อเป็น ' + getDisplayName(), false);
+            if (supabaseClient) {
+                try {
+                    await sendToSupabase({ eventType: 'join', text: `${getDisplayName()} เปลี่ยนชื่อแล้ว` });
+                } catch (err) {
+                    showChatStatus('แจ้งเปลี่ยนชื่อไม่สำเร็จ: ' + (err?.message || String(err)), true);
+                }
+            }
+            setTimeout(() => updateHint(loadMessages()), 2500);
+            inputEl.focus();
+            return;
+        }
+
+        await completeChatSetup();
+    }
+
+    async function completeChatSetup() {
+        if (chatReady) return;
         clientSessionId = getOrCreateSessionId();
+        await ensureClientIp();
         supabaseClient = getSupabase();
 
-        // แสดง local cache ก่อน
         const initial = loadMessages();
         updateHint(initial);
         render(initial);
@@ -692,6 +880,7 @@
 
         await announceJoinOnce();
         if (window.chatNotifyShared) window.chatNotifyShared.markRead();
+        chatReady = true;
         updateComposerState();
         inputEl.focus();
     }
@@ -714,14 +903,21 @@
     });
     document.getElementById('btnAttachClear').addEventListener('click', () => setPendingFile(null));
 
-    btnEnterChat.addEventListener('click', enterChat);
-    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enterChat(); } });
+    btnEnterChat.addEventListener('click', applyNameFromModal);
+    nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyNameFromModal(); } });
+    document.getElementById('btnRename').addEventListener('click', openRenameModal);
+    document.getElementById('btnRefreshIp').addEventListener('click', async () => {
+        localStorage.removeItem(IP_KEY);
+        clientIp = '';
+        ipInput.value = '';
+        await refreshIpDisplay();
+    });
 
     document.getElementById('btnClear').addEventListener('click', clearAllChat);
 
     document.getElementById('btnExport').addEventListener('click', () => {
         const messages = loadMessages();
-        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, clientSessionId, messages };
+        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, displayName: getDisplayName(), ip: clientIp || null, clientSessionId, messages };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -735,12 +931,13 @@
     // init
     clientSessionId = getOrCreateSessionId();
     myName = normalizeText(localStorage.getItem(NAME_KEY) || '');
+    clientIp = normalizeText(localStorage.getItem(IP_KEY) || '');
     const initial = loadMessages();
     updateHint(initial);
     render(initial);
     updateComposerState();
-    if (!myName) openNameModal();
-    else { nameInput.value = myName; enterChat(); }
+    if (!myName) openEnterModal();
+    else completeChatSetup();
 </script>
 </body>
 </html>

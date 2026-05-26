@@ -841,26 +841,33 @@
         return `ลด ${Math.abs(delta).toLocaleString()} ชิ้น`;
     }
 
-    function getTargetAdjustmentValidation(line, target) {
+    function getTargetAdjustmentValidation(line, target, opts = {}) {
         if (!line || target == null || !Number.isFinite(target)) {
-            return { ok: false, delta: null, message: 'กรุณาใส่จำนวนที่ต้องการ' };
+            return { ok: false, delta: null, message: 'กรุณาใส่จำนวนที่ต้องการ', noAdjustment: false };
         }
         const delta = computeDeltaFromTarget(line, target);
-        if (Math.abs(delta) >= 1e-6) return { ok: true, delta, message: null };
         const counted = Number(line.counted_qty);
         const effective = getLineEffectiveBook(line);
         const status = resolveDisplayStatus(line);
+
+        if (Math.abs(delta) >= 1e-6) {
+            return { ok: true, delta, message: null, noAdjustment: false };
+        }
+        if (opts.allowZeroWhenMatchesBook && Math.abs(target - effective) < 1e-6) {
+            return { ok: true, delta: 0, message: null, noAdjustment: true };
+        }
         if ((status === 'short' || status === 'over') && Math.abs(target - counted) >= 1e-6) {
             return {
                 ok: false,
                 delta: 0,
+                noAdjustment: false,
                 message: `ยอด ${target.toLocaleString()} เท่า Excel ใช้เทียบอยู่แล้ว (${effective.toLocaleString()}) แต่ผลนับ ${counted.toLocaleString()} — ให้ถูกต้องควรใส่ ${counted.toLocaleString()}`
             };
         }
         if (status === 'match') {
-            return { ok: false, delta: 0, message: 'ถูกต้องแล้ว — ไม่ต้องปรับยอด' };
+            return { ok: false, delta: 0, noAdjustment: false, message: 'ถูกต้องแล้ว — ไม่ต้องปรับยอด' };
         }
-        return { ok: false, delta: 0, message: 'ไม่ต้องปรับยอด' };
+        return { ok: false, delta: 0, noAdjustment: false, message: 'ไม่ต้องปรับยอด' };
     }
 
     function resolveAdjustmentQtyFromInput(line) {
@@ -945,12 +952,14 @@
         if (target != null) {
             const delta = computeDeltaFromTarget(line, target);
             const deltaClass = delta > 0 ? 'add' : delta < 0 ? 'sub' : '';
-            const validation = getTargetAdjustmentValidation(line, target);
+            const validation = getTargetAdjustmentValidation(line, target, { allowZeroWhenMatchesBook: true });
             html += `
             <div class="rc-adj-sum-row ${deltaClass}"><span>ต้องปรับ Book</span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
             <div class="rc-adj-sum-total after"><span>จำนวนที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
             if (!validation.ok && (resolveDisplayStatus(line) === 'short' || resolveDisplayStatus(line) === 'over')) {
                 html += `<div class="rc-adj-sum-warn">ยังไม่ตรงผลนับ — ถ้าต้องการ「ถูกต้อง」ให้ใส่ <strong>${counted.toLocaleString()}</strong> (ผลนับ)</div>`;
+            } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6) {
+                html += `<div class="rc-adj-sum-warn">ยืนยันยอด Book ที่ ${target.toLocaleString()} — กด「บันทึก Draft」ได้โดยไม่ปรับยอด (สถานะยังไม่ตรงผลนับ)</div>`;
             }
         }
         html += `<div class="rc-adj-sum-note">ใส่ยอด Excel ใช้เทียบหลังปรับ — ระบบคำนวณเพิ่ม/ลดให้อัตโนมัติ (ยอมรับผลนับ = ใส่ตามผลนับ)</div>`;
@@ -1114,8 +1123,12 @@
         const line = linesCache.find(l => l.sku_id === sku) || selectedAdjLine;
         if (!line) return showToast('กรุณาเลือก SKU', 'error');
         const target = parseAdjInput();
-        const validation = getTargetAdjustmentValidation(line, target);
+        const validation = getTargetAdjustmentValidation(line, target, { allowZeroWhenMatchesBook: true });
         if (!validation.ok) return showToast(validation.message, 'error');
+        if (validation.noAdjustment) {
+            showToast(`บันทึกแล้ว: ${sku} — ยอด ${target.toLocaleString()} ตรง Excel ใช้เทียบ (ไม่มีการปรับยอด)`);
+            return;
+        }
         const qty = validation.delta;
         try {
             await RS.createStockAdjustment({

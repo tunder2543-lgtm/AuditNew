@@ -5,8 +5,8 @@
     <marker id="a2" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6 Z" fill="#a78bfa"/></marker>
   </defs>
   <rect width="1100" height="680" fill="#0c0c10"/>
-  <text x="550" y="32" text-anchor="middle" fill="#93c5fd" font-size="18" font-weight="600">DFD Level 1 — ???????????? P0</text>
-  <text x="550" y="54" text-anchor="middle" fill="#64748b" font-size="12">Stock Audit · P1–P6 · D1–D7</text>
+  <text x="550" y="32" text-anchor="middle" fill="#93c5fd" font-size="18" font-weight="600">DFD Level 1 ï¿½ ???????????? P0</text>
+  <text x="550" y="54" text-anchor="middle" fill="#64748b" font-size="12">Stock Audit ï¿½ P1ï¿½P6 ï¿½ D1ï¿½D7</text>
 
   <rect x="420" y="70" width="120" height="44" rx="5" fill="#1e293b" stroke="#94a3b8"/>
   <text x="480" y="98" text-anchor="middle" fill="#e2e8f0" font-size="11">E1 ??????????????</text>
@@ -80,6 +80,6 @@
   <line x1="748" y1="240" x2="900" y2="95" stroke="#38bdf8" stroke-width="1.2" marker-end="url(#a1)"/>
   <text x="820" y="88" fill="#64748b" font-size="9">Export ERP</text>
 
-  <text x="550" y="640" text-anchor="middle" fill="#475569" font-size="11">?????????: P1 ? P2 ? P3 ? P4 ? P5 ? P6 (???????? Flow F0–F7 ????????)</text>
-  <text x="550" y="660" text-anchor="middle" fill="#475569" font-size="10">inventory_counts (D4) = ?????????? · Match ?????? counted_qty · ??????? Book/D6</text>
+  <text x="550" y="640" text-anchor="middle" fill="#475569" font-size="11">?????????: P1 ? P2 ? P3 ? P4 ? P5 ? P6 (???????? Flow F0ï¿½F7 ????????)</text>
+  <text x="550" y="660" text-anchor="middle" fill="#475569" font-size="10">inventory_counts (D4) = ?????????? ï¿½ Match ?????? counted_qty ï¿½ ??????? Book/D6</text>
 </svg>

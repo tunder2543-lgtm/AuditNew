@@ -1,0 +1,114 @@
+/* แจ้งเตือนแชททั้งระบบ */
+.sidebar-nav-item {
+    position: relative;
+}
+
+.sidebar-chat-badge {
+    margin-left: auto;
+    min-width: 1.15rem;
+    height: 1.15rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    line-height: 1.15rem;
+    text-align: center;
+    box-shadow: 0 0 0 2px rgba(9, 9, 11, 0.9);
+}
+
+.sidebar-chat-badge[hidden] {
+    display: none !important;
+}
+
+.chat-notify-stack {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10050;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(360px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.chat-notify-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 12px;
+    border: 1px solid rgba(59, 130, 246, 0.45);
+    background: linear-gradient(165deg, rgba(24, 24, 27, 0.98), rgba(15, 15, 18, 0.98));
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+    animation: chatNotifyIn 0.28s ease-out;
+    transition: transform 0.12s, border-color 0.12s;
+}
+
+.chat-notify-toast:hover {
+    transform: translateY(-1px);
+    border-color: rgba(96, 165, 250, 0.7);
+}
+
+.chat-notify-toast.join {
+    border-color: rgba(16, 185, 129, 0.45);
+}
+
+.chat-notify-toast.closing {
+    animation: chatNotifyOut 0.25s ease-in forwards;
+}
+
+.chat-notify-icon {
+    flex-shrink: 0;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+}
+
+.chat-notify-toast.join .chat-notify-icon {
+    background: rgba(16, 185, 129, 0.18);
+    color: #6ee7b7;
+}
+
+.chat-notify-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.chat-notify-title {
+    font-size: 0.78rem;
+    color: var(--text-muted, #a1a1aa);
+    margin-bottom: 0.15rem;
+}
+
+.chat-notify-text {
+    font-size: 0.88rem;
+    line-height: 1.35;
+    color: var(--text, #fafafa);
+    word-break: break-word;
+}
+
+.chat-notify-time {
+    font-size: 0.7rem;
+    color: var(--text-muted, #a1a1aa);
+    margin-top: 0.25rem;
+}
+
+@keyframes chatNotifyIn {
+    from { opacity: 0; transform: translateX(12px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes chatNotifyOut {
+    from { opacity: 1; transform: translateX(0); }
+    to { opacity: 0; transform: translateX(12px); }
+}

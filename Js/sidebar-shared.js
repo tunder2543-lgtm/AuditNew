@@ -45,6 +45,7 @@
             items: [
                 { id: 'settings', label: 'ตั้งค่า', icon: 'settings' },
                 { id: 'cycle_config', label: 'ตั้งค่ารอบ', icon: 'calendar-range' },
+                { id: 'chat', label: 'หน้าต่างสนทนา', icon: 'messages-square' },
                 { id: 'user_manual', label: 'คู่มือ', icon: 'book-open' }
             ]
         }
@@ -61,6 +62,7 @@
         sku_master: 'sku_master.html',
         settings: 'settings.html',
         cycle_config: 'cycle_config.html',
+        chat: 'chat.html',
         user_manual: 'user_manual.html'
     };
 
@@ -94,6 +96,10 @@
         const name = window.location.pathname.split('/').pop() || 'index.html';
         const base = name.replace(/\.html$/i, '') || 'index';
         return base === 'index' ? 'index' : base;
+    }
+
+    function getActivePagePublic() {
+        return getActivePage();
     }
 
     function loadOpenState() {
@@ -133,8 +139,10 @@
                 const item = group.items[0];
                 const href = pageHref(item.id);
                 const isActive = item.id === activePage;
-                html += '<a href="' + href + '" class="sidebar-nav-item' + (isActive ? ' active' : '') + '">';
-                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span></a>';
+                html += '<a href="' + href + '" class="sidebar-nav-item' + (isActive ? ' active' : '') + '" data-nav-page="' + item.id + '">';
+                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span>';
+                if (item.id === 'chat') html += '<span class="sidebar-chat-badge" hidden>0</span>';
+                html += '</a>';
                 return;
             }
 
@@ -148,8 +156,10 @@
             group.items.forEach(function (item) {
                 const href = pageHref(item.id);
                 const isActive = item.id === activePage;
-                html += '<a href="' + href + '" class="sidebar-nav-item sidebar-nav-sub' + (isActive ? ' active' : '') + '">';
-                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span></a>';
+                html += '<a href="' + href + '" class="sidebar-nav-item sidebar-nav-sub' + (isActive ? ' active' : '') + '" data-nav-page="' + item.id + '">';
+                html += '<i data-lucide="' + item.icon + '"></i><span>' + item.label + '</span>';
+                if (item.id === 'chat') html += '<span class="sidebar-chat-badge" hidden>0</span>';
+                html += '</a>';
             });
 
             html += '</div></div>';
@@ -173,6 +183,79 @@
         });
 
         if (typeof lucide !== 'undefined') lucide.createIcons();
+
+        if (window.chatNotifyShared) {
+            window.chatNotifyShared.updateBadge();
+        }
+    }
+
+    function loadChatNotifyModule() {
+        const base = inHtmlFolder() ? '../' : '';
+
+        if (!document.querySelector('link[data-chat-notify-css]')) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = base + 'Css/chat-notify.css';
+            link.dataset.chatNotifyCss = '1';
+            document.head.appendChild(link);
+        }
+
+        function scriptReady(src, el) {
+            if (el && el.dataset.loaded === '1') return true;
+            if (/api\.js/i.test(src) && window.apiService) return true;
+            if (/chat-notify-shared\.js/i.test(src) && window.chatNotifyShared) return true;
+            if (/supabase-js/i.test(src) && (window.supabase || window.supabaseJs)) return true;
+            return false;
+        }
+
+        function loadScript(src, cb) {
+            const existing = document.querySelector('script[src="' + src + '"]');
+            if (existing) {
+                if (scriptReady(src, existing)) {
+                    existing.dataset.loaded = '1';
+                    cb();
+                    return;
+                }
+                existing.addEventListener('load', function () {
+                    existing.dataset.loaded = '1';
+                    cb();
+                }, { once: true });
+                setTimeout(function () {
+                    if (scriptReady(src, existing)) {
+                        existing.dataset.loaded = '1';
+                        cb();
+                    }
+                }, 0);
+                return;
+            }
+            const s = document.createElement('script');
+            s.src = src;
+            s.onload = function () { s.dataset.loaded = '1'; cb(); };
+            s.onerror = function () { console.warn('[chat-notify] โหลดสคริปต์ไม่สำเร็จ:', src); };
+            document.body.appendChild(s);
+        }
+
+        function bootNotify() {
+            loadScript(base + 'Js/chat-notify-shared.js', function () {
+                window.chatNotifyShared?.init?.();
+            });
+        }
+
+        function bootApiThenNotify() {
+            loadScript(base + 'Js/api.js', bootNotify);
+        }
+
+        if (window.apiService) {
+            bootNotify();
+            return;
+        }
+
+        if (window.supabase || window.supabaseJs) {
+            bootApiThenNotify();
+            return;
+        }
+
+        loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', bootApiThenNotify);
     }
 
     function renderSidebar() {
@@ -189,12 +272,18 @@
         init: renderSidebar,
         GROUPS: GROUPS,
         FLAT_PAGES: FLAT_PAGES,
-        pageHref: pageHref
+        pageHref: pageHref,
+        getActivePage: getActivePagePublic
     };
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', renderSidebar);
-    } else {
+    function bootSidebar() {
         renderSidebar();
+        loadChatNotifyModule();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', bootSidebar);
+    } else {
+        bootSidebar();
     }
 })();

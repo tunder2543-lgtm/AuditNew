@@ -22,6 +22,18 @@
 
     const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
+    const ALLOWED_ADJUSTMENT_REASONS = new Set(['reconcile', 'manual', 'damage', 'found', 'other']);
+
+
+
+    /** ค่า reason ที่ DB รองรับ — แปลง accept_count / ค่าผิดเป็น manual */
+    function normalizeAdjustmentReason(reason) {
+        const r = String(reason || 'manual').trim().toLowerCase();
+        if (ALLOWED_ADJUSTMENT_REASONS.has(r)) return r;
+        if (r === 'accept_count' || r === 'accept-count') return 'manual';
+        return 'manual';
+    }
+
 
 
     function getClient() {
@@ -2256,7 +2268,7 @@
 
             variance_before: varianceBefore != null ? Number(varianceBefore) : null,
 
-            reason: reason || 'manual',
+            reason: normalizeAdjustmentReason(reason),
 
             status: 'draft',
 
@@ -2322,7 +2334,7 @@
 
                 variance_before: item.varianceBefore != null ? Number(item.varianceBefore) : null,
 
-                reason: item.reason || 'reconcile',
+                reason: normalizeAdjustmentReason(item.reason || 'reconcile'),
 
                 status: 'draft',
 
@@ -2384,7 +2396,7 @@
 
             note: note || 'ยอมรับผลนับ',
 
-            reason: 'reconcile'
+            reason: 'manual'
 
         });
 

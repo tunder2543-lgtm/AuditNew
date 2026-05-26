@@ -6,6 +6,7 @@
     <title>หน้าต่างสนทนา — Stock Audit</title>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="../Css/style.css">
+    <link rel="stylesheet" href="../Css/ui-confirm.css">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -189,6 +190,7 @@
 
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
+<script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
 
@@ -297,9 +299,61 @@
         const total = messages.length;
         const meCount = messages.filter(m => m.client_session_id && clientSessionId && m.client_session_id === clientSessionId).length;
         const mode = supabaseClient ? 'Realtime: ON' : 'Realtime: OFF (local)';
+        hintBar.style.color = '';
         hintBar.textContent = total
             ? `${mode} · ทั้งหมด ${total.toLocaleString()} ข้อความ · คุณส่ง ${meCount.toLocaleString()} ข้อความ · ชื่อ: ${myName || '-'}`
             : `${mode} · ยังไม่มีข้อความ · ชื่อ: ${myName || '-'}`;
+    }
+
+    function showChatStatus(msg, isError) {
+        hintBar.style.color = isError ? '#fca5a5' : '#86efac';
+        hintBar.textContent = msg;
+    }
+
+    async function clearAllChat() {
+        const ok = await window.uiConfirm.show({
+            title: 'ล้างแชททั้งหมด',
+            intro: 'ข้อความจะถูกลบจาก Supabase สำหรับทุกคนในกลุ่ม',
+            bullets: ['ลบประวัติแชททั้งหมด', 'ไม่สามารถกู้คืนได้'],
+            note: 'ยืนยันเพื่อล้างถาวร',
+            variant: 'danger',
+            okLabel: 'ล้างแชท',
+            cancelLabel: 'ยกเลิก'
+        });
+        if (!ok) return;
+
+        const btn = document.getElementById('btnClear');
+        btn.disabled = true;
+        showChatStatus('กำลังล้างแชท...', false);
+
+        try {
+            if (supabaseClient) {
+                const { error } = await supabaseClient
+                    .from('chat_messages')
+                    .delete()
+                    .eq('room_id', ROOM_ID);
+                if (error) throw error;
+            }
+
+            localStorage.removeItem(STORAGE_KEY);
+            sessionStorage.removeItem('join_sent_' + ROOM_ID);
+
+            if (window.chatNotifyShared) {
+                window.chatNotifyShared.resetSeen?.();
+                window.chatNotifyShared.markRead?.();
+            }
+
+            const messages = [];
+            updateHint(messages);
+            render(messages);
+            showChatStatus('ล้างแชทแล้ว', false);
+            setTimeout(() => updateHint(messages), 2500);
+        } catch (err) {
+            showChatStatus('ล้างแชทไม่สำเร็จ: ' + (err?.message || String(err)), true);
+        } finally {
+            btn.disabled = false;
+            inputEl.focus();
+        }
     }
 
     /** คอลัมน์ legacy ในตารางเก่า: session_id, role (NOT NULL) */
@@ -462,13 +516,7 @@
     btnEnterChat.addEventListener('click', enterChat);
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enterChat(); } });
 
-    document.getElementById('btnClear').addEventListener('click', () => {
-        localStorage.removeItem(STORAGE_KEY);
-        const messages = [];
-        updateHint(messages);
-        render(messages);
-        inputEl.focus();
-    });
+    document.getElementById('btnClear').addEventListener('click', clearAllChat);
 
     document.getElementById('btnExport').addEventListener('click', () => {
         const messages = loadMessages();

@@ -326,12 +326,18 @@
         }
     }
 
+    function resetSeen() {
+        seenIds.clear();
+        lastPollIso = new Date().toISOString();
+    }
+
     window.chatNotifyShared = {
         init,
         markRead,
         getUnread,
         updateBadge,
         onNewMessage,
+        resetSeen,
         isRealtimeReady: () => realtimeReady
     };
 })();

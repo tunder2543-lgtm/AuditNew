@@ -536,7 +536,10 @@
         const effective = book + adj;
         const hasCountRecord = skuHasInventoryCount(line.sku_id);
 
-        if (effective === 0 && counted > 0) return 'count_only';
+        if (effective === 0 && counted > 0) {
+            if (bookSkuSet.has(line.sku_id)) return 'over';
+            return 'count_only';
+        }
         if (effective > 0 && counted === 0 && !hasCountRecord) return 'book_only';
         if (Math.abs(effective - counted) < 1e-6) return 'match';
         if (counted < effective) return 'short';

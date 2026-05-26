@@ -776,6 +776,128 @@
 
 
 
+    /** วันเริ่ม/สิ้นสุด (YYYY-MM-DD ไทย) สำหรับแก้ไข UI — null = ทั้งเดือน */
+
+    function getCycleEditDates(cycle) {
+
+        if (!cycle?.count_start_at || !cycle?.count_end_at) {
+
+            return { start: null, end: null };
+
+        }
+
+        const start = isoToBangkokYmd(cycle.count_start_at);
+
+        const endExclusive = isoToBangkokYmd(cycle.count_end_at);
+
+        return { start, end: bangkokYmdMinusOneDay(endExclusive) };
+
+    }
+
+
+
+    async function updateCycleDateRange(cycleId, { count_start_date, count_end_date }) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+
+
+        const cycle = await fetchCycleById(cycleId);
+
+        if (!cycle) throw new Error('ไม่พบรอบ');
+
+
+
+        let startAt = null;
+
+        let endAt = null;
+
+
+
+        if (count_start_date || count_end_date) {
+
+            if (!count_start_date || !count_end_date) {
+
+                throw new Error('กรุณาเลือกทั้งวันเริ่มและวันสิ้นสุด (หรือเว้นทั้งคู่ = ทั้งเดือน)');
+
+            }
+
+            const ts = buildCycleTimestamps({
+
+                year_month: cycle.year_month,
+
+                count_start_date,
+
+                count_end_date
+
+            });
+
+            startAt = ts.count_start_at;
+
+            endAt = ts.count_end_at;
+
+        }
+
+
+
+        if (isAllWarehousesCycle(cycle.warehouse) && (!startAt || !endAt)) {
+
+            throw new Error('รอบ "คลังทั้งหมด" ต้องกำหนดช่วงวันที่เริ่มและสิ้นสุด');
+
+        }
+
+
+
+        const { data, error } = await client
+
+            .from('count_cycles')
+
+            .update({
+
+                count_start_at: startAt,
+
+                count_end_at: endAt,
+
+                updated_at: new Date().toISOString()
+
+            })
+
+            .eq('id', cycleId)
+
+            .select('*')
+
+            .single();
+
+
+
+        if (error) {
+
+            if (/duplicate|unique/i.test(error.message)) {
+
+                throw new Error('มีรอบช่วงวันที่นี้ในคลัง/เดือนเดียวกันอยู่แล้ว — ลองเปลี่ยนช่วงวัน');
+
+            }
+
+            throw error;
+
+        }
+
+
+
+        const active = getActiveCycle();
+
+        if (active?.id === data.id) setActiveCycle(data);
+
+
+
+        return data;
+
+    }
+
+
+
     async function updateCycleStatus(cycleId, status) {
 
         const client = getClient();
@@ -2016,6 +2138,8 @@
 
         formatDateRangeLabel,
 
+        getCycleEditDates,
+
         formatLinkPreviewText,
 
         getMonthDateBounds,
@@ -2041,6 +2165,8 @@
         updateCycleStatus,
 
         updateCycleWarehouses,
+
+        updateCycleDateRange,
 
         deleteCycle,
 

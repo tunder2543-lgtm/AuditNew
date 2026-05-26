@@ -607,6 +607,36 @@
                         <p class="cc-note">เปลี่ยนคลังมีผลต่อการผูกผลนับครั้งถัดไป — ไม่ลบ Book/ผลนับที่ผูกแล้ว</p>
                     </div>
 
+                    <div class="cc-wh-edit-card" id="editDateCard" style="border-color:rgba(59,130,246,0.28);background:rgba(59,130,246,0.06);">
+                        <div class="cc-wh-edit-head" style="color:#93c5fd;">
+                            <i data-lucide="calendar-range"></i>
+                            <span>แก้ไขช่วงวันที่นับ</span>
+                            <span id="editDateCurrent" class="cc-note" style="margin-left:auto;color:#93c5fd;"></span>
+                        </div>
+                        <p class="cc-note" id="editDateYmHint" style="margin-top:0;"></p>
+                        <div class="cc-date-pickers" style="margin-top:0.65rem;">
+                            <div class="cc-field cc-day-select-wrap">
+                                <label for="editDayStart">วันเริ่ม</label>
+                                <i data-lucide="calendar" class="cc-day-icon"></i>
+                                <select id="editDayStart"><option value="">— เลือกวัน —</option></select>
+                            </div>
+                            <div class="cc-date-arrow" aria-hidden="true">
+                                <i data-lucide="arrow-right"></i>
+                            </div>
+                            <div class="cc-field cc-day-select-wrap">
+                                <label for="editDayEnd">วันสิ้นสุด</label>
+                                <i data-lucide="calendar" class="cc-day-icon"></i>
+                                <select id="editDayEnd"><option value="">— เลือกวัน —</option></select>
+                            </div>
+                        </div>
+                        <div class="cc-actions" style="margin-top:0.65rem;">
+                            <button type="button" class="cc-btn cc-btn-primary cc-btn-sm" id="btnSaveCycleDates">
+                                <i data-lucide="save"></i> บันทึกช่วงวันที่
+                            </button>
+                        </div>
+                        <p class="cc-note" style="margin-top:0.5rem;">ขยายช่วงวัน (เช่น 21–25 → 21–26) แล้วกด <strong>ผูกผลนับ</strong> อีกครั้งเพื่อรวมแถวใหม่ที่ยังไม่มี cycle_id · การ Match ใช้ทุกแถวที่ผูกรอบแล้ว</p>
+                    </div>
+
                     <!-- 1) Upload Book -->
                     <p class="cc-section-title"><i data-lucide="upload" style="width:15px;height:15px;color:#60a5fa;"></i> อัปโหลดยอดก่อนนับ (Book Excel)</p>
                     <p class="cc-note">คอลัมน์: <code>A = SKU</code> · <code>B = จำนวน (ยอดก่อนนับ)</code> · <code>C = ชื่อสินค้า (optional)</code></p>
@@ -882,6 +912,112 @@
         document.getElementById('editWhPickPanel').classList.toggle('disabled', isAll);
     }
 
+    let editDaySelectLoadSeq = 0;
+
+    function getEditSelectedDates(cycle) {
+        const bounds = RS.getMonthDateBounds(cycle?.year_month);
+        if (!bounds) return { start: null, end: null };
+        const dayStart = document.getElementById('editDayStart').value;
+        const dayEnd = document.getElementById('editDayEnd').value;
+        const prefix = bounds.min.slice(0, 8);
+        return {
+            start: dayStart ? `${prefix}${dayStart}` : null,
+            end: dayEnd ? `${prefix}${dayEnd}` : null
+        };
+    }
+
+    async function loadEditDaySelects(cycle) {
+        const seq = ++editDaySelectLoadSeq;
+        const ym = cycle?.year_month;
+        const startEl = document.getElementById('editDayStart');
+        const endEl = document.getElementById('editDayEnd');
+        const hintEl = document.getElementById('editDateYmHint');
+        const dates = RS.getCycleEditDates(cycle);
+        const prevStart = dates.start ? dates.start.slice(8, 10) : '';
+        const prevEnd = dates.end ? dates.end.slice(8, 10) : '';
+
+        if (!ym) {
+            startEl.innerHTML = endEl.innerHTML = '<option value="">—</option>';
+            startEl.disabled = endEl.disabled = true;
+            if (hintEl) hintEl.textContent = '';
+            return;
+        }
+
+        startEl.disabled = endEl.disabled = true;
+        startEl.innerHTML = endEl.innerHTML = '<option value="">กำลังโหลด...</option>';
+
+        let days = [];
+        const client = RS.getClient();
+        if (client) {
+            try {
+                const range = RS.yearMonthToRangeISO(ym);
+                if (range) {
+                    let q = client.from('inventory_counts').select('created_at')
+                        .gte('created_at', range.start)
+                        .lt('created_at', range.end);
+                    q = RS.applyWarehouseFilterValue(q, cycle.warehouse);
+                    const { data, error } = await q.limit(10000);
+                    if (error) throw error;
+                    if (seq !== editDaySelectLoadSeq) return;
+                    const daySet = new Set();
+                    (data || []).forEach(r => {
+                        const { y, m, day } = createdAtToBangkokYmd(r.created_at);
+                        if (`${y}-${m}` === ym) daySet.add(day);
+                    });
+                    days = [...daySet].sort();
+                }
+            } catch (err) {
+                if (seq !== editDaySelectLoadSeq) return;
+                showToast('โหลดวันที่มีข้อมูลล้มเหลว: ' + err.message, 'error');
+            }
+        }
+        if (seq !== editDaySelectLoadSeq) return;
+
+        const bounds = RS.getMonthDateBounds(ym);
+        if (!days.length && bounds) {
+            const last = parseInt(bounds.max.slice(8, 10), 10);
+            days = Array.from({ length: last }, (_, i) => String(i + 1).padStart(2, '0'));
+        }
+
+        const emptyOpt = '<option value="">— ทั้งเดือน —</option>';
+        const dayOptsOnly = (days, sel) => {
+            if (!days.length) return '';
+            let html = '';
+            for (const ds of days) {
+                const d = parseInt(ds, 10);
+                html += `<option value="${ds}"${ds === sel ? ' selected' : ''}>วันที่ ${d}</option>`;
+            }
+            return html;
+        };
+        if (!days.length) {
+            startEl.innerHTML = endEl.innerHTML = emptyOpt;
+            startEl.disabled = endEl.disabled = false;
+        } else {
+            const keepStart = days.includes(prevStart) ? prevStart : (prevStart || '');
+            const keepEnd = days.includes(prevEnd) ? prevEnd : (prevEnd || '');
+            startEl.innerHTML = emptyOpt + dayOptsOnly(days, keepStart);
+            endEl.innerHTML = emptyOpt + dayOptsOnly(days, keepEnd);
+            startEl.disabled = endEl.disabled = false;
+            if (keepStart && keepEnd && keepStart > keepEnd) endEl.value = keepStart;
+        }
+
+        if (hintEl) {
+            const parts = ym.split('-');
+            const monthIdx = parseInt(parts[1], 10) - 1;
+            const monthName = THAI_MONTHS[monthIdx] || parts[1];
+            hintEl.textContent =
+                `เดือน ${parts[0]}-${parts[1]} (${monthName}) · เว้นทั้งสองช่อง = ทั้งเดือน` +
+                (RS.isAllWarehousesCycle(cycle.warehouse) ? ' · รอบคลังทั้งหมดต้องเลือกวันเริ่มและสิ้นสุด' : '');
+        }
+        lucide.createIcons();
+    }
+
+    function fillEditDateUi(cycle) {
+        document.getElementById('editDateCurrent').textContent =
+            'ปัจจุบัน: ' + RS.formatDateRangeLabel(cycle);
+        loadEditDaySelects(cycle);
+    }
+
     /* ──── Month picker setup ────────────────── */
     function buildYearOptions() {
         const sel = document.getElementById('newYear');
@@ -1092,6 +1228,11 @@
         const endEl = document.getElementById('newDayEnd');
         if (start && endEl.value && start > endEl.value) endEl.value = start;
     });
+    document.getElementById('editDayStart').addEventListener('change', () => {
+        const start = document.getElementById('editDayStart').value;
+        const endEl = document.getElementById('editDayEnd');
+        if (start && endEl.value && start > endEl.value) endEl.value = start;
+    });
 
     /* ──── Toast ─────────────────────────────── */
     function showToast(msg, type = 'success') {
@@ -1208,6 +1349,7 @@
         document.getElementById('detailTitle').textContent = RS.formatCycleLabel(selectedCycle);
         document.getElementById('btnGoReconcile').href = `reconcile.html?cycle=${selectedCycle.id}`;
         fillEditWarehouseUi(selectedCycle);
+        fillEditDateUi(selectedCycle);
 
         const [bookN, countN] = await Promise.all([
             RS.countBookLines(selectedCycle.id),
@@ -1216,7 +1358,7 @@
         document.getElementById('detailStats').innerHTML = `
             <div class="cc-stat"><strong>${bookN.toLocaleString()}</strong><span>แถว Book</span></div>
             <div class="cc-stat"><strong>${countN.toLocaleString()}</strong><span>ผลนับผูกแล้ว</span></div>
-            <div class="cc-stat"><strong>${RS.escapeHtml(RS.formatDateRangeLabel(selectedCycle))}</strong><span>ช่วงวันที่</span></div>
+            <div class="cc-stat"><strong id="detailStatDateRange">${RS.escapeHtml(RS.formatDateRangeLabel(selectedCycle))}</strong><span>ช่วงวันที่</span></div>
             <div class="cc-stat"><strong>${RS.escapeHtml(RS.statusLabel(selectedCycle.status))}</strong><span>สถานะ</span></div>`;
 
         try {
@@ -1407,6 +1549,61 @@
             const prev = await RS.previewLinkInventoryCounts(selectedCycle);
             document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
             await refreshLinkPendingPanel(selectedCycle, prev);
+            await loadCycles();
+        } catch (err) { showToast(err.message, 'error'); }
+        finally { setLoading(false); }
+    });
+
+    document.getElementById('btnSaveCycleDates').addEventListener('click', async () => {
+        if (!selectedCycle) return;
+        const { start: dateStart, end: dateEnd } = getEditSelectedDates(selectedCycle);
+        if (dateStart && dateEnd && dateStart > dateEnd) {
+            return showToast('วันเริ่มต้องไม่เกินวันสิ้นสุด', 'error');
+        }
+        const oldLabel = RS.formatDateRangeLabel(selectedCycle);
+        let newLabel = 'ทั้งเดือน';
+        if (dateStart && dateEnd) {
+            const ts = RS.buildCycleTimestamps({
+                year_month: selectedCycle.year_month,
+                count_start_date: dateStart,
+                count_end_date: dateEnd
+            });
+            newLabel = RS.formatDateRangeLabel({
+                count_start_at: ts.count_start_at,
+                count_end_at: ts.count_end_at
+            });
+        }
+        if (oldLabel === newLabel) return showToast('ช่วงวันที่ไม่เปลี่ยน');
+
+        const ok = await uiConfirm.show({
+            title: 'เปลี่ยนช่วงวันที่รอบ',
+            variant: 'amber',
+            intro: `จาก ${oldLabel} เป็น ${newLabel}`,
+            bullets: [
+                'มีผลต่อการผูกผลนับครั้งถัดไป (แถวในช่วงวันใหม่ที่ยังไม่มี cycle_id)',
+                'แถวที่ผูกรอบแล้วยังอยู่ — หลังขยายวันให้กด「ผูกผลนับ」แล้วรีเฟรช Match'
+            ],
+            confirmLabel: 'บันทึกช่วงวันที่'
+        });
+        if (!ok) return;
+
+        setLoading(true, 'กำลังบันทึกช่วงวันที่...');
+        try {
+            selectedCycle = await RS.updateCycleDateRange(selectedCycle.id, {
+                count_start_date: dateStart,
+                count_end_date: dateEnd
+            });
+            const idx = cyclesCache.findIndex(c => c.id === selectedCycle.id);
+            if (idx >= 0) cyclesCache[idx] = selectedCycle;
+            showToast(`บันทึกช่วงวันที่: ${RS.formatDateRangeLabel(selectedCycle)}`);
+            document.getElementById('detailTitle').textContent = RS.formatCycleLabel(selectedCycle);
+            fillEditDateUi(selectedCycle);
+            const dateStat = document.getElementById('detailStatDateRange');
+            if (dateStat) dateStat.textContent = RS.formatDateRangeLabel(selectedCycle);
+            const prev = await RS.previewLinkInventoryCounts(selectedCycle);
+            document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
+            await refreshLinkPendingPanel(selectedCycle, prev);
+            updateActiveBanner();
             await loadCycles();
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoading(false); }

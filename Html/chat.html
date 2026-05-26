@@ -296,9 +296,17 @@
             <button type="button" id="btnRefreshIp">ตรวจ IP อีกครั้ง</button>
         </div>
         <div class="name-ip-field">
-            <label for="ipInput">IP เครื่อง (แก้ไขได้ถ้าระบบหาไม่เจอ)</label>
+            <label for="ipInput">IP เครื่อง (LAN) — พิมพ์เองได้</label>
             <input id="ipInput" type="text" placeholder="192.168.1.10" maxlength="45" autocomplete="off">
         </div>
+        <div class="name-ip-field">
+            <label for="stationInput">รหัสเครื่อง / สถานี (ใช้เมื่อหา IP ไม่ได้ เช่น POS-01, คลัง-A)</label>
+            <input id="stationInput" type="text" placeholder="POS-01 / คลัง-A" maxlength="40" autocomplete="off">
+        </div>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.65rem;line-height:1.4;">
+            ทำไม IP เป็น “ไม่ทราบ”: เบราว์เซอร์ไม่ให้ JS อ่าน IP จริงได้โดยตรง · ลองพิมพ์ IP หรือใส่รหัสเครื่อง · หรือเปิดลิงก์แบบ
+            <code>?ip=192.168.1.10&amp;station=POS1</code>
+        </p>
     </div>
 </div>
 
@@ -312,6 +320,7 @@
     const STORAGE_KEY = 'audit_chat_v2';
     const NAME_KEY = 'audit_chat_name_v1';
     const IP_KEY = 'audit_chat_client_ip_v1';
+    const STATION_KEY = 'audit_chat_station_v1';
     const SESSION_KEY = 'audit_chat_session_v1';
     const CHAT_BUCKET = 'chat-attachments';
     const MAX_FILE_BYTES = 50 * 1024 * 1024;
@@ -331,6 +340,7 @@
     const nameModalDesc = document.getElementById('nameModalDesc');
     const nameInput = document.getElementById('nameInput');
     const ipInput = document.getElementById('ipInput');
+    const stationInput = document.getElementById('stationInput');
     const nameIpLine = document.getElementById('nameIpLine');
     const btnEnterChat = document.getElementById('btnEnterChat');
     const chatIdentity = document.getElementById('chatIdentity');
@@ -339,6 +349,7 @@
     let realtimeChannel = null;
     let myName = '';
     let clientIp = '';
+    let clientStation = '';
     let clientSessionId = '';
     let pendingFile = null;
     let nameModalMode = 'enter';
@@ -377,6 +388,16 @@
     function normalizeText(text) {
         return String(text || '').replace(/\r\n/g, '\n').trim();
     }
+
+    (function applyUrlQueryOverrides() {
+        try {
+            const q = new URLSearchParams(window.location.search);
+            const qip = normalizeText(q.get('ip') || q.get('client_ip'));
+            const qst = normalizeText(q.get('station') || q.get('machine') || q.get('terminal'));
+            if (qip) localStorage.setItem(IP_KEY, qip);
+            if (qst) localStorage.setItem(STATION_KEY, qst);
+        } catch { /* ignore */ }
+    })();
 
     function formatFileSize(bytes) {
         const n = Number(bytes) || 0;
@@ -525,8 +546,12 @@
     function getDisplayName() {
         const base = normalizeText(myName);
         if (!base) return '';
-        const ip = normalizeText(clientIp) || 'ไม่ทราบ';
-        return `${base} (IP:${ip})`;
+        const ip = normalizeText(clientIp || localStorage.getItem(IP_KEY) || '');
+        const st = normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '');
+        if (ip && st) return `${base} (IP:${ip} · เครื่อง:${st})`;
+        if (ip) return `${base} (IP:${ip})`;
+        if (st) return `${base} (เครื่อง:${st})`;
+        return `${base} (ระบุ IP หรือรหัสเครื่อง — กด เปลี่ยนชื่อ)`;
     }
 
     function updateIdentityUi() {
@@ -545,7 +570,7 @@
         ipInput.value = clientIp || '';
         nameIpLine.textContent = clientIp
             ? 'IP อัตโนมัติ: ' + clientIp
-            : 'IP: ยังไม่ทราบ — พิมพ์ IP ด้านล่างได้';
+            : 'IP LAN: ยังไม่พบ — พิมพ์ IP หรือรหัสเครื่องด้านล่าง (เบราว์เซอร์ไม่เปิดเผย IP ให้เว็บโดยตรง)';
     }
 
     function getSupabase() {
@@ -802,10 +827,11 @@
     function openEnterModal() {
         nameModalMode = 'enter';
         nameModalTitle.textContent = 'กรอกชื่อก่อนเข้าแชท';
-        nameModalDesc.innerHTML = 'แสดงในแชทเป็น <strong>ชื่อ (IP:xxx)</strong> เช่น ADMIN (IP:192.168.1.10)';
+        nameModalDesc.innerHTML = 'แสดงเป็น <strong>ชื่อ (IP:xxx)</strong> หรือ <strong>ชื่อ (เครื่อง:xxx)</strong> · ลิงก์ตั้งค่า: <code>?ip=…&amp;station=…</code>';
         btnEnterChat.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> เข้าแชท';
         nameInput.value = myName || '';
         ipInput.value = clientIp || localStorage.getItem(IP_KEY) || '';
+        stationInput.value = clientStation || localStorage.getItem(STATION_KEY) || '';
         refreshIpDisplay();
         openNameModal();
     }
@@ -813,10 +839,11 @@
     function openRenameModal() {
         nameModalMode = 'rename';
         nameModalTitle.textContent = 'เปลี่ยนชื่อ';
-        nameModalDesc.innerHTML = 'ข้อความใหม่จะแสดงเป็น <strong>ชื่อ (IP:xxx)</strong>';
+        nameModalDesc.innerHTML = 'ข้อความใหม่จะแสดงเป็น <strong>ชื่อ (IP:xxx)</strong> หรือ <strong>ชื่อ (เครื่อง:xxx)</strong>';
         btnEnterChat.innerHTML = '<i data-lucide="check" style="width:16px;height:16px;"></i> บันทึก';
         nameInput.value = myName || '';
         ipInput.value = clientIp || localStorage.getItem(IP_KEY) || '';
+        stationInput.value = clientStation || localStorage.getItem(STATION_KEY) || '';
         refreshIpDisplay();
         openNameModal();
     }
@@ -833,7 +860,18 @@
             clientIp = manualIp;
             localStorage.setItem(IP_KEY, clientIp);
         } else {
+            localStorage.removeItem(IP_KEY);
+            clientIp = '';
             await ensureClientIp();
+        }
+
+        const st = normalizeText(stationInput?.value || '');
+        if (st) {
+            clientStation = st.slice(0, 40);
+            localStorage.setItem(STATION_KEY, clientStation);
+        } else {
+            clientStation = '';
+            localStorage.removeItem(STATION_KEY);
         }
 
         closeNameModal();
@@ -917,7 +955,7 @@
 
     document.getElementById('btnExport').addEventListener('click', () => {
         const messages = loadMessages();
-        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, displayName: getDisplayName(), ip: clientIp || null, clientSessionId, messages };
+        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, displayName: getDisplayName(), ip: normalizeText(clientIp || localStorage.getItem(IP_KEY) || '') || null, station: normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '') || null, clientSessionId, messages };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -932,6 +970,7 @@
     clientSessionId = getOrCreateSessionId();
     myName = normalizeText(localStorage.getItem(NAME_KEY) || '');
     clientIp = normalizeText(localStorage.getItem(IP_KEY) || '');
+    clientStation = normalizeText(localStorage.getItem(STATION_KEY) || '');
     const initial = loadMessages();
     updateHint(initial);
     render(initial);

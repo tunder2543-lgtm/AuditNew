@@ -195,6 +195,16 @@
         .rc-table td { padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
         .rc-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
         .rc-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
+        .rc-table td.col-actions { text-align: center; white-space: nowrap; width: 52px; }
+        .rc-btn-icon {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 0.3rem 0.45rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.35);
+            background: rgba(239,68,68,0.12); color: #fca5a5; cursor: pointer;
+            font-family: 'Kanit', sans-serif;
+        }
+        .rc-btn-icon:hover { background: rgba(239,68,68,0.22); color: #fecaca; }
+        .rc-btn-icon svg { width: 14px; height: 14px; }
+        .rc-btn-icon:disabled { opacity: 0.35; cursor: not-allowed; }
         .rc-table .col-sku { font-family: ui-monospace, monospace; font-size: 0.8rem; color: #e0f2fe; }
         .rc-table .col-name { color: var(--text-muted); font-size: 0.76rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -372,6 +382,7 @@
                                         <th style="text-align:right;">ต่าง</th>
                                         <th style="text-align:right;">%</th>
                                         <th>สถานะ</th>
+                                        <th class="col-actions" title="ลบรายการ Book">ลบ</th>
                                     </tr>
                                 </thead>
                                 <tbody id="resultBody"></tbody>
@@ -626,7 +637,7 @@
             `แสดง ${filtered.length.toLocaleString()} / ${linesCache.length.toLocaleString()} SKU`;
 
         if (!filtered.length) {
-            body.innerHTML = `<tr><td colspan="10" style="text-align:center;padding:2rem;color:var(--text-muted);">ไม่มีข้อมูลในกลุ่มนี้</td></tr>`;
+            body.innerHTML = `<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-muted);">ไม่มีข้อมูลในกลุ่มนี้</td></tr>`;
             return;
         }
         body.innerHTML = filtered.map((l, i) => {
@@ -644,6 +655,12 @@
                 const draftHint = draft !== 0 && applied === 0 ? ' (draft)' : draft !== 0 ? '*' : '';
                 adjHtml = `<span style="color:${color};" title="${draft ? `Applied ${applied}, Draft ${draft}` : ''}">${totalAdj > 0 ? '+' : ''}${totalAdj.toLocaleString()}${draftHint}</span>`;
             }
+            const canDeleteBook = Number(l.book_qty) > 0;
+            const delBtn = canDeleteBook
+                ? `<button type="button" class="rc-btn-icon" data-delete-book="${RS.escapeHtml(l.sku_id)}" title="ลบรายการ Book (ยอด Excel)">
+                        <i data-lucide="trash-2"></i>
+                   </button>`
+                : '<span style="color:var(--text-muted);font-size:0.7rem;">—</span>';
             return `
                 <tr data-sku="${RS.escapeHtml(l.sku_id)}" style="cursor:pointer;" title="คลิกเพื่อเลือกในแผนปรับยอด">
                     <td style="color:var(--text-muted);font-size:0.75rem;">${i + 1}</td>
@@ -656,6 +673,7 @@
                     <td style="text-align:right;font-weight:600;color:${vColor};">${sign}${v.toLocaleString()}</td>
                     <td style="text-align:right;">${formatRowVariancePct(l, displayStatus)}</td>
                     <td>${statusBadge(displayStatus)}</td>
+                    <td class="col-actions">${delBtn}</td>
                 </tr>`;
         }).join('');
         lucide.createIcons();
@@ -896,6 +914,79 @@
         }
     }
 
+    function canDeleteBookLine(line) {
+        return Number(line?.book_qty) > 0;
+    }
+
+    async function reloadMatchData() {
+        if (!currentCycle?.id) return;
+        linesCache = await RS.fetchReconciliationLines(currentCycle.id);
+        adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+        skuNameMap = await RS.fetchBookSkuNames(currentCycle.id);
+    }
+
+    async function deleteBookLine(line) {
+        if (!currentCycle?.id) return showToast('ยังไม่มีรอบ', 'error');
+        if (!line || !canDeleteBookLine(line)) {
+            return showToast('SKU นี้ไม่มียอด Book ให้ลบ', 'error');
+        }
+
+        const sku = line.sku_id;
+        const name = skuNameMap[sku] || '';
+        const bookQty = Number(line.book_qty).toLocaleString();
+        const countedQty = Number(line.counted_qty).toLocaleString();
+        const adjDraft = getDraftAdjustmentSum(sku);
+        const adjApplied = Number(line.adjustment_applied);
+        const hasAdj = adjDraft !== 0 || adjApplied !== 0;
+
+        const ok = await uiConfirm.twoStep({
+            title: 'ลบรายการ Book',
+            variant: 'danger',
+            step1: {
+                intro: `ลบยอด Excel (Book) ของ SKU ${sku}?`,
+                bullets: [
+                    name ? `ชื่อ: ${name}` : null,
+                    `ไฟล์ Excel: ${bookQty} ชิ้น`,
+                    `ผลนับปัจจุบัน: ${countedQty} ชิ้น`,
+                    hasAdj ? 'จะลบ Draft/ปรับยอดของ SKU นี้ด้วย' : null,
+                    'ผลนับ (counted_qty) ไม่ถูกลบ'
+                ].filter(Boolean),
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: `ยืนยันลบ Book ของ ${sku} ถาวร`,
+                note: 'ไม่สามารถยกเลิกได้ — ระบบจะคำนวณ Match ใหม่',
+                noteVariant: 'danger',
+                confirmLabel: 'ลบ Book',
+                confirmIcon: 'trash-2'
+            }
+        });
+        if (!ok) return;
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = `กำลังลบ Book: ${sku}...`;
+        try {
+            await RS.deleteBookStockBySku(currentCycle.id, sku);
+            if (selectedAdjLine?.sku_id === sku) {
+                selectedAdjLine = null;
+                document.getElementById('adjSkuSearch').value = '';
+                document.getElementById('adjQty').value = '';
+                document.getElementById('adjNote').value = '';
+                document.getElementById('adjHint').classList.remove('show');
+            }
+            await reloadMatchData();
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            showToast(`ลบ Book ${sku} แล้ว — คำนวณ Match ใหม่แล้ว`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
     async function applyAllDrafts() {
         const drafts = adjustmentsCache.filter(a => a.status === 'draft');
         if (!drafts.length) return showToast('ไม่มี draft', 'error');
@@ -946,6 +1037,13 @@
     document.getElementById('btnApplyAll').addEventListener('click', applyAllDrafts);
 
     document.getElementById('resultBody').addEventListener('click', (e) => {
+        const delBtn = e.target.closest('[data-delete-book]');
+        if (delBtn) {
+            e.stopPropagation();
+            const line = linesCache.find(l => l.sku_id === delBtn.dataset.deleteBook);
+            if (line) deleteBookLine(line);
+            return;
+        }
         const row = e.target.closest('tr[data-sku]');
         if (!row) return;
         const line = linesCache.find(l => l.sku_id === row.dataset.sku);

@@ -1094,6 +1094,80 @@
 
 
 
+    /** ลบรายการ Book ตาม SKU (ทุก location) + ปรับยอดของ SKU นั้น แล้วรีเฟรช Match */
+
+    async function deleteBookStockBySku(cycleId, skuId) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+
+
+        const sku = String(skuId ?? '').trim();
+
+        if (!sku) throw new Error('SKU ไม่ถูกต้อง');
+
+
+
+        const { data: bookRows, error: selErr } = await client
+
+            .from('book_stock_lines')
+
+            .select('id')
+
+            .eq('cycle_id', cycleId)
+
+            .eq('sku_id', sku);
+
+        if (selErr) throw selErr;
+
+        if (!bookRows?.length) {
+
+            throw new Error(`ไม่พบรายการ Book สำหรับ ${sku}`);
+
+        }
+
+
+
+        const { error: bookDelErr } = await client
+
+            .from('book_stock_lines')
+
+            .delete()
+
+            .eq('cycle_id', cycleId)
+
+            .eq('sku_id', sku);
+
+        if (bookDelErr) throw bookDelErr;
+
+
+
+        const { error: adjDelErr } = await client
+
+            .from('stock_adjustments')
+
+            .delete()
+
+            .eq('cycle_id', cycleId)
+
+            .eq('sku_id', sku);
+
+        if (adjDelErr) throw adjDelErr;
+
+
+
+        await refreshReconciliation(cycleId);
+
+
+
+        return { sku, deletedBookRows: bookRows.length };
+
+    }
+
+
+
     async function countLinkedInventory(cycleId) {
 
         const client = getClient();
@@ -2173,6 +2247,8 @@
         parseBookExcelRows,
 
         countBookLines,
+
+        deleteBookStockBySku,
 
         countLinkedInventory,
 

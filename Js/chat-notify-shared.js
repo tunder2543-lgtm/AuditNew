@@ -117,6 +117,14 @@
                 icon: 'user-plus'
             };
         }
+        if (row.file_name) {
+            return {
+                kind: 'message',
+                title: 'ไฟล์ใหม่',
+                text: truncate(`${name} ส่งไฟล์: ${row.file_name}`, 140),
+                icon: 'paperclip'
+            };
+        }
         return {
             kind: 'message',
             title: 'ข้อความใหม่',
@@ -237,7 +245,7 @@
         try {
             const { data, error } = await client
                 .from('chat_messages')
-                .select('id,room_id,event_type,role,sender_name,message,created_at,client_session_id,session_id')
+                .select('id,room_id,event_type,role,sender_name,message,created_at,client_session_id,session_id,file_name,file_path,file_mime')
                 .eq('room_id', ROOM_ID)
                 .gt('created_at', since)
                 .order('created_at', { ascending: true })

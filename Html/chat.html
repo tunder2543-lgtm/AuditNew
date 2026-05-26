@@ -75,14 +75,50 @@
         .meta { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; }
         .msg.me .meta { text-align: right; }
 
-        .composer {
+        .composer-wrap {
             border-top: 1px solid var(--card-border);
-            padding: 0.75rem;
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 0.6rem;
             background: rgba(0,0,0,0.12);
         }
+        .composer-pending {
+            display: none;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.55rem 0.75rem 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+        .composer-pending.show { display: flex; }
+        .composer-pending strong { color: #fde68a; font-weight: 500; }
+        .composer-pending button {
+            margin-left: auto;
+            border: none;
+            background: transparent;
+            color: #fca5a5;
+            cursor: pointer;
+            font-family: 'Kanit', sans-serif;
+            font-size: 0.8rem;
+        }
+        .composer {
+            padding: 0.75rem;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 0.6rem;
+            align-items: end;
+        }
+        .attach-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(255,255,255,0.06);
+            color: #93c5fd;
+            cursor: pointer;
+        }
+        .attach-btn:hover { background: rgba(255,255,255,0.1); }
+        .attach-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .composer textarea {
             width: 100%;
             min-height: 44px;
@@ -147,6 +183,29 @@
             outline: none;
         }
         .name-row input:focus { border-color: rgba(59,130,246,0.55); box-shadow: 0 0 0 2px rgba(59,130,246,0.18); }
+
+        .bubble-file { margin-top: 0.35rem; }
+        .bubble-file img {
+            max-width: min(320px, 100%);
+            max-height: 240px;
+            border-radius: 10px;
+            display: block;
+            cursor: pointer;
+        }
+        .bubble-file a.file-dl {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.45rem 0.65rem;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.25);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: #93c5fd;
+            text-decoration: none;
+            font-size: 0.85rem;
+        }
+        .bubble-file a.file-dl:hover { background: rgba(59,130,246,0.15); }
+        .bubble-caption { margin-top: 0.35rem; }
     </style>
 </head>
 <body class="has-sidebar">
@@ -157,7 +216,7 @@
             <header class="chat-header">
                 <div>
                     <h1>หน้าต่างสนทนา</h1>
-                    <p>เก็บใน Supabase แบบเรียลไทม์ · แจ้งเตือนทุกหน้าเมื่อมีข้อความใหม่ · <code>Enter</code> ส่ง · <code>Shift+Enter</code> ขึ้นบรรทัดใหม่</p>
+                    <p>แนบรูป/เอกสารได้สูงสุด 50MB · Realtime · <code>Enter</code> ส่ง · <code>Shift+Enter</code> ขึ้นบรรทัดใหม่</p>
                 </div>
                 <div class="chat-actions">
                     <button class="chat-btn" id="btnExport"><i data-lucide="download" style="width:16px;height:16px;"></i> ส่งออก</button>
@@ -168,9 +227,20 @@
             <section class="chat-shell">
                 <div class="hint" id="hintBar"></div>
                 <div class="chat-log" id="chatLog" aria-live="polite"></div>
-                <div class="composer">
-                    <textarea id="chatInput" placeholder="พิมพ์ข้อความ..." autocomplete="off"></textarea>
-                    <button class="send-btn" id="btnSend"><i data-lucide="send" style="width:16px;height:16px;"></i> ส่ง</button>
+                <div class="composer-wrap">
+                    <div class="composer-pending" id="attachPending">
+                        <i data-lucide="paperclip" style="width:14px;height:14px;flex-shrink:0;"></i>
+                        <span>แนบ: <strong id="attachPendingName"></strong> (<span id="attachPendingSize"></span>)</span>
+                        <button type="button" id="btnAttachClear">ลบ</button>
+                    </div>
+                    <div class="composer">
+                        <input type="file" id="fileInput" hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.7z">
+                        <button type="button" class="attach-btn" id="btnAttach" title="แนบรูปหรือเอกสาร (สูงสุด 50MB)">
+                            <i data-lucide="paperclip" style="width:18px;height:18px;"></i>
+                        </button>
+                        <textarea id="chatInput" placeholder="พิมพ์ข้อความ หรือแนบไฟล์..." autocomplete="off"></textarea>
+                        <button class="send-btn" id="btnSend"><i data-lucide="send" style="width:16px;height:16px;"></i> ส่ง</button>
+                    </div>
                 </div>
             </section>
         </div>
@@ -198,10 +268,17 @@
     const STORAGE_KEY = 'audit_chat_v2';
     const NAME_KEY = 'audit_chat_name_v1';
     const SESSION_KEY = 'audit_chat_session_v1';
+    const CHAT_BUCKET = 'chat-attachments';
+    const MAX_FILE_BYTES = 50 * 1024 * 1024;
 
     const logEl = document.getElementById('chatLog');
     const inputEl = document.getElementById('chatInput');
     const btnSend = document.getElementById('btnSend');
+    const btnAttach = document.getElementById('btnAttach');
+    const fileInput = document.getElementById('fileInput');
+    const attachPending = document.getElementById('attachPending');
+    const attachPendingName = document.getElementById('attachPendingName');
+    const attachPendingSize = document.getElementById('attachPendingSize');
     const hintBar = document.getElementById('hintBar');
 
     const nameModal = document.getElementById('nameModal');
@@ -212,6 +289,7 @@
     let realtimeChannel = null;
     let myName = '';
     let clientSessionId = '';
+    let pendingFile = null;
 
     function escapeHtml(s) {
         return String(s ?? '')
@@ -245,6 +323,89 @@
 
     function normalizeText(text) {
         return String(text || '').replace(/\r\n/g, '\n').trim();
+    }
+
+    function formatFileSize(bytes) {
+        const n = Number(bytes) || 0;
+        if (n < 1024) return n + ' B';
+        if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+        return (n / (1024 * 1024)).toFixed(2) + ' MB';
+    }
+
+    function sanitizeFileName(name) {
+        return String(name || 'file').replace(/[^\w.\-()\u0E00-\u0E7F ]+/g, '_').slice(0, 120);
+    }
+
+    function isImageMime(mime) {
+        return String(mime || '').startsWith('image/');
+    }
+
+    function filePublicUrl(path) {
+        if (!path || !supabaseClient) return '';
+        const { data } = supabaseClient.storage.from(CHAT_BUCKET).getPublicUrl(path);
+        return data?.publicUrl || '';
+    }
+
+    function updateComposerState() {
+        const canSend = !!normalizeText(inputEl.value) || !!pendingFile;
+        btnSend.disabled = !canSend;
+    }
+
+    function setPendingFile(file) {
+        if (!file) {
+            pendingFile = null;
+            attachPending.classList.remove('show');
+            fileInput.value = '';
+            updateComposerState();
+            return;
+        }
+        if (file.size > MAX_FILE_BYTES) {
+            showChatStatus('ไฟล์ใหญ่เกิน 50MB (ได้ ' + formatFileSize(file.size) + ')', true);
+            fileInput.value = '';
+            return;
+        }
+        pendingFile = file;
+        attachPendingName.textContent = file.name;
+        attachPendingSize.textContent = formatFileSize(file.size);
+        attachPending.classList.add('show');
+        updateComposerState();
+    }
+
+    function mapRowToMessage(row) {
+        const sid = rowSessionId(row);
+        return {
+            role: row.event_type === 'join' ? 'sys' : (sid === clientSessionId ? 'me' : 'user'),
+            event_type: row.event_type || 'message',
+            sender_name: row.sender_name || null,
+            text: row.message || '',
+            ts: row.created_at ? Date.parse(row.created_at) : Date.now(),
+            client_session_id: sid,
+            file_path: row.file_path || null,
+            file_name: row.file_name || null,
+            file_size: row.file_size != null ? Number(row.file_size) : null,
+            file_mime: row.file_mime || null
+        };
+    }
+
+    function renderMessageBody(m) {
+        const parts = [];
+        const url = m.file_path ? filePublicUrl(m.file_path) : '';
+        if (m.file_path && m.file_name) {
+            if (isImageMime(m.file_mime) && url) {
+                parts.push(`<div class="bubble-file"><a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${escapeHtml(m.file_name)}"></a></div>`);
+            } else if (url) {
+                parts.push(`<div class="bubble-file"><a class="file-dl" href="${escapeHtml(url)}" target="_blank" rel="noopener" download="${escapeHtml(m.file_name)}"><i data-lucide="file-down" style="width:14px;height:14px;"></i> ${escapeHtml(m.file_name)} (${escapeHtml(formatFileSize(m.file_size))})</a></div>`);
+            } else {
+                parts.push(`<div class="bubble-file"><span class="file-dl">${escapeHtml(m.file_name)} (${escapeHtml(formatFileSize(m.file_size))})</span></div>`);
+            }
+        }
+        if (m.text) {
+            parts.push(`<div class="bubble-caption">${escapeHtml(m.text)}</div>`);
+        }
+        if (!parts.length && m.file_name) {
+            parts.push(`<div>${escapeHtml(m.file_name)}</div>`);
+        }
+        return parts.join('') || '—';
     }
 
     function getOrCreateSessionId() {
@@ -288,11 +449,12 @@
             const namePrefix = (!isMe && !isSys && m.sender_name) ? `<strong>${escapeHtml(m.sender_name)}:</strong> ` : '';
             return `
                 <div class="${cls}">
-                    <div class="bubble">${namePrefix}${escapeHtml(m.text)}<div class="meta">${meta}</div></div>
+                    <div class="bubble">${namePrefix}${renderMessageBody(m)}<div class="meta">${meta}</div></div>
                 </div>`;
         }).join('');
 
         logEl.scrollTop = logEl.scrollHeight;
+        if (typeof lucide !== 'undefined') lucide.createIcons();
     }
 
     function updateHint(messages) {
@@ -333,6 +495,13 @@
                     .delete()
                     .eq('room_id', ROOM_ID);
                 if (error) throw error;
+                try {
+                    const { data: listed } = await supabaseClient.storage.from(CHAT_BUCKET).list(ROOM_ID, { limit: 500 });
+                    if (listed?.length) {
+                        const paths = listed.map(f => ROOM_ID + '/' + f.name);
+                        await supabaseClient.storage.from(CHAT_BUCKET).remove(paths);
+                    }
+                } catch { /* bucket อาจยังไม่สร้าง */ }
             }
 
             localStorage.removeItem(STORAGE_KEY);
@@ -357,45 +526,89 @@
     }
 
     /** คอลัมน์ legacy ในตารางเก่า: session_id, role (NOT NULL) */
-    function buildChatInsertPayload({ eventType, text }) {
+    function buildChatInsertPayload({ eventType, text, fileMeta }) {
         const sid = clientSessionId || uuid();
         const payload = {
             room_id: ROOM_ID,
             event_type: eventType,
             sender_name: myName || null,
-            message: text,
+            message: text || (fileMeta ? '' : ''),
             client_session_id: sid,
             client_msg_id: uuid(),
             session_id: sid
         };
+        if (fileMeta) {
+            payload.file_path = fileMeta.path;
+            payload.file_name = fileMeta.name;
+            payload.file_size = fileMeta.size;
+            payload.file_mime = fileMeta.mime;
+            if (!payload.message) payload.message = '📎 ' + fileMeta.name;
+        }
         if (eventType === 'join') payload.role = 'sys';
         else payload.role = 'me';
         return payload;
+    }
+
+    async function uploadAttachment(file) {
+        const safeName = sanitizeFileName(file.name);
+        const path = ROOM_ID + '/' + Date.now() + '_' + uuid() + '_' + safeName;
+        const { error } = await supabaseClient.storage.from(CHAT_BUCKET).upload(path, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || 'application/octet-stream'
+        });
+        if (error) throw error;
+        return { path, name: file.name, size: file.size, mime: file.type || 'application/octet-stream' };
     }
 
     function rowSessionId(row) {
         return row?.client_session_id || row?.session_id || null;
     }
 
-    async function sendToSupabase({ eventType, text }) {
+    async function sendToSupabase({ eventType, text, fileMeta }) {
         if (!supabaseClient) return false;
-        const { error } = await supabaseClient.from('chat_messages').insert([buildChatInsertPayload({ eventType, text })]);
+        const { error } = await supabaseClient.from('chat_messages').insert([buildChatInsertPayload({ eventType, text, fileMeta })]);
         if (error) throw error;
         return true;
     }
 
     async function sendCurrent() {
         const text = normalizeText(inputEl.value);
-        if (!text) return;
+        const fileToSend = pendingFile;
+        if (!text && !fileToSend) return;
+
         inputEl.value = '';
+        setPendingFile(null);
         btnSend.disabled = true;
+        btnAttach.disabled = true;
+        showChatStatus(fileToSend ? 'กำลังอัปโหลดไฟล์...' : '', false);
+
         try {
-            if (supabaseClient) await sendToSupabase({ eventType: 'message', text });
-            else pushMessageLocal({ role: 'me', event_type: 'message', sender_name: myName || null, text, ts: Date.now(), client_session_id: clientSessionId });
+            if (supabaseClient) {
+                let fileMeta = null;
+                if (fileToSend) fileMeta = await uploadAttachment(fileToSend);
+                await sendToSupabase({ eventType: 'message', text, fileMeta });
+                showChatStatus('', false);
+                updateHint(loadMessages());
+            } else {
+                const local = {
+                    role: 'me', event_type: 'message', sender_name: myName || null, text: text || (fileToSend ? '📎 ' + fileToSend.name : ''),
+                    ts: Date.now(), client_session_id: clientSessionId
+                };
+                if (fileToSend) {
+                    local.file_name = fileToSend.name;
+                    local.file_size = fileToSend.size;
+                    local.file_mime = fileToSend.type;
+                }
+                pushMessageLocal(local);
+            }
         } catch (err) {
+            if (fileToSend) setPendingFile(fileToSend);
+            showChatStatus('ส่งไม่สำเร็จ: ' + (err?.message || String(err)), true);
             pushMessageLocal({ role: 'sys', event_type: 'sys', sender_name: null, text: 'ส่งไม่สำเร็จ: ' + (err?.message || String(err)), ts: Date.now(), client_session_id: null });
         } finally {
-            btnSend.disabled = !normalizeText(inputEl.value);
+            btnAttach.disabled = false;
+            updateComposerState();
             inputEl.focus();
         }
     }
@@ -409,16 +622,7 @@
         realtimeChannel = supabaseClient
             .channel('chat_room_' + ROOM_ID)
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: 'room_id=eq.' + ROOM_ID }, (payload) => {
-                const row = payload?.new || {};
-                const sid = rowSessionId(row);
-                pushMessageLocal({
-                    role: row.event_type === 'join' ? 'sys' : (sid === clientSessionId ? 'me' : 'user'),
-                    event_type: row.event_type || 'message',
-                    sender_name: row.sender_name || null,
-                    text: row.message || '',
-                    ts: row.created_at ? Date.parse(row.created_at) : Date.now(),
-                    client_session_id: sid
-                });
+                pushMessageLocal(mapRowToMessage(payload?.new || {}));
             })
             .subscribe();
     }
@@ -426,22 +630,12 @@
     async function loadHistoryFromSupabase() {
         const { data, error } = await supabaseClient
             .from('chat_messages')
-            .select('event_type,sender_name,message,created_at,client_session_id,session_id')
+            .select('event_type,sender_name,message,created_at,client_session_id,session_id,file_path,file_name,file_size,file_mime')
             .eq('room_id', ROOM_ID)
             .order('created_at', { ascending: true })
             .limit(200);
         if (error) throw error;
-        const mapped = (data || []).map(row => {
-            const sid = rowSessionId(row);
-            return {
-                role: row.event_type === 'join' ? 'sys' : (sid === clientSessionId ? 'me' : 'user'),
-                event_type: row.event_type || 'message',
-                sender_name: row.sender_name || null,
-                text: row.message || '',
-                ts: row.created_at ? Date.parse(row.created_at) : Date.now(),
-                client_session_id: sid
-            };
-        });
+        const mapped = (data || []).map(mapRowToMessage);
         saveMessages(mapped);
         updateHint(mapped);
         render(mapped);
@@ -498,7 +692,7 @@
 
         await announceJoinOnce();
         if (window.chatNotifyShared) window.chatNotifyShared.markRead();
-        btnSend.disabled = !normalizeText(inputEl.value);
+        updateComposerState();
         inputEl.focus();
     }
 
@@ -510,8 +704,15 @@
 
     // events
     document.getElementById('btnSend').addEventListener('click', sendCurrent);
-    inputEl.addEventListener('input', () => { btnSend.disabled = !normalizeText(inputEl.value); });
+    inputEl.addEventListener('input', updateComposerState);
     inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendCurrent(); } });
+
+    btnAttach.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files && fileInput.files[0];
+        if (file) setPendingFile(file);
+    });
+    document.getElementById('btnAttachClear').addEventListener('click', () => setPendingFile(null));
 
     btnEnterChat.addEventListener('click', enterChat);
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); enterChat(); } });
@@ -537,7 +738,7 @@
     const initial = loadMessages();
     updateHint(initial);
     render(initial);
-    btnSend.disabled = true;
+    updateComposerState();
     if (!myName) openNameModal();
     else { nameInput.value = myName; enterChat(); }
 </script>

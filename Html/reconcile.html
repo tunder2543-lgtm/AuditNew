@@ -561,6 +561,27 @@
         return Number(line.adjustment_applied) + getDraftAdjustmentSum(line.sku_id);
     }
 
+    function getExportLineMetrics(line) {
+        const book = Number(line.book_qty);
+        const applied = Number(line.adjustment_applied);
+        const draft = getDraftAdjustmentSum(line.sku_id);
+        const totalAdj = applied + draft;
+        const effective = book + totalAdj;
+        const counted = Number(line.counted_qty);
+        const displayStatus = resolveDisplayStatus(line);
+        return {
+            book,
+            applied,
+            draft,
+            totalAdj,
+            effective,
+            counted,
+            displayStatus,
+            variance: computeDisplayVariance(line),
+            pct: formatRowVariancePct(line, displayStatus)
+        };
+    }
+
     function skuHasInventoryCount(skuId) {
         const k = RS.normalizeSku(skuId);
         return k && (skuCountPresence.get(k) || 0) > 0;
@@ -1539,21 +1560,43 @@
     document.getElementById('btnExport').addEventListener('click', () => {
         const rows = getVisibleLines();
         if (!rows.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
+        const totals = { book: 0, totalAdj: 0, effective: 0, counted: 0, variance: 0 };
         const data = rows.map((l, i) => {
-            const displayStatus = resolveDisplayStatus(l);
-            const pctCell = formatRowVariancePct(l, displayStatus);
+            const m = getExportLineMetrics(l);
+            totals.book += m.book;
+            totals.totalAdj += m.totalAdj;
+            totals.effective += m.effective;
+            totals.counted += m.counted;
+            totals.variance += m.variance;
+            const adjNote = m.draft !== 0
+                ? (m.applied !== 0 ? `${m.applied >= 0 ? '+' : ''}${m.applied} + draft ${m.draft >= 0 ? '+' : ''}${m.draft}` : `draft ${m.draft >= 0 ? '+' : ''}${m.draft}`)
+                : null;
             return {
                 '#': i + 1,
                 SKU: l.sku_id,
                 'ชื่อ': skuNameMap[l.sku_id] || '',
-                'ไฟล์ Excel (ก่อนนับ)': Number(l.book_qty),
-                'ปรับแล้ว': Number(l.adjustment_applied),
-                'Excel ใช้เทียบ': Number(l.effective_book_qty),
-                'ผลนับ': Number(l.counted_qty),
-                'ต่าง': computeDisplayVariance(l),
-                '%': pctCell === '—' ? '' : pctCell,
-                'สถานะ': STATUS_MAP[displayStatus]?.th || displayStatus
+                'ไฟล์ Excel': m.book,
+                'ปรับแล้ว': m.totalAdj,
+                'ปรับแล้ว (รายละเอียด)': adjNote || (m.totalAdj === 0 ? '' : (m.applied >= 0 ? '+' : '') + m.applied),
+                'Excel ใช้เทียบ': m.effective,
+                'ผลนับ': m.counted,
+                'ต่าง': m.variance,
+                '%': m.pct === '—' ? '' : m.pct,
+                'สถานะ': STATUS_MAP[m.displayStatus]?.th || m.displayStatus
             };
+        });
+        data.push({
+            '#': '',
+            SKU: 'รวม',
+            'ชื่อ': '',
+            'ไฟล์ Excel': totals.book,
+            'ปรับแล้ว': totals.totalAdj,
+            'ปรับแล้ว (รายละเอียด)': '',
+            'Excel ใช้เทียบ': totals.effective,
+            'ผลนับ': totals.counted,
+            'ต่าง': totals.variance,
+            '%': '',
+            'สถานะ': ''
         });
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
@@ -1561,7 +1604,7 @@
         const ym = currentCycle?.year_month || 'cycle';
         const wh = (currentCycle?.warehouse || 'wh').replace(/[^\w\u0E00-\u0E7F]+/g, '_');
         XLSX.writeFile(wb, `Reconcile_${wh}_${ym}.xlsx`);
-        showToast(`Export ${rows.length} SKU`);
+        showToast(`Export ${rows.length} SKU (รวมยอดปรับแล้ว + แถวรวม)`);
     });
 
     (async function init() {

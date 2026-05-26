@@ -2368,7 +2368,7 @@
 
 
 
-    /** ยอมรับผลนับเป็นยอดถูกต้อง — สร้างปรับยอดแล้ว Apply ทันที (reason: accept_count) */
+    /** ยอมรับผลนับเป็นยอดถูกต้อง — สร้างปรับยอดแล้ว Apply ทันที (reason: reconcile) */
 
     async function acceptCountedQtyAsMatch({ cycleId, skuId, adjustmentQty, varianceBefore, note }) {
 
@@ -2384,7 +2384,7 @@
 
             note: note || 'ยอมรับผลนับ',
 
-            reason: 'accept_count'
+            reason: 'reconcile'
 
         });
 

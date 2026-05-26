@@ -2368,6 +2368,34 @@
 
 
 
+    /** ยอมรับผลนับเป็นยอดถูกต้อง — สร้างปรับยอดแล้ว Apply ทันที (reason: accept_count) */
+
+    async function acceptCountedQtyAsMatch({ cycleId, skuId, adjustmentQty, varianceBefore, note }) {
+
+        const created = await createStockAdjustment({
+
+            cycleId,
+
+            skuId,
+
+            adjustmentQty,
+
+            varianceBefore,
+
+            note: note || 'ยอมรับผลนับ',
+
+            reason: 'accept_count'
+
+        });
+
+        await applyStockAdjustment(created.id);
+
+        return { adjustmentId: created.id, skuId: created.sku_id };
+
+    }
+
+
+
     async function deleteDraftAdjustment(adjustmentId) {
 
         const client = getClient();
@@ -2575,6 +2603,8 @@
         createStockAdjustmentsBatch,
 
         applyStockAdjustment,
+
+        acceptCountedQtyAsMatch,
 
         deleteDraftAdjustment,
 

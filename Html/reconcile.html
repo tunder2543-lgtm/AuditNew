@@ -218,6 +218,8 @@
         .rc-badge { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 0.25rem; }
         .rc-badge.match { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(34,197,94,0.3); }
         .rc-badge.short { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .rc-badge.short.clickable { cursor: pointer; }
+        .rc-badge.short.clickable:hover { filter: brightness(1.15); box-shadow: 0 0 0 1px rgba(248,113,113,0.4); }
         .rc-badge.over  { background: rgba(251,191,36,0.12); color: #fde68a; border: 1px solid rgba(251,191,36,0.3); }
         .rc-badge.other {
             background: rgba(148,163,184,0.1); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2);
@@ -460,8 +462,11 @@
         setTimeout(() => { t.classList.add('toast-closing'); t.addEventListener('animationend', () => t.remove()); }, 4500);
     }
 
-    function statusBadge(s) {
+    function statusBadge(s, skuId) {
         const d = STATUS_MAP[s] || { th: s, icon: 'minus', cls: 'other' };
+        if (s === 'short' && skuId) {
+            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อยอมรับผลนับเป็นยอดถูกต้อง"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
+        }
         return `<span class="rc-badge ${d.cls}"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
     }
 
@@ -698,7 +703,7 @@
                     <td style="text-align:right;font-weight:500;">${Number(l.counted_qty).toLocaleString()}</td>
                     <td style="text-align:right;font-weight:600;color:${vColor};">${sign}${v.toLocaleString()}</td>
                     <td style="text-align:right;">${formatRowVariancePct(l, displayStatus)}</td>
-                    <td>${statusBadge(displayStatus)}</td>
+                    <td>${statusBadge(displayStatus, l.sku_id)}</td>
                     <td class="col-actions">${actionsHtml}</td>
                 </tr>`;
         }).join('');
@@ -1096,6 +1101,98 @@
         }
     }
 
+    async function applyDraftsForSku(skuId) {
+        const drafts = adjustmentsCache.filter(a => a.status === 'draft' && a.sku_id === skuId);
+        for (const d of drafts) {
+            await RS.applyStockAdjustment(d.id);
+        }
+        return drafts.length;
+    }
+
+    async function acceptCountedForLine(line) {
+        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        if (!line || resolveDisplayStatus(line) !== 'short') {
+            return showToast('รายการนี้ไม่ใช่สถานะขาด หรือถูกต้องแล้ว', 'error');
+        }
+
+        const sku = line.sku_id;
+        const name = skuNameMap[sku] || '';
+        const bookQty = Number(line.book_qty);
+        const countedQty = Number(line.counted_qty);
+        const applied = Number(line.adjustment_applied);
+        const draft = getDraftAdjustmentSum(sku);
+        const adjAfterDraft = computeAutoAdjustmentQty(line) - draft;
+
+        const ok = await uiConfirm.twoStep({
+            title: 'ยอมรับผลนับ',
+            variant: 'green',
+            step1: {
+                intro: `ยอมรับผลนับเป็นยอดถูกต้องสำหรับ SKU ${sku}?`,
+                bullets: [
+                    name ? `ชื่อ: ${name}` : null,
+                    `รอบ: ${getCycleLabelForConfirm()}`,
+                    `ไฟล์ Excel: ${bookQty.toLocaleString()} ชิ้น`,
+                    `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
+                    `ปรับแล้ว (Apply): ${applied.toLocaleString()} ชิ้น`,
+                    draft ? `มี Draft ปรับ ${draft > 0 ? '+' : ''}${draft.toLocaleString()} — จะ Apply ก่อน` : null,
+                    `จำนวนปรับที่จะทำ: ${adjAfterDraft.toLocaleString()} ชิ้น`,
+                    'ไม่แก้ผลนับในฐานข้อมูล',
+                    'ปรับ Book แล้ว Apply ทันที — สถานะจะเป็น「ถูกต้อง」'
+                ].filter(Boolean),
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: `ยืนยันยอมรับผลนับ ${sku}`,
+                note: `ปรับ Excel อีก ${adjAfterDraft.toLocaleString()} ชิ้น แล้วเทียบกับผลนับ ${countedQty.toLocaleString()}`,
+                noteVariant: 'safe',
+                confirmLabel: 'ยอมรับผลนับ',
+                confirmIcon: 'check-check'
+            }
+        });
+        if (!ok) return;
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = `กำลังยอมรับผลนับ: ${sku}...`;
+        try {
+            if (draft !== 0) {
+                await applyDraftsForSku(sku);
+                await reloadMatchData();
+                line = linesCache.find(l => l.sku_id === sku);
+            }
+            if (!line || resolveDisplayStatus(line) !== 'short') {
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                return showToast('ถูกต้องแล้ว');
+            }
+            const qty = computeAutoAdjustmentQty(line);
+            if (Math.abs(qty) < 1e-6) {
+                await reloadMatchData();
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                return showToast('ถูกต้องแล้ว');
+            }
+            await RS.acceptCountedQtyAsMatch({
+                cycleId: currentCycle.id,
+                skuId: sku,
+                adjustmentQty: qty,
+                varianceBefore: computeDisplayVariance(line),
+                note: 'ยอมรับผลนับ'
+            });
+            await reloadMatchData();
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            showToast(`ยอมรับผลนับ ${sku} แล้ว — สถานะถูกต้อง`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
     async function deleteBookLine(line) {
         if (!currentCycle?.id) return showToast('ยังไม่มีรอบ', 'error');
         if (!line || !canDeleteBookLine(line)) {
@@ -1222,6 +1319,13 @@
             e.stopPropagation();
             const line = linesCache.find(l => l.sku_id === delBtn.dataset.deleteBook);
             if (line) deleteBookLine(line);
+            return;
+        }
+        const acceptEl = e.target.closest('[data-accept-count]');
+        if (acceptEl) {
+            e.stopPropagation();
+            const line = linesCache.find(l => l.sku_id === acceptEl.dataset.acceptCount);
+            if (line) acceptCountedForLine(line);
             return;
         }
         const row = e.target.closest('tr[data-sku]');

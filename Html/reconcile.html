@@ -171,6 +171,15 @@
         .rc-adj-sum-row.add strong { color: #6ee7b7; }
         .rc-adj-sum-row.sub strong { color: #fca5a5; }
         .rc-adj-sum-note { margin-top: 0.35rem; font-size: 0.68rem; color: var(--text-muted); }
+        .rc-adj-sum-warn {
+            margin-top: 0.4rem; padding: 0.4rem 0.5rem; border-radius: 6px; font-size: 0.68rem;
+            background: rgba(245,158,11,0.12); border: 1px solid rgba(251,191,36,0.35); color: #fde68a;
+        }
+        .rc-adj-use-counted {
+            margin-top: 0.35rem; font-size: 0.72rem; color: #93c5fd; background: none; border: none;
+            cursor: pointer; text-decoration: underline; padding: 0;
+        }
+        .rc-adj-use-counted:hover { color: #bfdbfe; }
 
         .rc-draft-list { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.85rem; }
         .rc-draft-list h4 { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin: 0 0 0.5rem; }
@@ -333,8 +342,9 @@
                         </div>
 
                         <div class="rc-form-group">
-                            <label for="adjQty" id="adjQtyLabel">จำนวนที่ต้องการ</label>
-                            <input type="number" id="adjQty" step="any" min="0" placeholder="ใส่จำนวนที่ต้องการ เช่น 0, 5">
+                            <label for="adjQty" id="adjQtyLabel">จำนวนที่ต้องการ (Excel ใช้เทียบหลังปรับ)</label>
+                            <input type="number" id="adjQty" step="any" min="0" placeholder="เช่น ตามผลนับ">
+                            <button type="button" class="rc-adj-use-counted" id="btnUseCountedTarget" style="display:none;">ใส่ตามผลนับ</button>
                         </div>
 
                         <div class="rc-form-group">
@@ -453,7 +463,7 @@
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
 <script src="../Js/settings-shared.js"></script>
-<script src="../Js/reconcile-shared.js?v=20260526b"></script>
+<script src="../Js/reconcile-shared.js?v=20260526c"></script>
 <script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
@@ -831,6 +841,28 @@
         return `ลด ${Math.abs(delta).toLocaleString()} ชิ้น`;
     }
 
+    function getTargetAdjustmentValidation(line, target) {
+        if (!line || target == null || !Number.isFinite(target)) {
+            return { ok: false, delta: null, message: 'กรุณาใส่จำนวนที่ต้องการ' };
+        }
+        const delta = computeDeltaFromTarget(line, target);
+        if (Math.abs(delta) >= 1e-6) return { ok: true, delta, message: null };
+        const counted = Number(line.counted_qty);
+        const effective = getLineEffectiveBook(line);
+        const status = resolveDisplayStatus(line);
+        if ((status === 'short' || status === 'over') && Math.abs(target - counted) >= 1e-6) {
+            return {
+                ok: false,
+                delta: 0,
+                message: `ยอด ${target.toLocaleString()} เท่า Excel ใช้เทียบอยู่แล้ว (${effective.toLocaleString()}) แต่ผลนับ ${counted.toLocaleString()} — ให้ถูกต้องควรใส่ ${counted.toLocaleString()}`
+            };
+        }
+        if (status === 'match') {
+            return { ok: false, delta: 0, message: 'ถูกต้องแล้ว — ไม่ต้องปรับยอด' };
+        }
+        return { ok: false, delta: 0, message: 'ไม่ต้องปรับยอด' };
+    }
+
     function resolveAdjustmentQtyFromInput(line) {
         if (!line) return null;
         const target = parseAdjInput();
@@ -871,9 +903,14 @@
         const input = document.getElementById('adjQty');
         const btnAccept = document.getElementById('btnAcceptCountApply');
         const isShort = selectedAdjLine && resolveDisplayStatus(selectedAdjLine) === 'short';
-        label.textContent = 'จำนวนที่ต้องการ';
-        input.placeholder = 'ใส่จำนวนที่ต้องการ เช่น 0, 5';
+        label.textContent = 'จำนวนที่ต้องการ (Excel ใช้เทียบหลังปรับ)';
+        input.placeholder = 'เช่น ตามผลนับ';
         input.min = '0';
+        const btnUseCounted = document.getElementById('btnUseCountedTarget');
+        if (btnUseCounted) {
+            const showUse = isShort || (selectedAdjLine && resolveDisplayStatus(selectedAdjLine) === 'over');
+            btnUseCounted.style.display = showUse ? 'inline-block' : 'none';
+        }
         if (btnAccept) {
             btnAccept.style.display = isShort ? 'inline-flex' : 'none';
             if (!isShort) resetAcceptApplyBtn();
@@ -908,11 +945,15 @@
         if (target != null) {
             const delta = computeDeltaFromTarget(line, target);
             const deltaClass = delta > 0 ? 'add' : delta < 0 ? 'sub' : '';
+            const validation = getTargetAdjustmentValidation(line, target);
             html += `
             <div class="rc-adj-sum-row ${deltaClass}"><span>ต้องปรับ Book</span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
             <div class="rc-adj-sum-total after"><span>จำนวนที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
+            if (!validation.ok && (resolveDisplayStatus(line) === 'short' || resolveDisplayStatus(line) === 'over')) {
+                html += `<div class="rc-adj-sum-warn">ยังไม่ตรงผลนับ — ถ้าต้องการ「ถูกต้อง」ให้ใส่ <strong>${counted.toLocaleString()}</strong> (ผลนับ)</div>`;
+            }
         }
-        html += `<div class="rc-adj-sum-note">ใส่จำนวนที่ต้องการ — ระบบคำนวณว่าต้องเพิ่มหรือลดกี่ชิ้นให้อัตโนมัติ</div>`;
+        html += `<div class="rc-adj-sum-note">ใส่ยอด Excel ใช้เทียบหลังปรับ — ระบบคำนวณเพิ่ม/ลดให้อัตโนมัติ (ยอมรับผลนับ = ใส่ตามผลนับ)</div>`;
         hint.classList.add('show');
         hint.innerHTML = html;
     }
@@ -1071,9 +1112,11 @@
         const sku = document.getElementById('adjSkuSearch').value.trim();
         const note = document.getElementById('adjNote').value.trim();
         const line = linesCache.find(l => l.sku_id === sku) || selectedAdjLine;
-        const qty = resolveAdjustmentQtyFromInput(line);
-        if (qty == null) return showToast('กรุณาใส่จำนวนที่ต้องการ', 'error');
-        if (Math.abs(qty) < 1e-6) return showToast('ไม่ต้องปรับยอด', 'error');
+        if (!line) return showToast('กรุณาเลือก SKU', 'error');
+        const target = parseAdjInput();
+        const validation = getTargetAdjustmentValidation(line, target);
+        if (!validation.ok) return showToast(validation.message, 'error');
+        const qty = validation.delta;
         try {
             await RS.createStockAdjustment({
                 cycleId: currentCycle.id,
@@ -1299,7 +1342,8 @@
     async function acceptCountedApplyFromPanel() {
         if (!selectedAdjLine) return showToast('กรุณาเลือก SKU', 'error');
         const target = parseAdjInput();
-        if (target == null) return showToast('กรุณาใส่จำนวนที่ต้องการ', 'error');
+        const validation = getTargetAdjustmentValidation(selectedAdjLine, target);
+        if (!validation.ok) return showToast(validation.message, 'error');
         const sku = selectedAdjLine.sku_id;
         if (!acceptApplyArmed || acceptApplyArmSku !== sku) {
             armAcceptApplyBtn();
@@ -1374,11 +1418,8 @@
             }
             const qty = targetQty - Number(line.book_qty) - Number(line.adjustment_applied);
             if (Math.abs(qty) < 1e-6) {
-                await reloadMatchData();
-                renderDraftList();
-                renderKpis(linesCache);
-                renderTable();
-                return showToast('ถูกต้องแล้ว');
+                const v = getTargetAdjustmentValidation(line, targetQty);
+                return showToast(v.message || 'ถูกต้องแล้ว', 'error');
             }
             await RS.acceptCountedQtyAsMatch({
                 cycleId: currentCycle.id,
@@ -1524,6 +1565,12 @@
     document.getElementById('adjQty').addEventListener('input', () => {
         resetAcceptApplyBtn();
         if (selectedAdjLine) renderAdjPanelSummary(selectedAdjLine);
+    });
+    document.getElementById('btnUseCountedTarget').addEventListener('click', () => {
+        if (!selectedAdjLine) return;
+        document.getElementById('adjQty').value = Number(selectedAdjLine.counted_qty);
+        resetAcceptApplyBtn();
+        renderAdjPanelSummary(selectedAdjLine);
     });
     document.getElementById('btnApplyAll').addEventListener('click', applyAllDrafts);
 

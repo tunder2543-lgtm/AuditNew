@@ -158,6 +158,8 @@
             font-weight: 600;
         }
         .rc-adj-sum-total.after strong { color: #6ee7b7; }
+        .rc-adj-sum-row.add strong { color: #6ee7b7; }
+        .rc-adj-sum-row.sub strong { color: #fca5a5; }
         .rc-adj-sum-note { margin-top: 0.35rem; font-size: 0.68rem; color: var(--text-muted); }
 
         .rc-draft-list { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.85rem; }
@@ -321,8 +323,8 @@
                         </div>
 
                         <div class="rc-form-group">
-                            <label for="adjQty" id="adjQtyLabel">จำนวนปรับ (บวก/ลบ Book)</label>
-                            <input type="number" id="adjQty" step="any" placeholder="เช่น -10 หรือ +5">
+                            <label for="adjQty" id="adjQtyLabel">จำนวนที่ต้องการ</label>
+                            <input type="number" id="adjQty" step="any" min="0" placeholder="ใส่จำนวนที่ต้องการ เช่น 0, 5">
                         </div>
 
                         <div class="rc-form-group">
@@ -457,8 +459,8 @@
     let selectedAdjLine = null;
     let advFilterOpen = false;
     let bookSkuSet = new Set();
-    /** 'delta' = บวก/ลบ Book | 'target' = ยอดรวม Excel ใช้เทียบที่ต้องการ (โหมดขาด) */
-    let adjInputMode = 'delta';
+    /** โหมดกรอก: ใส่จำนวนที่ต้องการ แล้วระบบคำนวณเพิ่ม/ลด */
+    let adjInputMode = 'target';
 
     const STATUS_MAP = {
         match:      { th: 'ถูกต้อง',         icon: 'check',         cls: 'match' },
@@ -782,31 +784,35 @@
         return Number(target) - book - applied - draft;
     }
 
-    function resolveAdjustmentQtyFromInput(line) {
-        if (!line) return null;
-        if (adjInputMode === 'target') {
-            const target = parseAdjInput();
-            if (target == null) return null;
-            return computeDeltaFromTarget(line, target);
-        }
-        return parseAdjInput();
+    function getDefaultTargetQty(line) {
+        const status = resolveDisplayStatus(line);
+        if (status === 'short' || status === 'over') return Number(line.counted_qty);
+        return getLineEffectiveBook(line);
     }
 
-    function setAdjInputMode(mode) {
-        adjInputMode = mode;
+    function formatAdjustDeltaLabel(delta) {
+        if (delta == null || Math.abs(delta) < 1e-6) return 'ไม่ต้องปรับ';
+        if (delta > 0) return `เพิ่ม ${delta.toLocaleString()} ชิ้น`;
+        return `ลด ${Math.abs(delta).toLocaleString()} ชิ้น`;
+    }
+
+    function resolveAdjustmentQtyFromInput(line) {
+        if (!line) return null;
+        const target = parseAdjInput();
+        if (target == null) return null;
+        return computeDeltaFromTarget(line, target);
+    }
+
+    function refreshAdjPanelChrome() {
+        adjInputMode = 'target';
         const label = document.getElementById('adjQtyLabel');
         const input = document.getElementById('adjQty');
         const btnAccept = document.getElementById('btnAcceptCountApply');
         const isShort = selectedAdjLine && resolveDisplayStatus(selectedAdjLine) === 'short';
-        if (mode === 'target') {
-            label.textContent = 'ยอดที่ต้องการ (Excel ใช้เทียบ)';
-            input.placeholder = 'ใส่ยอดรวมที่ต้องการ เช่น ตามผลนับ';
-            if (btnAccept) btnAccept.style.display = isShort ? 'inline-flex' : 'none';
-        } else {
-            label.textContent = 'จำนวนปรับ (บวก/ลบ Book)';
-            input.placeholder = 'เช่น -10 หรือ +5';
-            if (btnAccept) btnAccept.style.display = 'none';
-        }
+        label.textContent = 'จำนวนที่ต้องการ';
+        input.placeholder = 'ใส่จำนวนที่ต้องการ เช่น 0, 5';
+        input.min = '0';
+        if (btnAccept) btnAccept.style.display = isShort ? 'inline-flex' : 'none';
     }
 
     function renderAdjPanelSummary(line) {
@@ -833,24 +839,15 @@
             <div class="rc-adj-sum-row mute"><span>ผลนับ</span><strong>${counted.toLocaleString()}</strong></div>
             <div class="rc-adj-sum-row mute"><span>ต่าง (แสดง)</span><strong>${displayDiff.toLocaleString()}</strong></div>`;
 
-        if (adjInputMode === 'target') {
-            const target = parseAdjInput();
-            if (target != null) {
-                const delta = computeDeltaFromTarget(line, target);
-                html += `
-            <div class="rc-adj-sum-row"><span>จะปรับเพิ่ม/ลบ</span><strong>${delta >= 0 ? '+' : ''}${delta.toLocaleString()}</strong></div>
-            <div class="rc-adj-sum-total after"><span>หลังปรับ (ตามที่ใส่)</span><strong>${target.toLocaleString()}</strong></div>`;
-            }
-            html += `<div class="rc-adj-sum-note">ใส่ยอดรวมที่ต้องการ — ระบบคำนวณจำนวนปรับให้อัตโนมัติ</div>`;
-        } else {
-            const delta = parseAdjInput();
-            if (delta != null) {
-                const after = effective + delta;
-                html += `
-            <div class="rc-adj-sum-row"><span>จำนวนปรับที่ใส่</span><strong>${delta >= 0 ? '+' : ''}${delta.toLocaleString()}</strong></div>
-            <div class="rc-adj-sum-total after"><span>หลังปรับ (ประมาณ)</span><strong>${after.toLocaleString()}</strong></div>`;
-            }
+        const target = parseAdjInput();
+        if (target != null) {
+            const delta = computeDeltaFromTarget(line, target);
+            const deltaClass = delta > 0 ? 'add' : delta < 0 ? 'sub' : '';
+            html += `
+            <div class="rc-adj-sum-row ${deltaClass}"><span>ต้องปรับ Book</span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
+            <div class="rc-adj-sum-total after"><span>จำนวนที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
         }
+        html += `<div class="rc-adj-sum-note">ใส่จำนวนที่ต้องการ — ระบบคำนวณว่าต้องเพิ่มหรือลดกี่ชิ้นให้อัตโนมัติ</div>`;
         hint.classList.add('show');
         hint.innerHTML = html;
     }
@@ -858,16 +855,9 @@
     function selectAdjLine(line, opts = {}) {
         selectedAdjLine = line;
         document.getElementById('adjSkuSearch').value = line.sku_id;
-        const status = resolveDisplayStatus(line);
-        const useTarget = opts.forceTarget || status === 'short';
-        if (useTarget) {
-            setAdjInputMode('target');
-            const def = opts.targetDefault != null ? opts.targetDefault : Number(line.counted_qty);
-            document.getElementById('adjQty').value = def;
-        } else {
-            setAdjInputMode('delta');
-            document.getElementById('adjQty').value = computeAutoAdjustmentQty(line);
-        }
+        refreshAdjPanelChrome();
+        const def = opts.targetDefault != null ? opts.targetDefault : getDefaultTargetQty(line);
+        document.getElementById('adjQty').value = def;
         renderAdjPanelSummary(line);
         document.getElementById('adjSkuList').classList.remove('show');
     }
@@ -877,7 +867,7 @@
         if (!line || resolveDisplayStatus(line) !== 'short') {
             return showToast('รายการนี้ไม่ใช่สถานะขาด หรือถูกต้องแล้ว', 'error');
         }
-        selectAdjLine(line, { forceTarget: true, targetDefault: Number(line.counted_qty) });
+        selectAdjLine(line, { targetDefault: Number(line.counted_qty) });
         document.getElementById('adjQty').focus();
         document.querySelector('.rc-side')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
@@ -992,7 +982,7 @@
             document.getElementById('adjQty').value = '';
             document.getElementById('adjNote').value = '';
             document.getElementById('adjHint').classList.remove('show');
-            setAdjInputMode('delta');
+            refreshAdjPanelChrome();
             document.querySelectorAll('.rc-mode-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.mode === 'all'));
 
             renderKpis(linesCache);
@@ -1015,9 +1005,7 @@
         const note = document.getElementById('adjNote').value.trim();
         const line = linesCache.find(l => l.sku_id === sku) || selectedAdjLine;
         const qty = resolveAdjustmentQtyFromInput(line);
-        if (qty == null) {
-            return showToast(adjInputMode === 'target' ? 'กรุณาใส่ยอดที่ต้องการ' : 'กรุณาใส่จำนวนปรับ', 'error');
-        }
+        if (qty == null) return showToast('กรุณาใส่จำนวนที่ต้องการ', 'error');
         if (Math.abs(qty) < 1e-6) return showToast('ไม่ต้องปรับยอด', 'error');
         try {
             await RS.createStockAdjustment({
@@ -1244,7 +1232,7 @@
     async function acceptCountedApplyFromPanel() {
         if (!selectedAdjLine) return showToast('กรุณาเลือก SKU', 'error');
         const target = parseAdjInput();
-        if (target == null) return showToast('กรุณาใส่ยอดที่ต้องการ', 'error');
+        if (target == null) return showToast('กรุณาใส่จำนวนที่ต้องการ', 'error');
         await acceptCountedForLine(selectedAdjLine, { targetQty: target });
     }
 
@@ -1277,8 +1265,8 @@
                     draft ? `Draft: ${draft > 0 ? '+' : ''}${draft.toLocaleString()} — จะ Apply ก่อน` : null,
                     `รวม Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
                     `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
-                    `ยอดที่ต้องการ: ${targetQty.toLocaleString()} ชิ้น`,
-                    `จำนวนปรับที่จะทำ: ${adjAfterDraft >= 0 ? '+' : ''}${adjAfterDraft.toLocaleString()} ชิ้น`,
+                    `จำนวนที่ต้องการ: ${targetQty.toLocaleString()} ชิ้น`,
+                    `ต้องปรับ Book: ${formatAdjustDeltaLabel(adjAfterDraft)}`,
                     'ไม่แก้ผลนับในฐานข้อมูล',
                     'ปรับ Book แล้ว Apply ทันที — สถานะจะเป็น「ถูกต้อง」'
                 ].filter(Boolean),
@@ -1286,7 +1274,7 @@
             },
             step2: {
                 intro: `ยืนยันตั้ง Excel ใช้เทียบ = ${targetQty.toLocaleString()} (${sku})`,
-                note: `ปรับเพิ่ม/ลบ ${adjAfterDraft >= 0 ? '+' : ''}${adjAfterDraft.toLocaleString()} ชิ้น`,
+                note: formatAdjustDeltaLabel(adjAfterDraft),
                 noteVariant: 'safe',
                 confirmLabel: 'ยอมรับผลนับ',
                 confirmIcon: 'check-check'
@@ -1333,7 +1321,7 @@
                 if (updated) selectAdjLine(updated);
                 else {
                     selectedAdjLine = null;
-                    setAdjInputMode('delta');
+                    refreshAdjPanelChrome();
                 }
             }
             showToast(`ยอมรับยอด ${targetQty.toLocaleString()} แล้ว — สถานะถูกต้อง`);
@@ -1393,7 +1381,7 @@
                 document.getElementById('adjQty').value = '';
                 document.getElementById('adjNote').value = '';
                 document.getElementById('adjHint').classList.remove('show');
-                setAdjInputMode('delta');
+                refreshAdjPanelChrome();
             }
             await reloadMatchData();
             renderDraftList();

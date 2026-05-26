@@ -463,7 +463,7 @@
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
 <script src="../Js/settings-shared.js"></script>
-<script src="../Js/reconcile-shared.js?v=20260526c"></script>
+<script src="../Js/reconcile-shared.js?v=20260526d"></script>
 <script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
@@ -1355,32 +1355,97 @@
     async function acceptCountedApplyFromPanel() {
         if (!selectedAdjLine) return showToast('กรุณาเลือก SKU', 'error');
         const target = parseAdjInput();
-        const validation = getTargetAdjustmentValidation(selectedAdjLine, target);
-        if (!validation.ok) return showToast(validation.message, 'error');
+        if (target == null) return showToast('กรุณาใส่จำนวนที่ต้องการ', 'error');
         const sku = selectedAdjLine.sku_id;
         if (!acceptApplyArmed || acceptApplyArmSku !== sku) {
             armAcceptApplyBtn();
             return showToast('กดปุ่มสีเหลืองอีกครั้งเพื่อยืนยัน Apply (2/2)', 'error');
         }
         resetAcceptApplyBtn();
-        await acceptCountedForLine(selectedAdjLine, { targetQty: target, skipConfirm: true });
+        await acceptCountedForLine(selectedAdjLine, {
+            targetQty: target,
+            skipConfirm: true,
+            allowZeroWhenMatchesBook: true
+        });
     }
 
     async function acceptCountedForLine(line, opts = {}) {
         if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
-        if (!line || resolveDisplayStatus(line) !== 'short') {
-            return showToast('รายการนี้ไม่ใช่สถานะขาด หรือถูกต้องแล้ว', 'error');
-        }
+        if (!line) return showToast('ไม่พบรายการ', 'error');
 
         const sku = line.sku_id;
         const name = skuNameMap[sku] || '';
         const bookQty = Number(line.book_qty);
         const countedQty = Number(line.counted_qty);
         const applied = Number(line.adjustment_applied);
-        const draft = getDraftAdjustmentSum(sku);
+        let draft = getDraftAdjustmentSum(sku);
         const effective = getLineEffectiveBook(line);
         const targetQty = opts.targetQty != null ? Number(opts.targetQty) : countedQty;
+        const allowZero = !!opts.allowZeroWhenMatchesBook;
+        const validation = getTargetAdjustmentValidation(line, targetQty, { allowZeroWhenMatchesBook: allowZero });
+
+        if (!validation.ok) return showToast(validation.message, 'error');
+
         const adjAfterDraft = targetQty - bookQty - applied - draft;
+
+        if (validation.noAdjustment) {
+            if (!opts.skipConfirm) {
+                const ok = await uiConfirm.twoStep({
+                    title: 'ยืนยันยอด Book',
+                    variant: 'green',
+                    step1: {
+                        intro: `ยืนยันยอด Excel ใช้เทียบ = ${targetQty.toLocaleString()} สำหรับ ${sku}?`,
+                        bullets: [
+                            name ? `ชื่อ: ${name}` : null,
+                            `รอบ: ${getCycleLabelForConfirm()}`,
+                            `Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
+                            `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
+                            'ไม่มีการปรับยอด Book',
+                            Math.abs(targetQty - countedQty) >= 1e-6
+                                ? 'สถานะอาจยังไม่เป็น「ถูกต้อง」เพราะไม่ตรงผลนับ'
+                                : 'สถานะจะเป็น「ถูกต้อง」'
+                        ].filter(Boolean),
+                        confirmLabel: 'ดำเนินการต่อ'
+                    },
+                    step2: {
+                        intro: `ยืนยัน ${sku} — คงยอด Excel ใช้เทียบ ${targetQty.toLocaleString()}`,
+                        noteVariant: 'safe',
+                        confirmLabel: 'ยืนยัน',
+                        confirmIcon: 'check-check'
+                    }
+                });
+                if (!ok) return;
+            }
+            const loadingEl = document.getElementById('loading');
+            loadingEl.classList.add('active');
+            document.getElementById('loadingText').textContent = `กำลังยืนยัน: ${sku}...`;
+            try {
+                if (draft !== 0) {
+                    await applyDraftsForSku(sku);
+                    await reloadMatchData();
+                    line = linesCache.find(l => l.sku_id === sku);
+                    draft = getDraftAdjustmentSum(sku);
+                }
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                if (selectedAdjLine?.sku_id === sku && line) renderAdjPanelSummary(line);
+                const matched = Math.abs(targetQty - countedQty) < 1e-6;
+                showToast(matched
+                    ? `ยืนยันแล้ว: ${sku} — สถานะถูกต้อง`
+                    : `ยืนยันแล้ว: ${sku} — ยอด ${targetQty.toLocaleString()} ตรง Excel ใช้เทียบ (ไม่มีการปรับยอด)`);
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                loadingEl.classList.remove('active');
+            }
+            return;
+        }
+
+        const status = resolveDisplayStatus(line);
+        if (status !== 'short' && status !== 'over') {
+            return showToast('รายการนี้ไม่ใช่สถานะขาด/เกิน หรือถูกต้องแล้ว', 'error');
+        }
 
         if (!opts.skipConfirm) {
             const ok = await uiConfirm.twoStep({
@@ -1423,7 +1488,8 @@
                 await reloadMatchData();
                 line = linesCache.find(l => l.sku_id === sku);
             }
-            if (!line || resolveDisplayStatus(line) !== 'short') {
+            const statusAfter = line ? resolveDisplayStatus(line) : null;
+            if (!line || (statusAfter !== 'short' && statusAfter !== 'over')) {
                 renderDraftList();
                 renderKpis(linesCache);
                 renderTable();
@@ -1431,8 +1497,10 @@
             }
             const qty = targetQty - Number(line.book_qty) - Number(line.adjustment_applied);
             if (Math.abs(qty) < 1e-6) {
-                const v = getTargetAdjustmentValidation(line, targetQty);
-                return showToast(v.message || 'ถูกต้องแล้ว', 'error');
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                return showToast(`ยืนยันแล้ว: ${sku} — ยอดตรง Excel ใช้เทียบ (ไม่มีการปรับยอด)`);
             }
             await RS.acceptCountedQtyAsMatch({
                 cycleId: currentCycle.id,

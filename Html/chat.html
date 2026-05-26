@@ -183,27 +183,13 @@
             outline: none;
         }
         .name-row input:focus { border-color: rgba(59,130,246,0.55); box-shadow: 0 0 0 2px rgba(59,130,246,0.18); }
-        .name-ip-row {
-            display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-            margin: 0.5rem 0 0.35rem; font-size: 0.8rem; color: var(--text-muted);
-        }
-        .name-ip-row button {
-            border: 1px solid rgba(255,255,255,0.12);
-            background: rgba(255,255,255,0.06);
-            color: #93c5fd;
-            border-radius: 8px;
-            padding: 0.25rem 0.5rem;
-            font-size: 0.72rem;
-            cursor: pointer;
-            font-family: 'Kanit', sans-serif;
-        }
-        .name-ip-field label {
+        .name-field label {
             display: block;
             font-size: 0.78rem;
             color: var(--text-muted);
-            margin: 0.35rem 0 0.25rem;
+            margin: 0.5rem 0 0.25rem;
         }
-        .name-ip-field input {
+        .name-field input {
             width: 100%;
             padding: 0.5rem 0.65rem;
             border-radius: 10px;
@@ -284,29 +270,18 @@
 </div>
 
 <div class="name-modal" id="nameModal" role="dialog" aria-modal="true" aria-label="ตั้งชื่อในแชท">
-    <div class="name-card">
+    <div class="name-card" id="nameCard">
         <h2 id="nameModalTitle">กรอกชื่อก่อนเข้าแชท</h2>
-        <p id="nameModalDesc">แสดงในแชทเป็น <strong>ชื่อ (IP:xxx)</strong> เช่น ADMIN (IP:192.168.1.10)</p>
+        <p id="nameModalDesc">แสดงในแชทเป็นชื่อที่กรอก · ถ้าต้องการแยกเครื่อง ให้ใส่รหัสเครื่อง/สถานี (ไม่บังคับ) · ลิงก์ตั้งค่า: <code>?station=POS1</code></p>
         <div class="name-row">
             <input id="nameInput" type="text" placeholder="เช่น ADMIN / โกดัง1" maxlength="40" autocomplete="off">
             <button class="send-btn" id="btnEnterChat" type="button"><i data-lucide="check" style="width:16px;height:16px;"></i> บันทึก</button>
         </div>
-        <div class="name-ip-row">
-            <span id="nameIpLine">IP: กำลังตรวจสอบ...</span>
-            <button type="button" id="btnRefreshIp">ตรวจ IP อีกครั้ง</button>
+        <div class="name-field">
+            <label for="stationInput">รหัสเครื่อง / สถานี (ไม่บังคับ เช่น POS-01, คลัง-A)</label>
+            <input id="stationInput" type="text" placeholder="เว้นว่างได้" maxlength="40" autocomplete="off">
         </div>
-        <div class="name-ip-field">
-            <label for="ipInput">IP เครื่อง (LAN) — พิมพ์เองได้</label>
-            <input id="ipInput" type="text" placeholder="192.168.1.10" maxlength="45" autocomplete="off">
-        </div>
-        <div class="name-ip-field">
-            <label for="stationInput">รหัสเครื่อง / สถานี (ใช้เมื่อหา IP ไม่ได้ เช่น POS-01, คลัง-A)</label>
-            <input id="stationInput" type="text" placeholder="POS-01 / คลัง-A" maxlength="40" autocomplete="off">
-        </div>
-        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.65rem;line-height:1.4;">
-            ทำไม IP เป็น “ไม่ทราบ”: เบราว์เซอร์ไม่ให้ JS อ่าน IP จริงได้โดยตรง · ลองพิมพ์ IP หรือใส่รหัสเครื่อง · หรือเปิดลิงก์แบบ
-            <code>?ip=192.168.1.10&amp;station=POS1</code>
-        </p>
+        <p style="font-size:0.75rem;color:var(--text-muted);margin-top:0.65rem;">คลิกพื้นที่มืดรอบ ๆ หน้าต่างเพื่อปิดโดยไม่บันทึก</p>
     </div>
 </div>
 
@@ -319,7 +294,6 @@
     const ROOM_ID = 'main';
     const STORAGE_KEY = 'audit_chat_v2';
     const NAME_KEY = 'audit_chat_name_v1';
-    const IP_KEY = 'audit_chat_client_ip_v1';
     const STATION_KEY = 'audit_chat_station_v1';
     const SESSION_KEY = 'audit_chat_session_v1';
     const CHAT_BUCKET = 'chat-attachments';
@@ -339,16 +313,13 @@
     const nameModalTitle = document.getElementById('nameModalTitle');
     const nameModalDesc = document.getElementById('nameModalDesc');
     const nameInput = document.getElementById('nameInput');
-    const ipInput = document.getElementById('ipInput');
     const stationInput = document.getElementById('stationInput');
-    const nameIpLine = document.getElementById('nameIpLine');
     const btnEnterChat = document.getElementById('btnEnterChat');
     const chatIdentity = document.getElementById('chatIdentity');
 
     let supabaseClient = null;
     let realtimeChannel = null;
     let myName = '';
-    let clientIp = '';
     let clientStation = '';
     let clientSessionId = '';
     let pendingFile = null;
@@ -392,9 +363,7 @@
     (function applyUrlQueryOverrides() {
         try {
             const q = new URLSearchParams(window.location.search);
-            const qip = normalizeText(q.get('ip') || q.get('client_ip'));
             const qst = normalizeText(q.get('station') || q.get('machine') || q.get('terminal'));
-            if (qip) localStorage.setItem(IP_KEY, qip);
             if (qst) localStorage.setItem(STATION_KEY, qst);
         } catch { /* ignore */ }
     })();
@@ -490,68 +459,12 @@
         return id;
     }
 
-    function isPrivateIp(ip) {
-        if (!ip) return false;
-        if (ip.startsWith('192.168.') || ip.startsWith('10.')) return true;
-        return /^172\.(1[6-9]|2\d|3[01])\./.test(ip);
-    }
-
-    function detectLocalIp() {
-        return new Promise((resolve) => {
-            if (!window.RTCPeerConnection) {
-                resolve(null);
-                return;
-            }
-            const found = new Set();
-            let done = false;
-            const finish = () => {
-                if (done) return;
-                done = true;
-                try { pc.close(); } catch { /* ignore */ }
-                const list = Array.from(found);
-                const priv = list.find(isPrivateIp);
-                resolve(priv || list[0] || null);
-            };
-            const pc = new RTCPeerConnection({ iceServers: [] });
-            pc.createDataChannel('x');
-            pc.onicecandidate = (e) => {
-                const c = e.candidate?.candidate || '';
-                const m = /(\d{1,3}(?:\.\d{1,3}){3})/g.exec(c);
-                if (m && m[1] && m[1] !== '0.0.0.0') found.add(m[1]);
-            };
-            pc.createOffer()
-                .then(offer => pc.setLocalDescription(offer))
-                .catch(() => finish());
-            setTimeout(finish, 2500);
-        });
-    }
-
-    async function ensureClientIp() {
-        const manual = normalizeText(ipInput?.value || localStorage.getItem(IP_KEY) || '');
-        if (manual) {
-            clientIp = manual;
-            localStorage.setItem(IP_KEY, clientIp);
-            return clientIp;
-        }
-        const cached = localStorage.getItem(IP_KEY);
-        if (cached) {
-            clientIp = cached;
-            return clientIp;
-        }
-        clientIp = await detectLocalIp() || '';
-        if (clientIp) localStorage.setItem(IP_KEY, clientIp);
-        return clientIp;
-    }
-
     function getDisplayName() {
         const base = normalizeText(myName);
         if (!base) return '';
-        const ip = normalizeText(clientIp || localStorage.getItem(IP_KEY) || '');
         const st = normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '');
-        if (ip && st) return `${base} (IP:${ip} · เครื่อง:${st})`;
-        if (ip) return `${base} (IP:${ip})`;
         if (st) return `${base} (เครื่อง:${st})`;
-        return `${base} (ระบุ IP หรือรหัสเครื่อง — กด เปลี่ยนชื่อ)`;
+        return base;
     }
 
     function updateIdentityUi() {
@@ -562,15 +475,6 @@
         }
         chatIdentity.hidden = false;
         chatIdentity.textContent = 'คุณ: ' + dn;
-    }
-
-    async function refreshIpDisplay() {
-        nameIpLine.textContent = 'IP: กำลังตรวจสอบ...';
-        await ensureClientIp();
-        ipInput.value = clientIp || '';
-        nameIpLine.textContent = clientIp
-            ? 'IP อัตโนมัติ: ' + clientIp
-            : 'IP LAN: ยังไม่พบ — พิมพ์ IP หรือรหัสเครื่องด้านล่าง (เบราว์เซอร์ไม่เปิดเผย IP ให้เว็บโดยตรง)';
     }
 
     function getSupabase() {
@@ -827,24 +731,20 @@
     function openEnterModal() {
         nameModalMode = 'enter';
         nameModalTitle.textContent = 'กรอกชื่อก่อนเข้าแชท';
-        nameModalDesc.innerHTML = 'แสดงเป็น <strong>ชื่อ (IP:xxx)</strong> หรือ <strong>ชื่อ (เครื่อง:xxx)</strong> · ลิงก์ตั้งค่า: <code>?ip=…&amp;station=…</code>';
+        nameModalDesc.textContent = 'แสดงชื่อนี้ในแชท · รหัสเครื่อง/สถานีไม่บังคับ (เช่น POS-01)';
         btnEnterChat.innerHTML = '<i data-lucide="log-in" style="width:16px;height:16px;"></i> เข้าแชท';
         nameInput.value = myName || '';
-        ipInput.value = clientIp || localStorage.getItem(IP_KEY) || '';
         stationInput.value = clientStation || localStorage.getItem(STATION_KEY) || '';
-        refreshIpDisplay();
         openNameModal();
     }
 
     function openRenameModal() {
         nameModalMode = 'rename';
         nameModalTitle.textContent = 'เปลี่ยนชื่อ';
-        nameModalDesc.innerHTML = 'ข้อความใหม่จะแสดงเป็น <strong>ชื่อ (IP:xxx)</strong> หรือ <strong>ชื่อ (เครื่อง:xxx)</strong>';
+        nameModalDesc.textContent = 'ข้อความใหม่จะใช้ชื่อที่บันทึก';
         btnEnterChat.innerHTML = '<i data-lucide="check" style="width:16px;height:16px;"></i> บันทึก';
         nameInput.value = myName || '';
-        ipInput.value = clientIp || localStorage.getItem(IP_KEY) || '';
         stationInput.value = clientStation || localStorage.getItem(STATION_KEY) || '';
-        refreshIpDisplay();
         openNameModal();
     }
 
@@ -854,16 +754,6 @@
 
         myName = name.slice(0, 40);
         localStorage.setItem(NAME_KEY, myName);
-
-        const manualIp = normalizeText(ipInput.value);
-        if (manualIp) {
-            clientIp = manualIp;
-            localStorage.setItem(IP_KEY, clientIp);
-        } else {
-            localStorage.removeItem(IP_KEY);
-            clientIp = '';
-            await ensureClientIp();
-        }
 
         const st = normalizeText(stationInput?.value || '');
         if (st) {
@@ -898,7 +788,7 @@
     async function completeChatSetup() {
         if (chatReady) return;
         clientSessionId = getOrCreateSessionId();
-        await ensureClientIp();
+        clientStation = normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '');
         supabaseClient = getSupabase();
 
         const initial = loadMessages();
@@ -944,18 +834,19 @@
     btnEnterChat.addEventListener('click', applyNameFromModal);
     nameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); applyNameFromModal(); } });
     document.getElementById('btnRename').addEventListener('click', openRenameModal);
-    document.getElementById('btnRefreshIp').addEventListener('click', async () => {
-        localStorage.removeItem(IP_KEY);
-        clientIp = '';
-        ipInput.value = '';
-        await refreshIpDisplay();
+
+    nameModal.addEventListener('click', (e) => {
+        if (e.target === nameModal) closeNameModal();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && nameModal.classList.contains('show')) closeNameModal();
     });
 
     document.getElementById('btnClear').addEventListener('click', clearAllChat);
 
     document.getElementById('btnExport').addEventListener('click', () => {
         const messages = loadMessages();
-        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, displayName: getDisplayName(), ip: normalizeText(clientIp || localStorage.getItem(IP_KEY) || '') || null, station: normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '') || null, clientSessionId, messages };
+        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, displayName: getDisplayName(), station: normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '') || null, clientSessionId, messages };
         const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
@@ -969,8 +860,8 @@
     // init
     clientSessionId = getOrCreateSessionId();
     myName = normalizeText(localStorage.getItem(NAME_KEY) || '');
-    clientIp = normalizeText(localStorage.getItem(IP_KEY) || '');
     clientStation = normalizeText(localStorage.getItem(STATION_KEY) || '');
+    localStorage.removeItem('audit_chat_client_ip_v1');
     const initial = loadMessages();
     updateHint(initial);
     render(initial);

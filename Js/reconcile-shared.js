@@ -2408,6 +2408,48 @@
 
 
 
+    /** ดึงรายการที่ยืนยันเป็นถูกต้องแล้ว (ไม่ปรับยอด) */
+    async function fetchMatchAcceptanceMap(cycleId) {
+        const client = getClient();
+        if (!client || !cycleId) return new Map();
+        try {
+            const { data, error } = await client
+                .from('reconciliation_match_acceptances')
+                .select('sku_id, note, accepted_at, accepted_by')
+                .eq('cycle_id', cycleId);
+            if (error) {
+                if (/does not exist|relation|schema cache/i.test(error.message)) return new Map();
+                throw error;
+            }
+            const map = new Map();
+            (data || []).forEach(row => {
+                const sku = normalizeSku(row.sku_id);
+                if (sku) map.set(sku, row);
+            });
+            return map;
+        } catch {
+            return new Map();
+        }
+    }
+
+    /** ยืนยันเป็นถูกต้อง — ไม่แตะ book / adjustment / counted */
+    async function acceptReconciliationAsMatch({ cycleId, skuId, note }) {
+        const client = getClient();
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+        const sku = normalizeSku(skuId);
+        if (!sku) throw new Error('กรุณาระบุ SKU');
+        const { error } = await client
+            .from('reconciliation_match_acceptances')
+            .upsert({
+                cycle_id: cycleId,
+                sku_id: sku,
+                note: note || null,
+                accepted_at: new Date().toISOString()
+            }, { onConflict: 'cycle_id,sku_id' });
+        if (error) throw error;
+        return { skuId: sku };
+    }
+
     async function deleteDraftAdjustment(adjustmentId) {
 
         const client = getClient();
@@ -2617,6 +2659,10 @@
         applyStockAdjustment,
 
         acceptCountedQtyAsMatch,
+
+        fetchMatchAcceptanceMap,
+
+        acceptReconciliationAsMatch,
 
         deleteDraftAdjustment,
 

@@ -168,6 +168,18 @@
             font-weight: 600;
         }
         .rc-adj-sum-total.after strong { color: #6ee7b7; }
+        .rc-adj-sum-total.after.clickable {
+            cursor: pointer; border-radius: 6px; padding: 0.2rem 0.15rem; margin: 0 -0.15rem;
+        }
+        .rc-adj-sum-total.after.clickable:hover {
+            background: rgba(16,185,129,0.12); box-shadow: 0 0 0 1px rgba(52,211,153,0.35);
+        }
+        .rc-btn-match-ok {
+            width: 100%; justify-content: center; margin-bottom: 0.5rem;
+            background: rgba(16,185,129,0.15); color: #6ee7b7;
+            border: 1px solid rgba(52,211,153,0.45);
+        }
+        .rc-btn-match-ok:hover { background: rgba(16,185,129,0.28); }
         .rc-adj-sum-row.add strong { color: #6ee7b7; }
         .rc-adj-sum-row.sub strong { color: #fca5a5; }
         .rc-adj-sum-note { margin-top: 0.35rem; font-size: 0.68rem; color: var(--text-muted); }
@@ -352,6 +364,10 @@
                             <input type="text" id="adjNote" placeholder="เหตุผลการปรับ">
                         </div>
 
+                        <button type="button" class="rc-btn rc-btn-match-ok" id="btnMarkMatchOk" style="display:none;">
+                            <i data-lucide="badge-check"></i> ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)
+                        </button>
+
                         <button type="button" class="rc-btn rc-btn-green" id="btnAcceptCountApply" style="display:none;width:100%;justify-content:center;margin-bottom:0.5rem;">
                             <i data-lucide="check-check"></i> ยอมรับผลนับ (Apply ทันที)
                         </button>
@@ -463,7 +479,7 @@
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
 <script src="../Js/settings-shared.js"></script>
-<script src="../Js/reconcile-shared.js?v=20260526d"></script>
+<script src="../Js/reconcile-shared.js?v=20260527a"></script>
 <script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
@@ -479,6 +495,8 @@
     let selectedAdjLine = null;
     let advFilterOpen = false;
     let bookSkuSet = new Set();
+    /** SKU ที่ยืนยันเป็นถูกต้องแล้ว (ไม่ปรับยอด) */
+    let matchAcceptanceMap = new Map();
     /** โหมดกรอก: ใส่จำนวนที่ต้องการ แล้วระบบคำนวณเพิ่ม/ลด */
     let adjInputMode = 'target';
     const ACCEPT_APPLY_ARM_MS = 8000;
@@ -597,7 +615,12 @@
         return k && (skuCountPresence.get(k) || 0) > 0;
     }
 
-    function resolveDisplayStatus(line) {
+    function isLineAcceptedMatch(skuId) {
+        const k = RS.normalizeSku(skuId);
+        return k && matchAcceptanceMap.has(k);
+    }
+
+    function resolveComputedStatus(line) {
         const book = Number(line.book_qty);
         const counted = Number(line.counted_qty);
         const adj = getTotalAdjustment(line);
@@ -615,7 +638,19 @@
         return line.match_status;
     }
 
+    function resolveDisplayStatus(line) {
+        if (isLineAcceptedMatch(line.sku_id)) return 'match';
+        return resolveComputedStatus(line);
+    }
+
+    function canMarkAsMatchAccepted(line) {
+        if (!line || isLineAcceptedMatch(line.sku_id)) return false;
+        const s = resolveComputedStatus(line);
+        return s === 'short' || s === 'over';
+    }
+
     function computeDisplayVariance(line) {
+        if (isLineAcceptedMatch(line.sku_id)) return 0;
         const book = Number(line.book_qty);
         const counted = Number(line.counted_qty);
         const adj = getTotalAdjustment(line);
@@ -646,6 +681,7 @@
     }
 
     function formatRowVariancePct(line, displayStatus) {
+        if (isLineAcceptedMatch(line.sku_id)) return '0%';
         if (isExcludedFromPct(displayStatus)) return '—';
         if (displayStatus === 'match') return '0%';
         if (line.variance_pct != null) return Number(line.variance_pct).toFixed(1) + '%';
@@ -909,14 +945,19 @@
         const label = document.getElementById('adjQtyLabel');
         const input = document.getElementById('adjQty');
         const btnAccept = document.getElementById('btnAcceptCountApply');
-        const isShort = selectedAdjLine && resolveDisplayStatus(selectedAdjLine) === 'short';
+        const btnMark = document.getElementById('btnMarkMatchOk');
+        const computed = selectedAdjLine ? resolveComputedStatus(selectedAdjLine) : null;
+        const isShort = computed === 'short';
+        const isOver = computed === 'over';
         label.textContent = 'จำนวนที่ต้องการ (Excel ใช้เทียบหลังปรับ)';
         input.placeholder = 'เช่น ตามผลนับ';
         input.min = '0';
         const btnUseCounted = document.getElementById('btnUseCountedTarget');
         if (btnUseCounted) {
-            const showUse = isShort || (selectedAdjLine && resolveDisplayStatus(selectedAdjLine) === 'over');
-            btnUseCounted.style.display = showUse ? 'inline-block' : 'none';
+            btnUseCounted.style.display = (isShort || isOver) ? 'inline-block' : 'none';
+        }
+        if (btnMark) {
+            btnMark.style.display = canMarkAsMatchAccepted(selectedAdjLine) ? 'inline-flex' : 'none';
         }
         if (btnAccept) {
             btnAccept.style.display = isShort ? 'inline-flex' : 'none';
@@ -948,21 +989,27 @@
             <div class="rc-adj-sum-row mute"><span>ผลนับ</span><strong>${counted.toLocaleString()}</strong></div>
             <div class="rc-adj-sum-row mute"><span>ต่าง (แสดง)</span><strong>${displayDiff.toLocaleString()}</strong></div>`;
 
+        if (isLineAcceptedMatch(line.sku_id)) {
+            html += `<div class="rc-adj-sum-warn" style="border-color:rgba(52,211,153,0.4);color:#6ee7b7;">ยืนยันเป็นถูกต้องแล้ว — ไม่มีการปรับยอด</div>`;
+        }
+
         const target = parseAdjInput();
+        const canMark = canMarkAsMatchAccepted(line);
         if (target != null) {
             const delta = computeDeltaFromTarget(line, target);
             const deltaClass = delta > 0 ? 'add' : delta < 0 ? 'sub' : '';
             const validation = getTargetAdjustmentValidation(line, target, { allowZeroWhenMatchesBook: true });
+            const computed = resolveComputedStatus(line);
             html += `
             <div class="rc-adj-sum-row ${deltaClass}"><span>ต้องปรับ Book</span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
-            <div class="rc-adj-sum-total after"><span>จำนวนที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
-            if (!validation.ok && (resolveDisplayStatus(line) === 'short' || resolveDisplayStatus(line) === 'over')) {
-                html += `<div class="rc-adj-sum-warn">ยังไม่ตรงผลนับ — ถ้าต้องการ「ถูกต้อง」ให้ใส่ <strong>${counted.toLocaleString()}</strong> (ผลนับ)</div>`;
-            } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6) {
-                html += `<div class="rc-adj-sum-warn">ยืนยันยอด Book ที่ ${target.toLocaleString()} — กด「บันทึก Draft」ได้โดยไม่ปรับยอด (สถานะยังไม่ตรงผลนับ)</div>`;
+            <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อยืนยันเป็นถูกต้อง (ไม่ปรับยอด)"' : ''}><span>จำนวนที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
+            if (!validation.ok && (computed === 'short' || computed === 'over')) {
+                html += `<div class="rc-adj-sum-warn">ยังไม่ตรงผลนับ — ปรับยอดให้ตรงใส่ <strong>${counted.toLocaleString()}</strong> หรือกด「ยืนยันเป็นถูกต้อง」</div>`;
+            } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6 && canMark) {
+                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ยืนยันเป็นถูกต้อง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book</div>`;
             }
         }
-        html += `<div class="rc-adj-sum-note">ใส่ยอด Excel ใช้เทียบหลังปรับ — ระบบคำนวณเพิ่ม/ลดให้อัตโนมัติ (ยอมรับผลนับ = ใส่ตามผลนับ)</div>`;
+        html += `<div class="rc-adj-sum-note">ใส่ยอด Excel ใช้เทียบหลังปรับ · ยอมรับผลนับ = ปรับให้ตรงผลนับ · ยืนยันถูกต้อง = ไม่เปลี่ยนยอด</div>`;
         hint.classList.add('show');
         hint.innerHTML = html;
     }
@@ -1081,6 +1128,7 @@
             skuNameMap = await RS.fetchBookSkuNames(id);
             adjustmentsCache = await RS.fetchAdjustments(id);
             bookSkuSet = await RS.fetchBookSkuIds(id);
+            matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(id);
 
             document.getElementById('resultsPanel').style.display = '';
             document.getElementById('cycleHintBar').classList.add('show');
@@ -1226,6 +1274,76 @@
         adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
         skuNameMap = await RS.fetchBookSkuNames(currentCycle.id);
         bookSkuSet = await RS.fetchBookSkuIds(currentCycle.id);
+        matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(currentCycle.id);
+    }
+
+    async function markLineAsMatchAccepted(line, opts = {}) {
+        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        if (!line) return showToast('กรุณาเลือก SKU', 'error');
+        if (isLineAcceptedMatch(line.sku_id)) return showToast('SKU นี้ยืนยันถูกต้องแล้ว', 'error');
+        if (!canMarkAsMatchAccepted(line)) {
+            return showToast('รายการนี้ไม่สามารถยืนยันเป็นถูกต้องได้', 'error');
+        }
+
+        const sku = line.sku_id;
+        const effective = getLineEffectiveBook(line);
+        const counted = Number(line.counted_qty);
+        const target = parseAdjInput();
+        const note = document.getElementById('adjNote').value.trim();
+
+        if (!opts.skipConfirm) {
+            const ok = await uiConfirm.twoStep({
+                title: 'ยืนยันเป็นถูกต้อง',
+                variant: 'green',
+                step1: {
+                    intro: `ยืนยัน ${sku} เป็นถูกต้องโดยไม่ปรับยอด?`,
+                    bullets: [
+                        `Excel ใช้เทียบ: ${effective.toLocaleString()} (คงเดิม)`,
+                        `ปรับแล้ว + Draft: ไม่เปลี่ยน`,
+                        `ผลนับ: ${counted.toLocaleString()}`,
+                        target != null ? `จำนวนที่แสดง: ${target.toLocaleString()}` : null,
+                        'สถานะจะเป็น「ถูกต้อง」 — ต่างแสดงเป็น 0'
+                    ].filter(Boolean),
+                    confirmLabel: 'ดำเนินการต่อ'
+                },
+                step2: {
+                    intro: `ยืนยัน ${sku} เป็นถูกต้อง`,
+                    note: 'ไม่มีการปรับ Book / ผลนับ',
+                    noteVariant: 'safe',
+                    confirmLabel: 'ยืนยันเป็นถูกต้อง',
+                    confirmIcon: 'badge-check'
+                }
+            });
+            if (!ok) return;
+        }
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = `กำลังบันทึก: ${sku}...`;
+        try {
+            await RS.acceptReconciliationAsMatch({
+                cycleId: currentCycle.id,
+                skuId: sku,
+                note: note || (target != null ? `ยืนยันถูกต้อง @ ${target}` : 'ยืนยันถูกต้องโดยไม่ปรับยอด')
+            });
+            matchAcceptanceMap.set(RS.normalizeSku(sku), { sku_id: sku, accepted_at: new Date().toISOString() });
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            if (selectedAdjLine?.sku_id === sku) {
+                refreshAdjPanelChrome();
+                renderAdjPanelSummary(line);
+            }
+            showToast(`ยืนยัน ${sku} เป็นถูกต้องแล้ว — ไม่มีการปรับยอด`);
+        } catch (err) {
+            if (/does not exist|relation|schema cache/i.test(err.message)) {
+                showToast('รัน docs/sql/008_reconciliation_match_acceptances.sql ใน Supabase ก่อน', 'error');
+            } else {
+                showToast(err.message, 'error');
+            }
+        } finally {
+            loadingEl.classList.remove('active');
+        }
     }
 
     function getCycleLabelForConfirm() {
@@ -1643,6 +1761,14 @@
     document.getElementById('btnAutoAdjust').addEventListener('click', autoAdjustAll);
     document.getElementById('btnSaveDraft').addEventListener('click', saveDraft);
     document.getElementById('btnAcceptCountApply').addEventListener('click', acceptCountedApplyFromPanel);
+    document.getElementById('btnMarkMatchOk').addEventListener('click', () => {
+        if (selectedAdjLine) markLineAsMatchAccepted(selectedAdjLine);
+    });
+    document.getElementById('adjHint').addEventListener('click', (e) => {
+        if (!e.target.closest('[data-mark-match]') || !selectedAdjLine) return;
+        e.stopPropagation();
+        markLineAsMatchAccepted(selectedAdjLine);
+    });
     document.getElementById('adjQty').addEventListener('input', () => {
         resetAcceptApplyBtn();
         if (selectedAdjLine) renderAdjPanelSummary(selectedAdjLine);

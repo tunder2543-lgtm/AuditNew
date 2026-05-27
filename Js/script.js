@@ -176,6 +176,15 @@ document.addEventListener('DOMContentLoaded', () => {
         return payload;
     }
 
+    function genClientRequestId() {
+        try {
+            if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                return crypto.randomUUID();
+            }
+        } catch { /* fallback */ }
+        return 'r-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+    }
+
     function recordBelongsToActiveWarehouse(rec) {
         const wh = getActiveWarehouse();
         if (!wh) return true;
@@ -681,7 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        groupItems.unshift({ sku, quantity, name: proName });
+        groupItems.unshift({ sku, quantity, name: proName, clientRequestId: genClientRequestId() });
         renderGroupList();
         
         // เคลียร์ค่า input
@@ -802,7 +811,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     location,
                     sku_id: item.sku,
                     counted_qty: item.quantity,
-                    counter_name
+                    counter_name,
+                    client_request_id: item.clientRequestId || genClientRequestId()
                 }, warehouse));
 
                 const { data, error } = await supabaseClient
@@ -922,9 +932,10 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
 
         try {
+            const clientRequestId = genClientRequestId();
             const { data, error } = await supabaseClient
                 .from('inventory_counts')
-                .insert([attachCycleId({ warehouse, location, sku_id: sku, counted_qty: quantity, counter_name }, warehouse)])
+                .insert([attachCycleId({ warehouse, location, sku_id: sku, counted_qty: quantity, counter_name, client_request_id: clientRequestId }, warehouse)])
                 .select();
             if (error) throw error;
 

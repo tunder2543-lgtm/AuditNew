@@ -1706,7 +1706,7 @@
         } else {
             dupPanel.style.display = '';
             document.getElementById('bookDupSummary').textContent =
-                `พบ ${dups.length} SKU ที่มีหลายแถว — ระบบจะรวมยอดตามลำดับแถวเมื่อนำเข้า`;
+                `พบ ${dups.length} SKU ที่มีหลายแถว — ระบบรวมยอดให้อัตโนมัติ (จะนำเข้า ${parsed.validRows.length} SKU แทน ${parsed.rawValidRows?.length ?? ''} แถว)`;
             const shownDup = dups.slice(0, BOOK_DUP_MAX);
             document.getElementById('bookDupList').innerHTML = shownDup.map(d =>
                 `<li><strong>${RS.escapeHtml(d.sku)}</strong> — ${d.rows} แถว, รวม ${Number(d.total).toLocaleString()} ชิ้น</li>`
@@ -1737,8 +1737,12 @@
                 bookParsed = RS.parseBookExcelRows(rows);
                 bookFileName = f.name;
                 bookDrop.classList.toggle('has-file', bookParsed.validRows.length > 0);
+                const rawCount = bookParsed.rawValidRows?.length ?? bookParsed.validRows.length;
+                const mergedLabel = rawCount !== bookParsed.validRows.length
+                    ? `${bookParsed.validRows.length} SKU (รวมจาก ${rawCount} แถว)`
+                    : `${bookParsed.validRows.length} SKU`;
                 document.getElementById('bookFileLabel').textContent =
-                    `${f.name} · พร้อมนำเข้า ${bookParsed.validRows.length} แถว` +
+                    `${f.name} · พร้อมนำเข้า ${mergedLabel}` +
                     (bookParsed.invalidRows.length ? ` · ไม่ผ่าน ${bookParsed.invalidRows.length}` : '');
                 document.getElementById('btnImportBook').disabled = bookParsed.validRows.length === 0;
                 renderBookImportPreview(bookParsed);
@@ -1768,14 +1772,17 @@
 
     document.getElementById('btnImportBook').addEventListener('click', async () => {
         if (!selectedCycle || !bookParsed?.validRows.length) return;
+        const rawCountBtn = bookParsed.rawValidRows?.length ?? bookParsed.validRows.length;
+        const mergedCountBtn = bookParsed.validRows.length;
         const ok = await uiConfirm.show({
             title: 'นำเข้า Book',
             variant: 'green',
-            intro: `นำเข้า ${bookParsed.validRows.length.toLocaleString()} แถว`,
+            intro: `นำเข้า ${mergedCountBtn.toLocaleString()} SKU`,
             bullets: [
                 `รอบ: ${RS.formatCycleLabel(selectedCycle)}`,
-                'จะแทนที่ Book เดิมทั้งหมด'
-            ],
+                rawCountBtn !== mergedCountBtn ? `รวม SKU ซ้ำ: ${rawCountBtn} แถว → ${mergedCountBtn} SKU` : null,
+                'แทนที่ Book ทั้งหมดในรอบ'
+            ].filter(Boolean),
             note: 'ตรวจสอบไฟล์ให้ครบก่อนยืนยัน',
             noteVariant: 'warn',
             confirmLabel: 'นำเข้า Book'
@@ -1783,8 +1790,9 @@
         if (!ok) return;
         setLoading(true, 'กำลังนำเข้า Book...');
         try {
-            const n = await RS.importBookStockLines(selectedCycle.id, bookParsed.validRows, bookFileName, { replaceExisting: true });
-            showToast(`นำเข้า Book สำเร็จ ${n} แถว`);
+            const n = await RS.importBookStockLines(selectedCycle.id, bookParsed.validRows, bookFileName, { mode: 'replace' });
+            const inserted = typeof n === 'object' ? n.inserted : n;
+            showToast(`นำเข้า Book สำเร็จ ${inserted} แถว`);
             clearBookImportPreview();
             await selectCycle(selectedCycle.id);
         } catch (err) { showToast(err.message, 'error'); }

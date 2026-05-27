@@ -456,6 +456,16 @@
         let pendingValidRows = [];
         let importConfirmStep = 0;
         let fileName = '';
+        let isImporting = false;
+
+        function genClientRequestId() {
+            try {
+                if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+                    return crypto.randomUUID();
+                }
+            } catch { /* fallback */ }
+            return 'r-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+        }
 
         function showToast(message, type = 'success') {
             const el = document.getElementById('toastContainer');
@@ -675,6 +685,10 @@
         }
 
         async function runImport() {
+            if (isImporting) {
+                showToast('กำลังนำเข้าอยู่ — กรุณารอจนเสร็จ', 'error');
+                return;
+            }
             if (!supabaseClient) {
                 showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
                 return;
@@ -743,6 +757,7 @@
             });
             if (!ok2) return;
 
+            isImporting = true;
             if (btn) btn.disabled = true;
             importConfirmStep = 0;
 
@@ -752,13 +767,20 @@
             setLoading(true, 'กำลังนำเข้าผลการนับ...', `0 / ${rows.length}`);
 
             try {
-                for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-                    const chunk = rows.slice(i, i + CHUNK_SIZE).map(r => ({
+                const rowsWithReqId = rows.map(r => ({
+                    ...r,
+                    client_request_id: r.client_request_id || genClientRequestId()
+                }));
+                pendingValidRows = rowsWithReqId;
+
+                for (let i = 0; i < rowsWithReqId.length; i += CHUNK_SIZE) {
+                    const chunk = rowsWithReqId.slice(i, i + CHUNK_SIZE).map(r => ({
                         warehouse,
                         location: r.loc,
                         sku_id: r.sku,
                         counted_qty: r.qty,
-                        counter_name
+                        counter_name,
+                        client_request_id: r.client_request_id
                     }));
 
                     const { data, error } = await supabaseClient
@@ -768,6 +790,9 @@
 
                     if (error) {
                         console.error(error);
+                        if (/client_request_id|duplicate|unique/i.test(error.message || '')) {
+                            console.warn('[Import] retry/duplicate prevented by idempotency key — chunk skipped');
+                        }
                         fail += chunk.length;
                     } else {
                         ok += (data || []).length;
@@ -776,7 +801,7 @@
                     setLoading(
                         true,
                         'กำลังนำเข้าผลการนับ...',
-                        `${Math.min(i + CHUNK_SIZE, rows.length)} / ${rows.length}`
+                        `${Math.min(i + CHUNK_SIZE, rowsWithReqId.length)} / ${rowsWithReqId.length}`
                     );
                 }
 
@@ -805,6 +830,7 @@
                 console.error(err);
                 showToast('นำเข้าล้มเหลว: ' + err.message, 'error');
             } finally {
+                isImporting = false;
                 setLoading(false);
                 if (btn) {
                     btn.disabled = pendingValidRows.length === 0;

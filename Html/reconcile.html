@@ -193,6 +193,38 @@
         }
         .rc-adj-use-counted:hover { color: #bfdbfe; }
 
+        .rc-import-block {
+            margin-bottom: 0.85rem; padding-bottom: 0.85rem;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .rc-import-drop {
+            border: 1px dashed rgba(96,165,250,0.45); border-radius: 10px; padding: 0.65rem 0.75rem;
+            text-align: center; font-size: 0.72rem; color: var(--text-muted); cursor: pointer;
+            background: rgba(59,130,246,0.06); transition: background 0.15s, border-color 0.15s;
+        }
+        .rc-import-drop:hover, .rc-import-drop.dragover {
+            background: rgba(59,130,246,0.12); border-color: rgba(96,165,250,0.75);
+        }
+        .rc-import-drop input[type=file] { display: none; }
+        .rc-import-meta { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.35rem; word-break: break-all; }
+        .rc-import-opt { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0; font-size: 0.72rem; color: var(--text-muted); }
+        .rc-import-preview {
+            max-height: 140px; overflow: auto; margin: 0.5rem 0; font-size: 0.68rem;
+            border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+        }
+        .rc-import-preview table { width: 100%; border-collapse: collapse; }
+        .rc-import-preview th, .rc-import-preview td {
+            padding: 0.28rem 0.35rem; border-bottom: 1px solid rgba(255,255,255,0.05); text-align: right;
+        }
+        .rc-import-preview th:first-child, .rc-import-preview td:first-child { text-align: left; }
+        .rc-import-preview th { color: var(--text-muted); font-weight: 500; position: sticky; top: 0; background: #1a1d24; }
+        .rc-import-results {
+            margin-top: 0.85rem; padding-top: 0.75rem; border-top: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.72rem; display: none;
+        }
+        .rc-import-results.show { display: block; }
+        .rc-import-results h4 { font-size: 0.78rem; color: var(--text-muted); margin: 0 0 0.4rem; font-weight: 500; }
+
         .rc-draft-list { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.85rem; }
         .rc-draft-list h4 { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin: 0 0 0.5rem; }
         .rc-draft-item {
@@ -316,6 +348,9 @@
                     <button type="button" class="rc-btn rc-btn-green" id="btnExport">
                         <i data-lucide="download"></i> Export Excel
                     </button>
+                    <button type="button" class="rc-btn rc-btn-ghost" id="btnExportAdjusted" style="display:none;" title="Export เฉพาะรายการที่ปรับจาก Import ล่าสุด">
+                        <i data-lucide="file-output"></i> Export ปรับล่าสุด
+                    </button>
                     <a class="rc-btn rc-btn-ghost" href="cycle_config.html">
                         <i data-lucide="calendar-range"></i> ตั้งค่ารอบ
                     </a>
@@ -342,6 +377,43 @@
                         <button type="button" class="rc-btn rc-btn-warn rc-btn-auto" id="btnAutoAdjust" disabled title="สร้าง Draft ปรับยอดทุก SKU ในโหมดที่เลือก">
                             <i data-lucide="wand-2"></i> ปรับยอด Auto
                         </button>
+
+                        <div class="rc-import-block">
+                            <div class="rc-side-title" style="margin-bottom:0.5rem;font-size:0.85rem;">
+                                <i data-lucide="file-up" style="width:14px;"></i> Import อ้างอิงไฟล์
+                            </div>
+                            <label class="rc-import-drop" id="importDropZone">
+                                <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv">
+                                <span id="importDropLabel">คลิกหรือลากไฟล์ Excel (.xlsx)</span>
+                            </label>
+                            <div class="rc-import-meta" id="importFileMeta"></div>
+                            <label class="rc-import-opt">
+                                <input type="checkbox" id="importAutoApply" checked>
+                                อัปเดต Book ตามไฟล์ + ล้างปรับเดิม + Apply ทันที
+                            </label>
+                            <div class="rc-import-preview" id="importPreviewWrap" style="display:none;">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>SKU</th>
+                                            <th>Excel</th>
+                                            <th>เทียบเดิม</th>
+                                            <th>ปรับ</th>
+                                            <th>หลัง</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="importPreviewBody"></tbody>
+                                </table>
+                            </div>
+                            <button type="button" class="rc-btn rc-btn-primary rc-btn-sm" id="btnImportApply" style="width:100%;justify-content:center;display:none;margin-top:0.35rem;">
+                                <i data-lucide="play"></i> ปรับตามไฟล์ (Apply)
+                            </button>
+                        </div>
+
+                        <div class="rc-import-results" id="importResultsPanel">
+                            <h4>รายการที่ปรับจาก Import ล่าสุด (<span id="importResultsCount">0</span>)</h4>
+                            <div id="importResultsList" style="max-height:120px;overflow:auto;color:var(--text-muted);"></div>
+                        </div>
 
                         <div class="rc-adj-hint" id="adjHint"></div>
 
@@ -479,7 +551,7 @@
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
 <script src="../Js/settings-shared.js"></script>
-<script src="../Js/reconcile-shared.js?v=20260527a"></script>
+<script src="../Js/reconcile-shared.js?v=20260527d"></script>
 <script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
@@ -503,6 +575,11 @@
     let acceptApplyArmed = false;
     let acceptApplyArmTimer = null;
     let acceptApplyArmSku = null;
+    /** ข้อมูล Import รอ Apply */
+    let importPending = null;
+    let importPreviewRows = [];
+    /** ผลลัพธ์ Import ล่าสุด สำหรับ Export sheet Adjusted */
+    let lastImportAdjustResults = [];
 
     const STATUS_MAP = {
         match:      { th: 'ถูกต้อง',         icon: 'check',         cls: 'match' },
@@ -522,9 +599,23 @@
         setTimeout(() => { t.classList.add('toast-closing'); t.addEventListener('animationend', () => t.remove()); }, 4500);
     }
 
+    const inFlightActions = new Set();
+    async function runOnce(key, fn) {
+        if (inFlightActions.has(key)) {
+            showToast('กำลังดำเนินการอยู่ — กรุณารอจนเสร็จ', 'error');
+            return;
+        }
+        inFlightActions.add(key);
+        try {
+            return await fn();
+        } finally {
+            inFlightActions.delete(key);
+        }
+    }
+
     function statusBadge(s, skuId) {
         const d = STATUS_MAP[s] || { th: s, icon: 'minus', cls: 'other' };
-        if (s === 'short' && skuId) {
+        if ((s === 'short' || s === 'over') && skuId) {
             return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อใส่ยอดที่ต้องการและยอมรับผลนับ"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
         }
         return `<span class="rc-badge ${d.cls}"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
@@ -621,21 +712,14 @@
     }
 
     function resolveComputedStatus(line) {
-        const book = Number(line.book_qty);
-        const counted = Number(line.counted_qty);
-        const adj = getTotalAdjustment(line);
-        const effective = book + adj;
-        const hasCountRecord = skuHasInventoryCount(line.sku_id);
-
-        if (effective === 0 && counted > 0) {
-            if (bookSkuSet.has(line.sku_id)) return 'over';
-            return 'count_only';
-        }
-        if (effective > 0 && counted === 0 && !hasCountRecord) return 'book_only';
-        if (Math.abs(effective - counted) < 1e-6) return 'match';
-        if (counted < effective) return 'short';
-        if (counted > effective) return 'over';
-        return line.match_status;
+        return RS.computeMatchStatus({
+            bookQty: Number(line.book_qty),
+            adjustmentTotal: getTotalAdjustment(line),
+            countedQty: Number(line.counted_qty),
+            hasCountRecord: skuHasInventoryCount(line.sku_id),
+            inBookSkuSet: bookSkuSet.has(line.sku_id),
+            fallbackStatus: line.match_status
+        });
     }
 
     function resolveDisplayStatus(line) {
@@ -949,19 +1033,20 @@
         const computed = selectedAdjLine ? resolveComputedStatus(selectedAdjLine) : null;
         const isShort = computed === 'short';
         const isOver = computed === 'over';
+        const isAdjustable = isShort || isOver;
         label.textContent = 'จำนวนที่ต้องการ (Excel ใช้เทียบหลังปรับ)';
         input.placeholder = 'เช่น ตามผลนับ';
         input.min = '0';
         const btnUseCounted = document.getElementById('btnUseCountedTarget');
         if (btnUseCounted) {
-            btnUseCounted.style.display = (isShort || isOver) ? 'inline-block' : 'none';
+            btnUseCounted.style.display = isAdjustable ? 'inline-block' : 'none';
         }
         if (btnMark) {
             btnMark.style.display = canMarkAsMatchAccepted(selectedAdjLine) ? 'inline-flex' : 'none';
         }
         if (btnAccept) {
-            btnAccept.style.display = isShort ? 'inline-flex' : 'none';
-            if (!isShort) resetAcceptApplyBtn();
+            btnAccept.style.display = isAdjustable ? 'inline-flex' : 'none';
+            if (!isAdjustable) resetAcceptApplyBtn();
         }
     }
 
@@ -1025,14 +1110,212 @@
         document.getElementById('adjSkuList').classList.remove('show');
     }
 
-    function openShortAcceptPanel(line) {
+    function openVarianceAcceptPanel(line) {
         if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
-        if (!line || resolveDisplayStatus(line) !== 'short') {
-            return showToast('รายการนี้ไม่ใช่สถานะขาด หรือถูกต้องแล้ว', 'error');
+        const st = line ? resolveComputedStatus(line) : null;
+        if (!line || (st !== 'short' && st !== 'over')) {
+            return showToast('รายการนี้ไม่ใช่สถานะขาด/เกิน หรือถูกต้องแล้ว', 'error');
         }
         selectAdjLine(line, { targetDefault: Number(line.counted_qty) });
         document.getElementById('adjQty').focus();
         document.querySelector('.rc-side')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function statusTh(code) {
+        return STATUS_MAP[code]?.th || code || '—';
+    }
+
+    function renderImportPreview(rows) {
+        const wrap = document.getElementById('importPreviewWrap');
+        const body = document.getElementById('importPreviewBody');
+        const btn = document.getElementById('btnImportApply');
+        if (!rows?.length) {
+            wrap.style.display = 'none';
+            btn.style.display = 'none';
+            body.innerHTML = '';
+            return;
+        }
+        const show = rows.slice(0, 80);
+        body.innerHTML = show.map(r => `
+            <tr>
+                <td>${RS.escapeHtml(r.skuId)}</td>
+                <td>${r.targetEffective.toLocaleString()}</td>
+                <td>${r.currentEffective.toLocaleString()}</td>
+                <td style="color:${r.deltaToTarget > 0 ? '#6ee7b7' : r.deltaToTarget < 0 ? '#fca5a5' : 'inherit'};">
+                    ${r.deltaToTarget > 0 ? '+' : ''}${r.deltaToTarget.toLocaleString()}
+                </td>
+                <td>${statusTh(r.statusAfter)}</td>
+            </tr>`).join('') + (rows.length > 80 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);">… และอีก ${rows.length - 80} SKU</td></tr>` : '');
+        wrap.style.display = 'block';
+        btn.style.display = 'inline-flex';
+    }
+
+    function renderImportResultsPanel() {
+        const panel = document.getElementById('importResultsPanel');
+        const list = document.getElementById('importResultsList');
+        const countEl = document.getElementById('importResultsCount');
+        const btnAdj = document.getElementById('btnExportAdjusted');
+        if (!lastImportAdjustResults.length) {
+            panel.classList.remove('show');
+            if (btnAdj) btnAdj.style.display = 'none';
+            return;
+        }
+        panel.classList.add('show');
+        countEl.textContent = lastImportAdjustResults.length;
+        list.innerHTML = lastImportAdjustResults.slice(0, 50).map(r => `
+            <div>${RS.escapeHtml(r.skuId)} · Excel ${Number(r.targetEffective).toLocaleString()}
+            ${r.adjustmentQty != null ? ` · ปรับ ${r.adjustmentQty > 0 ? '+' : ''}${Number(r.adjustmentQty).toLocaleString()}` : ' · ล้างปรับเดิม'}
+            · ${statusTh(r.statusAfter)}</div>`).join('') +
+            (lastImportAdjustResults.length > 50 ? `<div>… และอีก ${lastImportAdjustResults.length - 50} SKU</div>` : '');
+        if (btnAdj) btnAdj.style.display = 'inline-flex';
+    }
+
+    async function parseImportFile(file) {
+        if (!file) return;
+        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        let rows;
+        try {
+            rows = await RS.readBookExcelSheetRows(file);
+        } catch (err) {
+            return showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error');
+        }
+        const parsed = RS.parseBookExcelRows(rows);
+        if (!parsed.validRows.length) {
+            importPending = null;
+            importPreviewRows = [];
+            renderImportPreview([]);
+            const inv = parsed.invalidRows?.length || 0;
+            document.getElementById('importFileMeta').textContent = inv
+                ? `ไม่มีแถวที่ใช้ได้ (ข้าม ${inv} แถว)`
+                : 'ไม่มีแถวที่ใช้ได้';
+            return showToast('ไม่มีแถวที่นำเข้าได้', 'error');
+        }
+
+        const dups = parsed.duplicateSkus || [];
+        const rawCount = parsed.rawValidRows?.length ?? parsed.validRows.length;
+        const mergedCount = parsed.validRows.length;
+        const targets = RS.targetsMapFromValidRows(parsed.validRows);
+        importPending = { fileName: file.name, validRows: parsed.validRows, targets };
+
+        let metaText = `${file.name} · ${mergedCount} SKU`;
+        if (parsed.invalidRows?.length) metaText += ` · ข้าม ${parsed.invalidRows.length} แถว`;
+        if (dups.length) metaText += ` · รวม ${dups.length} SKU ซ้ำ`;
+        document.getElementById('importFileMeta').textContent = metaText;
+        if (dups.length) {
+            showToast(`พบ ${dups.length} SKU ซ้ำในไฟล์ — รวมยอดแล้ว (${rawCount} แถว → ${mergedCount} SKU)`, 'error');
+        }
+
+        try {
+            importPreviewRows = await RS.previewAdjustmentsToBookTargets(currentCycle.id, targets);
+            importPreviewRows = importPreviewRows.map(p => ({
+                ...p,
+                deltaToTarget: p.targetEffective - p.currentEffective
+            }));
+            renderImportPreview(importPreviewRows);
+            document.getElementById('importDropLabel').textContent = 'เปลี่ยนไฟล์…';
+            if (document.getElementById('importAutoApply').checked) {
+                await runImportApply({ skipConfirm: true });
+            }
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+
+    async function runImportApply(opts = {}) {
+        if (!currentCycle?.id || !importPending?.validRows?.length) {
+            return showToast('กรุณาเลือกไฟล์ Import ก่อน', 'error');
+        }
+        const { validRows, targets, fileName } = importPending;
+        const nClear = importPreviewRows.filter(p =>
+            Math.abs(p.deltaToTarget) >= 1e-6
+        ).length;
+
+        if (!opts.skipConfirm) {
+            const ok = await uiConfirm.twoStep({
+                title: 'ปรับตามไฟล์ Excel',
+                variant: 'amber',
+                step1: {
+                    intro: `อัปเดต Book และปรับยอดสำหรับ ${validRows.length} SKU ในไฟล์?`,
+                    bullets: [
+                        `รอบ: ${getCycleLabelForConfirm()}`,
+                        `ไฟล์: ${fileName}`,
+                        `อัปเดต book_qty ตามไฟล์ (เฉพาะ SKU ในไฟล์)`,
+                        `ล้าง Draft/Applied และการยืนยันถูกต้องเดิมของ SKU เหล่านี้`,
+                        'อัปเดต Book ตามไฟล์แล้วล้างปรับเดิม (adjustment ใหม่ถ้าจำเป็น)',
+                        'SKU นอกไฟล์จะไม่ถูกแตะ'
+                    ],
+                    confirmLabel: 'ดูรายละเอียดต่อ'
+                },
+                step2: {
+                    intro: `ยืนยัน Apply — ${nClear} SKU มีการเปลี่ยนแปลง`,
+                    note: 'การลบ adjustment ที่ Apply แล้วเป็นการแก้ประวัติ — ตรวจสอบ preview ให้ครบ',
+                    noteVariant: 'warn',
+                    confirmLabel: 'ปรับตามไฟล์',
+                    confirmIcon: 'play'
+                }
+            });
+            if (!ok) return;
+        }
+
+        const loadingEl = document.getElementById('loading');
+        loadingEl.classList.add('active');
+        document.getElementById('loadingText').textContent = 'กำลัง Import และปรับยอด...';
+        try {
+            await RS.importBookStockLines(currentCycle.id, validRows, fileName, { mode: 'merge' });
+            await RS.refreshReconciliation(currentCycle.id);
+            const applyRes = await RS.applyAdjustmentsToBookTargets(currentCycle.id, targets, { notePrefix: 'import_excel' });
+            await reloadMatchData();
+            adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+            matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(currentCycle.id);
+
+            const resultMap = new Map((applyRes.results || []).map(r => [r.skuId, r]));
+            lastImportAdjustResults = importPreviewRows.map(p => {
+                const applied = resultMap.get(p.skuId);
+                const line = linesCache.find(l => l.sku_id === p.skuId);
+                return {
+                    skuId: p.skuId,
+                    targetEffective: p.targetEffective,
+                    adjustmentQty: applied?.adjustmentQty ?? 0,
+                    bookQty: p.targetEffective,
+                    countedQty: line ? Number(line.counted_qty) : p.countedQty,
+                    effectiveAfter: line ? getLineEffectiveBook(line) : p.targetEffective,
+                    statusAfter: line ? resolveDisplayStatus(line) : p.statusAfter
+                };
+            }).filter(r =>
+                Math.abs(r.adjustmentQty) >= 1e-6 ||
+                Math.abs((importPreviewRows.find(x => x.skuId === r.skuId)?.currentEffective ?? 0) - r.targetEffective) >= 1e-6
+            );
+
+            renderImportResultsPanel();
+            renderDraftList();
+            renderKpis(linesCache);
+            renderTable();
+            importPending = null;
+            importPreviewRows = [];
+            renderImportPreview([]);
+            showToast(`Import สำเร็จ · Apply ${applyRes.applied} รายการ · ข้ามไม่ต้องปรับ ${applyRes.skippedZero}`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            loadingEl.classList.remove('active');
+        }
+    }
+
+    function buildAdjustedExportRows() {
+        return lastImportAdjustResults.map((r, i) => {
+            const variance = Number(r.effectiveAfter) - Number(r.countedQty);
+            return {
+                '#': i + 1,
+                SKU: r.skuId,
+                'ชื่อ': skuNameMap[r.skuId] || '',
+                'ไฟล์ Excel': r.bookQty ?? r.targetEffective,
+                'ปรับแล้ว': r.adjustmentQty ?? 0,
+                'Excel ใช้เทียบ': r.effectiveAfter,
+                'ผลนับ': r.countedQty,
+                'ต่าง': variance,
+                'สถานะ': statusTh(r.statusAfter)
+            };
+        });
     }
 
     function filterAdjSkus() {
@@ -1174,29 +1457,51 @@
         const validation = getTargetAdjustmentValidation(line, target, { allowZeroWhenMatchesBook: true });
         if (!validation.ok) return showToast(validation.message, 'error');
         if (validation.noAdjustment) {
-            showToast(`บันทึกแล้ว: ${sku} — ยอด ${target.toLocaleString()} ตรง Excel ใช้เทียบ (ไม่มีการปรับยอด)`);
+            const line2 = linesCache.find(l => l.sku_id === sku);
+            const needsAcceptance = line2 && Math.abs(target - Number(line2.counted_qty)) >= 1e-6;
+            if (needsAcceptance) {
+                showToast(`ยอดตรง Excel แล้ว — กด「ยืนยันเป็นถูกต้อง」ถ้าต้องการให้สถานะถูกต้องแม้ต่างผลนับ`);
+            } else {
+                showToast(`ยอด ${target.toLocaleString()} ตรง Excel ใช้เทียบแล้ว — ไม่มีการปรับ`);
+            }
             return;
         }
         const qty = validation.delta;
-        try {
-            await RS.createStockAdjustment({
-                cycleId: currentCycle.id,
-                skuId: sku,
-                adjustmentQty: qty,
-                varianceBefore: line ? computeDisplayVariance(line) : null,
-                note: note || null,
-                reason: 'reconcile'
-            });
-            adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
-            renderDraftList();
-            renderKpis(linesCache);
-            renderTable();
-            if (selectedAdjLine?.sku_id === sku) {
-                const updated = linesCache.find(l => l.sku_id === sku);
-                if (updated) renderAdjPanelSummary(updated);
+        const existingDraft = adjustmentsCache.find(a => a.status === 'draft' && a.sku_id === sku);
+        if (existingDraft) {
+            return showToast(`มี Draft อยู่แล้วสำหรับ ${sku} — ลบ Draft เก่าก่อนสร้างใหม่`, 'error');
+        }
+        const btn = document.getElementById('btnSaveDraft');
+        await runOnce(`saveDraft:${sku}`, async () => {
+            if (btn) btn.disabled = true;
+            try {
+                await RS.createStockAdjustment({
+                    cycleId: currentCycle.id,
+                    skuId: sku,
+                    adjustmentQty: qty,
+                    varianceBefore: line ? computeDisplayVariance(line) : null,
+                    note: note || null,
+                    reason: 'reconcile'
+                });
+                adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                if (selectedAdjLine?.sku_id === sku) {
+                    const updated = linesCache.find(l => l.sku_id === sku);
+                    if (updated) renderAdjPanelSummary(updated);
+                }
+                showToast(`บันทึก draft: ${sku}`);
+            } catch (err) {
+                if (/duplicate|unique|uq_stock_adj_draft/i.test(err.message || '')) {
+                    showToast(`มี Draft อยู่แล้วสำหรับ ${sku}`, 'error');
+                } else {
+                    showToast(err.message, 'error');
+                }
+            } finally {
+                if (btn) btn.disabled = false;
             }
-            showToast(`บันทึก draft: ${sku}`);
-        } catch (err) { showToast(err.message, 'error'); }
+        });
     }
 
     async function autoAdjustAll() {
@@ -1247,21 +1552,27 @@
         });
         if (!okAuto) return;
 
-        const loadingEl = document.getElementById('loading');
-        loadingEl.classList.add('active');
-        document.getElementById('loadingText').textContent = `กำลังสร้าง Draft ${toCreate.length} รายการ...`;
-        try {
-            await RS.createStockAdjustmentsBatch(toCreate);
-            adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
-            renderDraftList();
-            renderKpis(linesCache);
-            renderTable();
-            showToast(`สร้าง Draft Auto ${toCreate.length} SKU (โหมด${modeLabel})`);
-        } catch (err) {
-            showToast(err.message, 'error');
-        } finally {
-            loadingEl.classList.remove('active');
-        }
+        await runOnce('autoAdjustAll', async () => {
+            const loadingEl = document.getElementById('loading');
+            loadingEl.classList.add('active');
+            document.getElementById('loadingText').textContent = `กำลังสร้าง Draft ${toCreate.length} รายการ...`;
+            try {
+                await RS.createStockAdjustmentsBatch(toCreate);
+                adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                showToast(`สร้าง Draft Auto ${toCreate.length} SKU (โหมด${modeLabel})`);
+            } catch (err) {
+                if (/duplicate|unique|uq_stock_adj_draft/i.test(err.message || '')) {
+                    showToast('มี Draft อยู่แล้วบางรายการ — กรุณารีเฟรชแล้วลองใหม่', 'error');
+                } else {
+                    showToast(err.message, 'error');
+                }
+            } finally {
+                loadingEl.classList.remove('active');
+            }
+        });
     }
 
     function canDeleteBookLine(line) {
@@ -1281,6 +1592,9 @@
         if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
         if (!line) return showToast('กรุณาเลือก SKU', 'error');
         if (isLineAcceptedMatch(line.sku_id)) return showToast('SKU นี้ยืนยันถูกต้องแล้ว', 'error');
+        if (inFlightActions.has(`markMatch:${line.sku_id}`)) {
+            return showToast('กำลังบันทึกอยู่ — กรุณารอจนเสร็จ', 'error');
+        }
         if (!canMarkAsMatchAccepted(line)) {
             return showToast('รายการนี้ไม่สามารถยืนยันเป็นถูกต้องได้', 'error');
         }
@@ -1317,33 +1631,35 @@
             if (!ok) return;
         }
 
-        const loadingEl = document.getElementById('loading');
-        loadingEl.classList.add('active');
-        document.getElementById('loadingText').textContent = `กำลังบันทึก: ${sku}...`;
-        try {
-            await RS.acceptReconciliationAsMatch({
-                cycleId: currentCycle.id,
-                skuId: sku,
-                note: note || (target != null ? `ยืนยันถูกต้อง @ ${target}` : 'ยืนยันถูกต้องโดยไม่ปรับยอด')
-            });
-            matchAcceptanceMap.set(RS.normalizeSku(sku), { sku_id: sku, accepted_at: new Date().toISOString() });
-            renderDraftList();
-            renderKpis(linesCache);
-            renderTable();
-            if (selectedAdjLine?.sku_id === sku) {
-                refreshAdjPanelChrome();
-                renderAdjPanelSummary(line);
+        await runOnce(`markMatch:${sku}`, async () => {
+            const loadingEl = document.getElementById('loading');
+            loadingEl.classList.add('active');
+            document.getElementById('loadingText').textContent = `กำลังบันทึก: ${sku}...`;
+            try {
+                await RS.acceptReconciliationAsMatch({
+                    cycleId: currentCycle.id,
+                    skuId: sku,
+                    note: note || (target != null ? `ยืนยันถูกต้อง @ ${target}` : 'ยืนยันถูกต้องโดยไม่ปรับยอด')
+                });
+                matchAcceptanceMap.set(RS.normalizeSku(sku), { sku_id: sku, accepted_at: new Date().toISOString() });
+                renderDraftList();
+                renderKpis(linesCache);
+                renderTable();
+                if (selectedAdjLine?.sku_id === sku) {
+                    refreshAdjPanelChrome();
+                    renderAdjPanelSummary(line);
+                }
+                showToast(`ยืนยัน ${sku} เป็นถูกต้องแล้ว — ไม่มีการปรับยอด`);
+            } catch (err) {
+                if (/does not exist|relation|schema cache/i.test(err.message)) {
+                    showToast('รัน docs/sql/008_reconciliation_match_acceptances.sql ใน Supabase ก่อน', 'error');
+                } else {
+                    showToast(err.message, 'error');
+                }
+            } finally {
+                loadingEl.classList.remove('active');
             }
-            showToast(`ยืนยัน ${sku} เป็นถูกต้องแล้ว — ไม่มีการปรับยอด`);
-        } catch (err) {
-            if (/does not exist|relation|schema cache/i.test(err.message)) {
-                showToast('รัน docs/sql/008_reconciliation_match_acceptances.sql ใน Supabase ก่อน', 'error');
-            } else {
-                showToast(err.message, 'error');
-            }
-        } finally {
-            loadingEl.classList.remove('active');
-        }
+        });
     }
 
     function getCycleLabelForConfirm() {
@@ -1490,6 +1806,9 @@
     async function acceptCountedForLine(line, opts = {}) {
         if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
         if (!line) return showToast('ไม่พบรายการ', 'error');
+        if (inFlightActions.has(`acceptCount:${line.sku_id}`)) {
+            return showToast('กำลังดำเนินการอยู่ — กรุณารอจนเสร็จ', 'error');
+        }
 
         const sku = line.sku_id;
         const name = skuNameMap[sku] || '';
@@ -1507,9 +1826,10 @@
         const adjAfterDraft = targetQty - bookQty - applied - draft;
 
         if (validation.noAdjustment) {
+            const needsAcceptance = Math.abs(targetQty - countedQty) >= 1e-6;
             if (!opts.skipConfirm) {
                 const ok = await uiConfirm.twoStep({
-                    title: 'ยืนยันยอด Book',
+                    title: needsAcceptance ? 'ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)' : 'ยืนยันยอด Book',
                     variant: 'green',
                     step1: {
                         intro: `ยืนยันยอด Excel ใช้เทียบ = ${targetQty.toLocaleString()} สำหรับ ${sku}?`,
@@ -1519,8 +1839,8 @@
                             `Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
                             `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
                             'ไม่มีการปรับยอด Book',
-                            Math.abs(targetQty - countedQty) >= 1e-6
-                                ? 'สถานะอาจยังไม่เป็น「ถูกต้อง」เพราะไม่ตรงผลนับ'
+                            needsAcceptance
+                                ? 'บันทึกยืนยัน — สถานะจะเป็น「ถูกต้อง」แม้ยอดต่างผลนับ'
                                 : 'สถานะจะเป็น「ถูกต้อง」'
                         ].filter(Boolean),
                         confirmLabel: 'ดำเนินการต่อ'
@@ -1528,12 +1848,13 @@
                     step2: {
                         intro: `ยืนยัน ${sku} — คงยอด Excel ใช้เทียบ ${targetQty.toLocaleString()}`,
                         noteVariant: 'safe',
-                        confirmLabel: 'ยืนยัน',
+                        confirmLabel: needsAcceptance ? 'ยืนยันเป็นถูกต้อง' : 'ยืนยัน',
                         confirmIcon: 'check-check'
                     }
                 });
                 if (!ok) return;
             }
+            inFlightActions.add(`acceptCount:${sku}`);
             const loadingEl = document.getElementById('loading');
             loadingEl.classList.add('active');
             document.getElementById('loadingText').textContent = `กำลังยืนยัน: ${sku}...`;
@@ -1544,23 +1865,37 @@
                     line = linesCache.find(l => l.sku_id === sku);
                     draft = getDraftAdjustmentSum(sku);
                 }
+                if (needsAcceptance) {
+                    await RS.acceptReconciliationAsMatch({
+                        cycleId: currentCycle.id,
+                        skuId: sku,
+                        note: `ยอมรับ effective ${targetQty} — ผลนับ ${countedQty}`
+                    });
+                    matchAcceptanceMap.set(RS.normalizeSku(sku), {
+                        sku_id: sku, accepted_at: new Date().toISOString()
+                    });
+                }
                 renderDraftList();
                 renderKpis(linesCache);
                 renderTable();
                 if (selectedAdjLine?.sku_id === sku && line) renderAdjPanelSummary(line);
-                const matched = Math.abs(targetQty - countedQty) < 1e-6;
-                showToast(matched
-                    ? `ยืนยันแล้ว: ${sku} — สถานะถูกต้อง`
-                    : `ยืนยันแล้ว: ${sku} — ยอด ${targetQty.toLocaleString()} ตรง Excel ใช้เทียบ (ไม่มีการปรับยอด)`);
+                showToast(needsAcceptance
+                    ? `ยืนยัน ${sku} เป็นถูกต้องแล้ว (ไม่ปรับยอด)`
+                    : `ยืนยันแล้ว: ${sku} — สถานะถูกต้อง`);
             } catch (err) {
-                showToast(err.message, 'error');
+                if (/does not exist|relation|schema cache/i.test(err.message)) {
+                    showToast('รัน docs/sql/008_reconciliation_match_acceptances.sql ใน Supabase ก่อน', 'error');
+                } else {
+                    showToast(err.message, 'error');
+                }
             } finally {
                 loadingEl.classList.remove('active');
+                inFlightActions.delete(`acceptCount:${sku}`);
             }
             return;
         }
 
-        const status = resolveDisplayStatus(line);
+        const status = resolveComputedStatus(line);
         if (status !== 'short' && status !== 'over') {
             return showToast('รายการนี้ไม่ใช่สถานะขาด/เกิน หรือถูกต้องแล้ว', 'error');
         }
@@ -1597,6 +1932,7 @@
             if (!ok) return;
         }
 
+        inFlightActions.add(`acceptCount:${sku}`);
         const loadingEl = document.getElementById('loading');
         loadingEl.classList.add('active');
         document.getElementById('loadingText').textContent = `กำลังยอมรับผลนับ: ${sku}...`;
@@ -1644,6 +1980,7 @@
             showToast(err.message, 'error');
         } finally {
             loadingEl.classList.remove('active');
+            inFlightActions.delete(`acceptCount:${sku}`);
         }
     }
 
@@ -1800,7 +2137,7 @@
         if (acceptEl) {
             e.stopPropagation();
             const line = linesCache.find(l => l.sku_id === acceptEl.dataset.acceptCount);
-            if (line) openShortAcceptPanel(line);
+            if (line) openVarianceAcceptPanel(line);
             return;
         }
         const row = e.target.closest('tr[data-sku]');
@@ -1810,6 +2147,26 @@
     });
 
     document.getElementById('btnRefresh').addEventListener('click', runRefresh);
+
+    (function setupImportUi() {
+        const drop = document.getElementById('importDropZone');
+        const input = document.getElementById('importFileInput');
+        drop.addEventListener('click', () => input.click());
+        drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+        drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+        drop.addEventListener('drop', (e) => {
+            e.preventDefault();
+            drop.classList.remove('dragover');
+            const f = e.dataTransfer?.files?.[0];
+            if (f) parseImportFile(f);
+        });
+        input.addEventListener('change', () => {
+            const f = input.files?.[0];
+            if (f) parseImportFile(f);
+            input.value = '';
+        });
+        document.getElementById('btnImportApply').addEventListener('click', () => runImportApply());
+    })();
 
     document.getElementById('btnExport').addEventListener('click', () => {
         const rows = getVisibleLines();
@@ -1855,10 +2212,26 @@
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Match');
+        if (lastImportAdjustResults.length) {
+            const adjData = buildAdjustedExportRows();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adjData), 'Adjusted');
+        }
         const ym = currentCycle?.year_month || 'cycle';
         const wh = (currentCycle?.warehouse || 'wh').replace(/[^\w\u0E00-\u0E7F]+/g, '_');
         XLSX.writeFile(wb, `Reconcile_${wh}_${ym}.xlsx`);
-        showToast(`Export ${rows.length} SKU (รวมยอดปรับแล้ว + แถวรวม)`);
+        const adjNote = lastImportAdjustResults.length ? ` + sheet Adjusted (${lastImportAdjustResults.length})` : '';
+        showToast(`Export ${rows.length} SKU (รวมยอดปรับแล้ว + แถวรวม)${adjNote}`);
+    });
+
+    document.getElementById('btnExportAdjusted').addEventListener('click', () => {
+        if (!lastImportAdjustResults.length) return showToast('ยังไม่มีรายการ Import ล่าสุด', 'error');
+        const adjData = buildAdjustedExportRows();
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(adjData), 'Adjusted');
+        const ym = currentCycle?.year_month || 'cycle';
+        const wh = (currentCycle?.warehouse || 'wh').replace(/[^\w\u0E00-\u0E7F]+/g, '_');
+        XLSX.writeFile(wb, `Reconcile_Adjusted_${wh}_${ym}.xlsx`);
+        showToast(`Export ปรับล่าสุด ${lastImportAdjustResults.length} SKU`);
     });
 
     (async function init() {

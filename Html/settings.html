@@ -338,10 +338,10 @@
                 const rows = await service.fetchRegistryWarehouses({ force: true });
                 const showInactive = !!document.getElementById('toggleShowInactive')?.checked;
                 const visibleRows = showInactive ? rows : rows.filter(r => r.is_active !== false);
-                wrap.innerHTML = visibleRows.map((row, index) => {
+                wrap.innerHTML = visibleRows.map((row) => {
                     const name = String(row.name || '').trim();
                     const active = row.is_active !== false;
-                    const displayOrder = index + 1;
+                    const displayOrder = Number(row.sort_order) || 0;
                     return `
                         <div class="warehouse-item">
                             <label class="warehouse-toggle-wrap" title="เปิด/ปิดใช้งานคลัง">

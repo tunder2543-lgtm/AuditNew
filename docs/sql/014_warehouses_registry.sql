@@ -24,9 +24,9 @@ COMMENT ON COLUMN warehouses.name IS
 -- -----------------------------------------------------------------------------
 INSERT INTO warehouses (name, sort_order, is_active)
 VALUES
-    ('ตึกกันตนา', 0, true),
-    ('หน้าไลฟ์(บางกรวย)', 1, true),
-    ('คลังอะไหล่', 2, true)
+    ('ตึกกันตนา', 1, true),
+    ('หน้าไลฟ์(บางกรวย)', 2, true),
+    ('คลังอะไหล่', 3, true)
 ON CONFLICT (name) DO UPDATE
 SET sort_order = EXCLUDED.sort_order;
 

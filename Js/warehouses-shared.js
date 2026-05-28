@@ -32,28 +32,30 @@
         return out;
     }
 
+    function sortWarehouseRows(rows) {
+        return [...(rows || [])].sort((a, b) => {
+            const d = (Number(a.sort_order) || 999) - (Number(b.sort_order) || 999);
+            return d !== 0 ? d : a.name.localeCompare(b.name, 'th');
+        });
+    }
+
     function nextSortOrder(rows) {
         const active = (rows || []).filter(r => r.is_active !== false);
-        if (!active.length) return 0;
-        // ไม่นับ sort_order 999+ จากข้อมูลเก่า sync มา
+        if (!active.length) return 1;
         const managed = active
             .map(r => Number(r.sort_order))
-            .filter(n => Number.isFinite(n) && n < 900);
+            .filter(n => Number.isFinite(n) && n > 0 && n < 900);
         if (managed.length) return Math.max(...managed) + 1;
         return active.length;
     }
 
     async function compactActiveSortOrders(client) {
-        const rows = await fetchRegistryRows(client);
-        const active = rows
-            .filter(r => r.is_active !== false)
-            .sort((a, b) => {
-                const d = (Number(a.sort_order) || 999) - (Number(b.sort_order) || 999);
-                return d !== 0 ? d : a.name.localeCompare(b.name, 'th');
-            });
+        const rows = sortWarehouseRows(await fetchRegistryRows(client));
+        const active = rows.filter(r => r.is_active !== false);
         await Promise.all(active.map((row, index) => {
-            if (Number(row.sort_order) === index) return Promise.resolve();
-            return client.from('warehouses').update({ sort_order: index }).eq('name', row.name);
+            const order = index + 1; // ลำดับ 1, 2, 3 … ตรงกับที่แสดงบนหน้าเว็บ
+            if (Number(row.sort_order) === order) return Promise.resolve();
+            return client.from('warehouses').update({ sort_order: order }).eq('name', row.name);
         }));
     }
 
@@ -73,11 +75,12 @@
             .order('sort_order', { ascending: true })
             .order('name', { ascending: true });
         if (error) throw error;
-        return (data || []).map(r => ({
+        const rows = (data || []).map(r => ({
             name: normalizeName(r.name),
             sort_order: Number(r.sort_order) || 999,
             is_active: r.is_active !== false
         })).filter(r => !!r.name);
+        return sortWarehouseRows(rows);
     }
 
     async function fetchWarehouses(opts = {}) {
@@ -89,7 +92,7 @@
 
         const client = getClient();
         if (!client) {
-            cacheRows = FALLBACK_WAREHOUSES.map((name, i) => ({ name, sort_order: i, is_active: true }));
+            cacheRows = FALLBACK_WAREHOUSES.map((name, i) => ({ name, sort_order: i + 1, is_active: true }));
             cacheAt = now;
             return [...cacheRows];
         }

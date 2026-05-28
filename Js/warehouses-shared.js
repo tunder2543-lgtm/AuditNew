@@ -65,6 +65,8 @@
         cacheRows = [];
         cacheAt = 0;
     }
+
+    async function fetchRegistryRows(client) {
         const { data, error } = await client
             .from('warehouses')
             .select('name, sort_order, is_active')

@@ -1163,6 +1163,7 @@
     <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
     <script src="../Js/sku-utils.js"></script>
+    <script src="../Js/warehouses-shared.js"></script>
     <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/ui-confirm-modal.js"></script>
@@ -1177,7 +1178,6 @@
         let editLocationMode = false;
         let swapSkuLocMode = false;
 
-        const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
         /** @type {Map<string, { sku_id, location, counted_qty, warehouse, counter_name, record_count }>} */
         let refBySkuLoc = new Map();
         /** @type {Map<string, Array>} key = normalized sku */
@@ -1593,7 +1593,15 @@
             const allTime = localStorage.getItem('audit_check_all_time') === '1';
 
             // ค่าเริ่มต้นคลัง = ทุกคลัง เสมอ (ไม่บันทึก/กู้คืนจาก localStorage)
-            warehouseEl.value = '';
+            if (window.warehouseService?.populateSelect) {
+                window.warehouseService.populateSelect(warehouseEl, {
+                    includeAll: true,
+                    allLabel: 'ทุกคลัง',
+                    selected: ''
+                });
+            } else {
+                warehouseEl.value = '';
+            }
             localStorage.setItem('audit_check_warehouse', '');
             allTimeEl.checked = allTime;
             monthEl.innerHTML = '<option value="">กำลังโหลดเดือน...</option>';

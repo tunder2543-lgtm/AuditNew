@@ -1597,6 +1597,7 @@
     <script src="../Js/sidebar-shared.js"></script>
     <script src="../Js/api.js"></script>
     <script src="../Js/sku-utils.js"></script>
+    <script src="../Js/warehouses-shared.js"></script>
     <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/reconcile-shared.js"></script>
@@ -1626,7 +1627,7 @@
         let bucketIntervalMinutes = 30;
         let dataLoading = false;
 
-        const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
+        let standardWarehouses = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
         const els = {
             todayLabel: document.getElementById('todayLabel'),
@@ -1735,7 +1736,7 @@
 
         function getWarehouseList() {
             const fromData = [...new Set(allRecords.map(r => r.warehouse).filter(Boolean))];
-            const merged = [...STANDARD_WAREHOUSES];
+            const merged = [...standardWarehouses];
             fromData.forEach(w => {
                 if (!merged.includes(w)) merged.push(w);
             });
@@ -1793,7 +1794,7 @@
 
             const buttons = [
                 { value: '', label: 'ภาพรวมทุกคลัง', icon: 'layout-grid' },
-                ...STANDARD_WAREHOUSES.map(w => ({ value: w, label: w, icon: 'warehouse' }))
+                ...standardWarehouses.map(w => ({ value: w, label: w, icon: 'warehouse' }))
             ];
 
             els.warehouseScopeBar.innerHTML = buttons.map(btn => `
@@ -1836,7 +1837,7 @@
         function renderWarehouseOverview() {
             if (!els.warehouseOverviewGrid || scopeWarehouse) return;
 
-            const cards = STANDARD_WAREHOUSES.map(wh => {
+            const cards = getWarehouseList().map(wh => {
                 const st = computeWarehouseStats(wh);
                 return `
                     <button type="button" class="warehouse-overview-card" data-scope-wh="${escapeHtml(wh)}">
@@ -2286,6 +2287,8 @@
                     console.warn('[Schema]', msg);
                     if (els.connectionLabel) els.connectionLabel.textContent = msg;
                 });
+                const whList = await window.warehouseService?.getWarehouseList?.({ force: true }) || [];
+                if (whList.length) standardWarehouses = whList;
                 await populateCycleSelect();
                 updateCycleFilterHint();
 
@@ -2383,7 +2386,7 @@
             let totalSku = 0;
 
             if (!scopeWarehouse) {
-                STANDARD_WAREHOUSES.forEach(wh => {
+                getWarehouseList().forEach(wh => {
                     const whNorm = normalize(wh);
                     const masterWh = skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === whNorm);
                     const rowSkus = new Set(

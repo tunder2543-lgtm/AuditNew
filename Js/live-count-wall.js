@@ -11,7 +11,7 @@
     /** โหลด sku_master ใหม่ทุก N ครั้งของ poll ช้า (master เปลี่ยนไม่บ่อย) */
     const SKU_MASTER_RELOAD_EVERY_SLOW_POLLS = 3;
     const MAX_SUBMITTED_DISPLAY = 300;
-    const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
+    let standardWarehouses = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
     const STORAGE_WH = 'live_wall_warehouse';
     const STORAGE_CYCLE = 'live_wall_cycle_id';
 
@@ -569,7 +569,7 @@
 
     function populateWarehouseSelect() {
         if (!els.filterWarehouse) return;
-        const merged = STANDARD_WAREHOUSES.slice();
+        const merged = standardWarehouses.slice();
         skuMasterAll.forEach(function (s) {
             const w = String(s.warehouse || '').trim();
             if (w && !merged.includes(w)) merged.push(w);
@@ -680,6 +680,8 @@
                 if (els.statusText) els.statusText.textContent = msg;
             });
         }
+        const whList = await window.warehouseService?.getWarehouseList?.({ force: true }) || [];
+        if (whList.length) standardWarehouses = whList;
 
         await populateCycleSelect();
         await reloadAll(false);

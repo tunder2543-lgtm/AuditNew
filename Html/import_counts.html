@@ -519,6 +519,7 @@
 
     <script src="../Js/api.js"></script>
     <script src="../Js/sku-utils.js"></script>
+    <script src="../Js/warehouses-shared.js"></script>
     <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/reconcile-shared.js"></script>
@@ -527,7 +528,6 @@
     <script>
         lucide.createIcons();
 
-        const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
         const CHUNK_SIZE = 200;
 
         let supabaseClient = null;
@@ -1259,8 +1259,12 @@
         const whEl = document.getElementById('importWarehouse');
         const counterEl = document.getElementById('importCounterName');
         const savedWh = localStorage.getItem('import_counts_warehouse') ||
-            localStorage.getItem('saved_warehouse') || 'ตึกกันตนา';
-        if (whEl && STANDARD_WAREHOUSES.includes(savedWh)) whEl.value = savedWh;
+            localStorage.getItem('saved_warehouse') || '';
+        if (whEl && window.warehouseService?.populateSelect) {
+            window.warehouseService.populateSelect(whEl, { selected: savedWh });
+        } else if (whEl && savedWh) {
+            whEl.value = savedWh;
+        }
         if (whEl) whEl.addEventListener('change', refreshImportCycleBanner);
         if (counterEl) {
             counterEl.value = localStorage.getItem('saved_counter_name') || '';

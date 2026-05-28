@@ -840,6 +840,7 @@
 <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
 <script src="../Js/sku-utils.js"></script>
+<script src="../Js/warehouses-shared.js"></script>
 <script src="../Js/db-errors.js"></script>
 <script src="../Js/settings-shared.js"></script>
 <script src="../Js/reconcile-shared.js"></script>
@@ -912,6 +913,26 @@
     function syncEditWarehouseUi() {
         const isAll = document.getElementById('editWhModeAll').checked;
         document.getElementById('editWhPickPanel').classList.toggle('disabled', isAll);
+    }
+
+    async function initWarehouseControls() {
+        const ws = window.warehouseService;
+        const filterEl = document.getElementById('filterWarehouse');
+        const createPanel = document.getElementById('whPickPanel');
+        const editPanel = document.getElementById('editWhPickPanel');
+        if (ws?.populateSelect && filterEl) {
+            await ws.populateSelect(filterEl, { includeAll: true, allLabel: 'ทุกคลัง', selected: filterEl.value || '' });
+            const hasAll = [...filterEl.options].some(o => o.value === RS.ALL_WAREHOUSES);
+            if (!hasAll) {
+                filterEl.insertAdjacentHTML('beforeend', `<option value="${RS.ALL_WAREHOUSES}">${RS.ALL_WAREHOUSES}</option>`);
+            }
+        }
+        if (ws?.renderCheckboxGroup && createPanel) {
+            await ws.renderCheckboxGroup(createPanel, { nameClass: 'wh-chk-create' });
+        }
+        if (ws?.renderCheckboxGroup && editPanel) {
+            await ws.renderCheckboxGroup(editPanel, { nameClass: 'wh-chk-edit' });
+        }
     }
 
     let editDaySelectLoadSeq = 0;
@@ -1214,11 +1235,10 @@
             updateWarehouseUi();
         });
     });
-    document.querySelectorAll('.wh-chk-create').forEach(el => {
-        el.addEventListener('change', () => {
-            syncCreateWarehouseUi();
-            loadDaySelects();
-        });
+    document.getElementById('whPickPanel').addEventListener('change', (e) => {
+        if (!e.target?.classList?.contains('wh-chk-create')) return;
+        syncCreateWarehouseUi();
+        loadDaySelects();
     });
     document.querySelectorAll('input[name="editWhMode"]').forEach(el => {
         el.addEventListener('change', syncEditWarehouseUi);
@@ -1963,6 +1983,8 @@
     /* ──── Init ──────────────────────────────── */
     (async function init() {
         supabaseClient = RS.getClient();
+        await RS.refreshStandardWarehousesFromRegistry?.();
+        await initWarehouseControls();
         buildYearOptions();
         buildMonthOptions();
         await loadDaySelects();

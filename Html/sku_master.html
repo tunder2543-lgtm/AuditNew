@@ -445,6 +445,7 @@
 
     <script src="../Js/api.js"></script>
     <script src="../Js/sku-utils.js"></script>
+    <script src="../Js/warehouses-shared.js"></script>
     <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
@@ -470,7 +471,19 @@
 
         function getSelectedWarehouse() {
             const el = document.getElementById('warehouseFilter');
-            return el ? el.value : 'ตึกกันตนา';
+            return el ? el.value : '';
+        }
+
+        async function initWarehouseFilter() {
+            const warehouseFilterEl = document.getElementById('warehouseFilter');
+            if (!warehouseFilterEl) return;
+            const savedSkuWarehouse = localStorage.getItem('sku_master_warehouse') || '';
+            const service = window.warehouseService;
+            if (service?.populateSelect) {
+                await service.populateSelect(warehouseFilterEl, { selected: savedSkuWarehouse });
+            } else if (savedSkuWarehouse) {
+                warehouseFilterEl.value = savedSkuWarehouse;
+            }
         }
 
         window.onWarehouseFilterChange = function() {
@@ -481,17 +494,13 @@
         // Initialize Supabase
         supabaseClient = window.apiService ? window.apiService.getClient() : null;
 
-        const warehouseFilterEl = document.getElementById('warehouseFilter');
-        const savedSkuWarehouse = localStorage.getItem('sku_master_warehouse');
-        if (warehouseFilterEl && savedSkuWarehouse) {
-            warehouseFilterEl.value = savedSkuWarehouse;
-        }
-        
-        if (supabaseClient) {
-            loadData();
-        } else {
-            document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
-        }
+        initWarehouseFilter().then(() => {
+            if (supabaseClient) {
+                loadData();
+            } else {
+                document.getElementById('tableBody').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--danger); padding: 2rem;">กรุณาตั้งค่า Supabase URL และ Key ใน <a href="settings.html" style="color: var(--primary);">หน้าตั้งค่า</a> ก่อนใช้งาน</td></tr>';
+            }
+        });
 
         async function loadData() {
             if (!supabaseClient) return;

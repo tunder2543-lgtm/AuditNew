@@ -337,6 +337,7 @@
 
 <script src="../Js/api.js"></script>
 <script src="../Js/sku-utils.js"></script>
+<script src="../Js/warehouses-shared.js"></script>
 <script src="../Js/db-errors.js"></script>
 <script src="../Js/settings-shared.js"></script>
 <script src="../Js/reconcile-shared.js"></script>
@@ -346,7 +347,6 @@
 
     const RS = window.reconcileService;
     const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-    const WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
     const PAGE_SIZE = 1000;
     const MAX_BATCHES = 500;
     let rowsRawCache = [];
@@ -798,7 +798,12 @@
         buildYearOptions();
         buildMonthOptions();
         const savedWh = localStorage.getItem('saved_warehouse') || localStorage.getItem('import_counts_warehouse');
-        if (savedWh && WAREHOUSES.includes(savedWh)) document.getElementById('qWarehouse').value = savedWh;
+        const whEl = document.getElementById('qWarehouse');
+        if (whEl && window.warehouseService?.populateSelect) {
+            await window.warehouseService.populateSelect(whEl, { includeAll: true, allLabel: 'ทุกคลัง', selected: savedWh || '' });
+        } else if (savedWh) {
+            whEl.value = savedWh;
+        }
         await window.checkSupabaseConnection?.();
         if (window.reconcileService?.ensureSchemaReadyWithNotice) {
             const toastFn = typeof showToast === 'function' ? showToast : null;

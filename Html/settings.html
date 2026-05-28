@@ -106,6 +106,28 @@
                 </button>
             </div>
         </div>
+
+        <div class="card settings-card full-width-card">
+            <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="warehouse" style="width: 20px; height: 20px; color: var(--primary);"></i>
+                จัดการหมวดคลัง
+            </h2>
+            <p class="cs-modal-desc" style="margin-bottom: 1rem;">
+                คลังที่เพิ่มในหน้านี้จะถูกใช้ร่วมกันทุกหน้าในระบบ (นับ, นำเข้า, ตั้งค่ารอบ, Dashboard)
+            </p>
+
+            <div style="display:flex; gap:0.6rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                <input type="text" id="newWarehouseName" placeholder="เช่น TEST" autocomplete="off">
+                <button type="button" class="cs-btn-save" onclick="addWarehouseName()">
+                    <i data-lucide="plus"></i> เพิ่มคลัง
+                </button>
+                <button type="button" class="cs-btn-test" onclick="reloadWarehouseList()">
+                    <i data-lucide="refresh-cw"></i> รีโหลด
+                </button>
+            </div>
+
+            <div id="warehouseListWrap" style="display:grid; gap:0.5rem;"></div>
+        </div>
     </div>
         </main>
     </div>
@@ -113,6 +135,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="../Js/api.js"></script>
+    <script src="../Js/warehouses-shared.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
     <script>
@@ -191,7 +214,64 @@
             await refreshStatus();
         };
 
+        async function renderWarehouseList() {
+            const wrap = document.getElementById('warehouseListWrap');
+            if (!wrap) return;
+            const service = window.warehouseService;
+            if (!service) {
+                wrap.innerHTML = '<div style="color:var(--danger);">ไม่พบ warehouseService</div>';
+                return;
+            }
+            try {
+                const rows = await service.fetchWarehouses({ force: true });
+                wrap.innerHTML = rows.map(row => {
+                    const name = String(row.name || '').trim();
+                    const active = row.is_active !== false;
+                    return `
+                        <label style="display:flex;align-items:center;gap:0.6rem;background:rgba(255,255,255,0.02);padding:0.55rem 0.7rem;border:1px solid var(--card-border);border-radius:10px;">
+                            <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleWarehouseActive('${name.replace(/'/g, "\\'")}', this.checked)">
+                            <span style="font-weight:500;">${name}</span>
+                            <span style="margin-left:auto;color:var(--text-muted);font-size:0.82rem;">ลำดับ ${Number(row.sort_order) || 0}</span>
+                        </label>
+                    `;
+                }).join('') || '<div style="color:var(--text-muted);">ยังไม่มีรายการคลัง</div>';
+                lucide.createIcons();
+            } catch (err) {
+                wrap.innerHTML = `<div style="color:var(--danger);">โหลดคลังไม่สำเร็จ: ${err.message}</div>`;
+            }
+        }
+
+        window.addWarehouseName = async function () {
+            const el = document.getElementById('newWarehouseName');
+            const name = el?.value.trim();
+            if (!name) return showToast('กรุณาระบุชื่อคลัง', 'error');
+            try {
+                await window.warehouseService.addWarehouse(name);
+                if (el) el.value = '';
+                showToast(`เพิ่มคลัง ${name} สำเร็จ`, 'success');
+                await renderWarehouseList();
+            } catch (err) {
+                showToast(`เพิ่มคลังไม่สำเร็จ: ${err.message}`, 'error');
+            }
+        };
+
+        window.toggleWarehouseActive = async function (name, active) {
+            try {
+                await window.warehouseService.setWarehouseActive(name, active);
+                showToast(`${active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}คลัง ${name} แล้ว`, 'success');
+                await renderWarehouseList();
+            } catch (err) {
+                showToast(`บันทึกสถานะคลังไม่สำเร็จ: ${err.message}`, 'error');
+                await renderWarehouseList();
+            }
+        };
+
+        window.reloadWarehouseList = async function () {
+            await renderWarehouseList();
+        };
+
         refreshStatus();
+        renderWarehouseList();
     </script>
 </body>
 </html>

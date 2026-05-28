@@ -16,7 +16,7 @@
 
     const WAREHOUSE_MULTI_SEP = '|';
 
-    const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
+    let STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
     const BOOK_CHUNK = 200;
 
@@ -152,6 +152,18 @@
 
         return sorted.join(WAREHOUSE_MULTI_SEP);
 
+    }
+
+    async function refreshStandardWarehousesFromRegistry() {
+        try {
+            const list = await window.warehouseService?.getWarehouseList?.({ force: true }) || [];
+            if (list.length) {
+                STANDARD_WAREHOUSES = [...list];
+            }
+        } catch (err) {
+            console.warn('[ReconcileShared] load warehouse registry failed:', err?.message || err);
+        }
+        return STANDARD_WAREHOUSES;
     }
 
 
@@ -2944,6 +2956,8 @@
         parseCycleWarehouses,
 
         encodeCycleWarehouses,
+
+        refreshStandardWarehousesFromRegistry,
 
         isMultiWarehouseCycle,
 

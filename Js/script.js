@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allRecords     = []; // Cache inventory_counts records for audit log context
     let supabaseDataLoaded = false;
 
-    const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
+    let knownWarehouses = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
     function initSupabase() {
         if (!window.apiService) {
@@ -104,6 +104,35 @@ document.addEventListener('DOMContentLoaded', () => {
             return warehouseCustom ? warehouseCustom.value.trim() : '';
         }
         return (warehouseInput.value || '').trim();
+    }
+
+    async function refreshWarehouseSelectOptions(preferredWarehouse) {
+        if (!warehouseInput) return;
+        let list = [];
+        try {
+            list = await window.warehouseService?.getWarehouseList?.({ force: true }) || [];
+        } catch (err) {
+            console.warn('[Warehouse] load list failed:', err?.message || err);
+        }
+        if (!list.length) list = [...knownWarehouses];
+        knownWarehouses = [...new Set(list.map(w => String(w || '').trim()).filter(Boolean))];
+        if (!knownWarehouses.length) knownWarehouses = ['ตึกกันตนา'];
+
+        const prev = preferredWarehouse || getActiveWarehouse() || localStorage.getItem('saved_warehouse') || '';
+        warehouseInput.innerHTML = knownWarehouses
+            .map(w => `<option value="${escapeHtml(w)}">${escapeHtml(w)}</option>`)
+            .join('') + '<option value="custom">ระบุเอง (พิมพ์ใหม่)</option>';
+
+        if (prev && knownWarehouses.includes(prev)) {
+            warehouseInput.value = prev;
+        } else if (prev) {
+            warehouseInput.value = 'custom';
+            warehouseInput.style.display = 'none';
+            if (warehouseCustomContainer) warehouseCustomContainer.style.display = 'block';
+            if (warehouseCustom) warehouseCustom.value = prev;
+        } else {
+            warehouseInput.value = knownWarehouses[0];
+        }
     }
 
     function filterRecordsByWarehouse(records) {
@@ -389,26 +418,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (warehouseInput && warehouseCustomContainer) {
             warehouseCustomContainer.style.display = 'none';
             warehouseInput.style.display = 'block';
-            warehouseInput.value = 'ตึกกันตนา';
+            warehouseInput.value = knownWarehouses[0] || '';
             if (warehouseCustom) warehouseCustom.value = '';
             onWarehouseContextChanged();
         }
     };
 
-    if (savedWarehouse && warehouseInput) {
-        if (STANDARD_WAREHOUSES.includes(savedWarehouse)) {
-            warehouseInput.value = savedWarehouse;
-            if (warehouseCustomContainer) warehouseCustomContainer.style.display = 'none';
-            warehouseInput.style.display = 'block';
-        } else {
-            warehouseInput.value = 'custom';
-            warehouseInput.style.display = 'none';
-            if (warehouseCustomContainer) {
-                warehouseCustomContainer.style.display = 'block';
-                if (warehouseCustom) warehouseCustom.value = savedWarehouse;
-            }
-        }
-    }
+    refreshWarehouseSelectOptions(savedWarehouse);
 
     if (warehouseInput) {
         warehouseInput.addEventListener('change', async () => {
@@ -429,16 +445,13 @@ document.addEventListener('DOMContentLoaded', () => {
         warehouseCustom.addEventListener('change', async () => {
             const wh = warehouseCustom.value.trim();
             if (wh) {
-                if (!STANDARD_WAREHOUSES.includes(wh)) {
-                    showToast('ชื่อคลังไม่ตรง 3 คลังมาตรฐาน — ข้อมูลอาจแยกจากรายงานหลัก', 'error');
-                }
                 localStorage.setItem('saved_warehouse', wh);
             }
             await onWarehouseContextChanged();
         });
     }
 
-    if (savedWarehouse && !STANDARD_WAREHOUSES.includes(savedWarehouse) && warehouseInput?.value === 'custom') {
+    if (savedWarehouse && !knownWarehouses.includes(savedWarehouse) && warehouseInput?.value === 'custom') {
         console.warn('[Warehouse] ใช้ชื่อคลังนอกมาตรฐาน:', savedWarehouse);
     }
 

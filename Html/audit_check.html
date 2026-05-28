@@ -1887,6 +1887,123 @@
             }
         }
 
+        function getWarehouseForRecordId(recordId) {
+            if (!recordId) return getAuditFilters().warehouse || '';
+            const id = String(recordId);
+            for (const entry of refBySkuLoc.values()) {
+                const ids = entry.record_ids || [];
+                if (ids.some(rid => String(rid) === id)) return entry.warehouse || '';
+            }
+            return getAuditFilters().warehouse || '';
+        }
+
+        /**
+         * ตรวจว่าปลายทาง (sku + ตำแหน่ง + คลัง) มีแถวอื่นใน inventory_counts แล้วหรือไม่
+         * @param {Iterable<string>} excludeRecordIds แถวที่ไม่นับเป็นชน (เช่น ทั้งชุดที่กำลังย้ายพร้อมกัน)
+         */
+        function getDestinationCollision(sku, loc, warehouse, excludeRecordIds) {
+            const skuN = norm(sku);
+            const locN = norm(loc);
+            if (!skuN || !locN) {
+                return { blocked: true, message: 'SKU หรือตำแหน่งปลายทางว่าง' };
+            }
+
+            const exclude = new Set();
+            if (excludeRecordIds) {
+                for (const id of excludeRecordIds) exclude.add(String(id));
+            }
+
+            const wh = norm(warehouse || '');
+            let entry = null;
+
+            if (wh) {
+                entry = refBySkuLoc.get(refEntryKey(skuN, locN, wh)) || null;
+            } else {
+                const matches = [];
+                const prefix = skuN + '|' + locN + '|';
+                for (const [k, e] of refBySkuLoc) {
+                    if (k.startsWith(prefix)) matches.push(e);
+                }
+                if (matches.length === 0) {
+                    entry = null;
+                } else if (matches.length === 1) {
+                    entry = matches[0];
+                } else {
+                    return {
+                        blocked: true,
+                        message: 'SKU+ตำแหน่งปลายทางมีในหลายคลัง — เลือกคลังในตัวกรองก่อนบันทึก'
+                    };
+                }
+            }
+
+            if (!entry) return null;
+
+            const others = (entry.record_ids || []).filter(rid => rid && !exclude.has(String(rid)));
+            if (!others.length) return null;
+
+            const n = entry.record_count || others.length;
+            return {
+                blocked: true,
+                message: `ปลายทางซ้ำในระบบ (มี ${n} แถวที่ SKU+ตำแหน่ง+คลังเดียวกันอยู่แล้ว)`
+            };
+        }
+
+        /** แยกรายการที่อัปเดตได้ vs ชนปลายทาง (DB หรือภายในชุดเดียวกัน) */
+        function validateDestUpdateBatch(updates) {
+            const batchIds = new Set(updates.map(u => String(u.recordId)));
+            const pendingDest = new Set();
+            const ok = [];
+            const blocked = [];
+
+            for (const u of updates) {
+                const wh = u.warehouse != null && u.warehouse !== ''
+                    ? u.warehouse
+                    : getWarehouseForRecordId(u.recordId);
+                const key = refEntryKey(u.destSku, u.destLoc, wh);
+
+                const coll = getDestinationCollision(u.destSku, u.destLoc, wh, batchIds);
+                if (coll) {
+                    blocked.push({ ...u, message: coll.message });
+                    continue;
+                }
+                if (pendingDest.has(key)) {
+                    blocked.push({ ...u, message: 'ชนกับรายการอื่นในชุดที่กำลังบันทึก' });
+                    continue;
+                }
+                pendingDest.add(key);
+                ok.push(u);
+            }
+            return { ok, blocked };
+        }
+
+        function formatBlockedDestLines(blocked, max = 5) {
+            const lines = blocked.slice(0, max).map(b => `• ${b.label || b.recordId}: ${b.message}`);
+            if (blocked.length > max) lines.push(`… และอีก ${blocked.length - max} รายการ`);
+            return lines;
+        }
+
+        async function confirmDestUpdatesWithSkips(title, toApply, blocked) {
+            if (!blocked.length) return true;
+            if (!toApply.length) {
+                showToast(
+                    `${title}: ไม่บันทึก — ปลายทางซ้ำทั้งหมด ${blocked.length} รายการ\n` +
+                    formatBlockedDestLines(blocked).join('\n'),
+                    'error'
+                );
+                return false;
+            }
+            return uiConfirm.show({
+                title: 'ข้ามรายการที่ปลายทางซ้ำ',
+                variant: 'amber',
+                intro: `${title}: บันทึกได้ ${toApply.length} รายการ · ข้าม ${blocked.length} รายการ`,
+                bullets: formatBlockedDestLines(blocked, 8),
+                note: 'รายการที่ข้ามยังไม่ถูกแก้ใน Supabase',
+                noteVariant: 'safe',
+                confirmLabel: `บันทึก ${toApply.length} รายการ`,
+                cancelLabel: 'ยกเลิกทั้งหมด'
+            });
+        }
+
         async function loadReferenceData() {
             if (!supabaseClient) return;
             const filters = getAuditFilters();

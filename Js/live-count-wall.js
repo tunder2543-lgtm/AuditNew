@@ -4,7 +4,12 @@
 
 (function () {
     const RS = window.reconcileService;
-    const POLL_MS = 12000;
+    /** Polling เมื่อ Realtime ไม่พร้อม — แหล่งหลัก */
+    const POLL_MS_FAST = 15000;
+    /** Polling เมื่อ Realtime ทำงาน — sync สำรองเป็นครั้งคราว (ไม่โหลดซ้ำกับ event ทุก 12 วินาที) */
+    const POLL_MS_SLOW = 90000;
+    /** โหลด sku_master ใหม่ทุก N ครั้งของ poll ช้า (master เปลี่ยนไม่บ่อย) */
+    const SKU_MASTER_RELOAD_EVERY_SLOW_POLLS = 3;
     const MAX_SUBMITTED_DISPLAY = 300;
     const STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
     const STORAGE_WH = 'live_wall_warehouse';
@@ -12,7 +17,6 @@
 
     let client = null;
     let realtimeChannel = null;
-    let pollTimer = null;
     let skuMasterAll = [];
     let countRowsAll = [];
     let cyclesList = [];
@@ -21,6 +25,8 @@
     let knownIds = new Set();
     let isLoading = false;
     let realtimeOk = false;
+    let pollTimer = null;
+    let slowPollTick = 0;
 
     const els = {};
 
@@ -388,7 +394,17 @@
     function updateLiveBadge(on) {
         if (!els.liveBadge) return;
         els.liveBadge.classList.toggle('wall-live-on', !!on);
-        els.liveBadge.textContent = on ? (realtimeOk ? 'Live · Realtime' : 'Live · Polling') : 'Offline';
+        if (!on) {
+            els.liveBadge.textContent = 'Offline';
+            return;
+        }
+        if (realtimeOk) {
+            const sec = Math.round(POLL_MS_SLOW / 1000);
+            els.liveBadge.textContent = 'Live · Realtime (sync ทุก ' + sec + ' วินาที)';
+        } else {
+            const sec = Math.round(POLL_MS_FAST / 1000);
+            els.liveBadge.textContent = 'Live · Polling ทุก ' + sec + ' วินาที';
+        }
     }
 
     async function loadPagedSkuMaster() {
@@ -437,25 +453,38 @@
         });
     }
 
-    async function reloadAll(silent) {
+    async function reloadAll(silent, opts) {
+        opts = opts || {};
         if (isLoading) return;
         isLoading = true;
         if (els.btnRefresh) els.btnRefresh.disabled = true;
         if (!silent && els.statusText) els.statusText.textContent = 'กำลังโหลด...';
 
         const prevRows = silent && countRowsAll.length ? countRowsAll.slice() : [];
+        const reloadMaster = opts.reloadMaster !== false;
 
         try {
-            const [master, counts] = await Promise.all([loadPagedSkuMaster(), loadCounts()]);
+            let master = skuMasterAll;
+            let counts;
+            if (reloadMaster) {
+                const pair = await Promise.all([loadPagedSkuMaster(), loadCounts()]);
+                master = pair[0];
+                counts = pair[1];
+                skuMasterAll = master;
+            } else {
+                counts = await loadCounts();
+            }
             if (silent && prevRows.length) {
                 detectDeletedRowsOnPoll(prevRows, counts);
             }
-            skuMasterAll = master;
             countRowsAll = counts;
             knownIds = new Set(counts.map(function (r) { return normalizeId(r.id); }).filter(Boolean));
             renderLists();
+            if (reloadMaster) populateWarehouseSelect();
+            const modeLabel = realtimeOk ? 'Realtime + sync สำรอง' : 'Polling';
             if (els.statusText) {
-                els.statusText.textContent = 'อัปเดตล่าสุด ' + formatThaiDateTime(new Date().toISOString());
+                els.statusText.textContent =
+                    'อัปเดตล่าสุด ' + formatThaiDateTime(new Date().toISOString()) + ' · ' + modeLabel;
             }
         } catch (err) {
             console.error('[LiveWall]', err);
@@ -492,20 +521,50 @@
                 handleRealtimePayload(payload, true);
             })
             .subscribe(function (status) {
+                const prevOk = realtimeOk;
                 realtimeOk = status === 'SUBSCRIBED';
+                if (prevOk !== realtimeOk) {
+                    slowPollTick = 0;
+                    reschedulePolling();
+                }
                 updateLiveBadge(realtimeOk || !!pollTimer);
                 if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                    console.warn('[LiveWall] Realtime:', status, '— ใช้ polling แทน');
+                    console.warn('[LiveWall] Realtime:', status, '— ใช้ polling ถี่ขึ้นแทน');
+                    reschedulePolling();
                 }
             });
     }
 
-    function setupPolling() {
-        if (pollTimer) clearInterval(pollTimer);
+    function getPollIntervalMs() {
+        return realtimeOk ? POLL_MS_SLOW : POLL_MS_FAST;
+    }
+
+    function stopPolling() {
+        if (pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    }
+
+    /** ตั้ง polling ตามสถานะ Realtime — ไม่รันถี่คู่กับ event แบบเดิม */
+    function reschedulePolling() {
+        stopPolling();
+        const ms = getPollIntervalMs();
         pollTimer = setInterval(function () {
-            reloadAll(true);
-        }, POLL_MS);
+            if (document.hidden) return;
+
+            let reloadMaster = true;
+            if (realtimeOk) {
+                slowPollTick += 1;
+                reloadMaster = slowPollTick % SKU_MASTER_RELOAD_EVERY_SLOW_POLLS === 0;
+            }
+            reloadAll(true, { reloadMaster: reloadMaster });
+        }, ms);
         updateLiveBadge(true);
+    }
+
+    function setupPolling() {
+        reschedulePolling();
     }
 
     function populateWarehouseSelect() {
@@ -577,7 +636,12 @@
             });
         }
         document.addEventListener('visibilitychange', function () {
-            if (!document.hidden) reloadAll(true);
+            if (document.hidden) {
+                stopPolling();
+                return;
+            }
+            reloadAll(true, { reloadMaster: true });
+            reschedulePolling();
         });
     }
 

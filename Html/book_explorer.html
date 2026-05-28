@@ -40,9 +40,10 @@
         }
         .be-actions {
             display: flex;
-            flex-wrap: wrap;
+            flex-wrap: nowrap;
             gap: 0.5rem;
             align-items: center;
+            grid-column: span 2;
         }
         .be-btn {
             border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
@@ -87,10 +88,12 @@
         @media (max-width: 860px) {
             .be-filter-grid { grid-template-columns: 1fr 1fr; }
             .be-kpis { grid-template-columns: 1fr 1fr; }
+            .be-actions { grid-column: 1 / -1; flex-wrap: wrap; }
         }
         @media (max-width: 560px) {
             .be-filter-grid { grid-template-columns: 1fr; }
             .be-kpis { grid-template-columns: 1fr; }
+            .be-actions { grid-column: auto; }
         }
     </style>
 </head>

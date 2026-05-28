@@ -1516,7 +1516,7 @@
                 hint.textContent = `⚠ ${parts.join(' · ')} — bulk แก้ตำแหน่ง/Import เทียบควรระบุคลังและเดือน`;
                 hint.style.color = '#fbbf24';
             } else {
-                hint.textContent = `ใช้เฉพาะ ${formatAuditScopeLabel(f)} — เปลี่ยนเดือนแล้วระบบโหลดอ้างอิงใหม่อัตโนมัติ`;
+                hint.textContent = `ใช้เฉพาะ ${formatAuditScopeLabel(f)} — เปลี่ยนคลัง/เดือนแล้วระบบโหลด + ใส่ตาราง + ตรวจสอบให้อัตโนมัติ`;
                 hint.style.color = '#93c5fd';
             }
         }
@@ -3472,7 +3472,7 @@
             reader.readAsBinaryString(file);
         });
 
-        document.getElementById('btnReloadRef').addEventListener('click', () => loadReferenceData());
+        document.getElementById('btnReloadRef').addEventListener('click', () => runFullAuditLoad());
 
         document.getElementById('btnDedupeDb').addEventListener('click', () => dedupeInventoryCountsInDb());
 
@@ -3577,24 +3577,25 @@
             }
         }
 
-        document.getElementById('btnLoadCounts').addEventListener('click', async () => {
+        /** ดึงผลนับจาก Supabase ตามตัวกรอง คลัง/เดือน แล้วใส่ลงตาราง */
+        async function loadCountsToTable({ silent = false } = {}) {
             if (!supabaseClient) {
-                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
-                return;
+                if (!silent) showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return { items: [], scope: '' };
             }
 
             const btn = document.getElementById('btnLoadCounts');
             if (btn) btn.disabled = true;
-            setLoading(true, 'กำลังดึงข้อมูลจาก Supabase...', 'รอสักครู่');
+            if (!silent) setLoading(true, 'กำลังดึงข้อมูลจาก Supabase...', 'รอสักครู่');
 
             try {
                 const filters = getAuditFilters();
-                const { rows, rounds } = await fetchAllInventoryCounts(
+                const { rows } = await fetchAllInventoryCounts(
                     'id, sku_id, location, counted_qty, warehouse, created_at',
                     filters
                 );
                 const scope = formatAuditScopeLabel(filters);
-                setLoadingMessage('กำลังใส่รายการลงตาราง...', `${rows.length.toLocaleString()} แถว · ${scope}`);
+                if (!silent) setLoadingMessage('กำลังใส่รายการลงตาราง...', `${rows.length.toLocaleString()} แถว · ${scope}`);
                 await yieldToBrowser();
 
                 const items = rows.map(r => ({
@@ -3613,14 +3614,61 @@
                 await fillRows(items);
                 document.getElementById('sortLocation').value = 'num-asc';
                 applyTableView();
-                showToast(`ดึง ${items.length.toLocaleString()} แถว · ${scope} · เรียง 1→10`);
+                if (!silent) showToast(`ดึง ${items.length.toLocaleString()} แถว · ${scope} · เรียง 1→10`);
+                return { items, scope };
             } catch (err) {
-                showToast(err.message, 'error');
+                if (!silent) showToast(err.message, 'error');
+                throw err;
             } finally {
-                setLoading(false);
+                if (!silent) setLoading(false);
                 if (btn) btn.disabled = false;
             }
-        });
+        }
+
+        document.getElementById('btnLoadCounts').addEventListener('click', () => loadCountsToTable());
+
+        /**
+         * Pipeline ออโต้: โหลดอ้างอิง → ใส่รายการลงตาราง → ตรวจสอบทั้งหมด
+         * เรียกอัตโนมัติเมื่อผู้ใช้เปลี่ยน คลัง/เดือน/ทุกช่วงเวลา
+         */
+        let autoRunInFlight = false;
+        async function runFullAuditLoad({ skipVerify = false } = {}) {
+            if (autoRunInFlight) return;
+            if (!supabaseClient) return;
+            if (editLocationMode || swapSkuLocMode) return;
+
+            autoRunInFlight = true;
+            try {
+                setLoading(true, 'กำลังโหลดข้อมูลอ้างอิง...', 'รอสักครู่');
+                await loadReferenceData();
+
+                setLoadingMessage('กำลังดึงผลนับ...', '');
+                const result = await loadCountsToTable({ silent: true });
+                const items = result?.items || [];
+
+                if (!items.length) {
+                    showToast('ไม่มีผลนับในขอบเขตที่เลือก', 'error');
+                    return;
+                }
+
+                if (!skipVerify && refBySkuLoc.size) {
+                    setLoadingMessage('กำลังตรวจสอบ...', `0 / ${items.length.toLocaleString()} แถว`);
+                    const rows = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
+                    await verifyRowsInBatches(rows);
+                    updateStats();
+                    applyTableView();
+                    showToast(`โหลด + ตรวจสอบ ${items.length.toLocaleString()} แถวแล้ว`);
+                } else {
+                    showToast(`โหลด ${items.length.toLocaleString()} แถวแล้ว — รอตรวจสอบ`);
+                }
+            } catch (err) {
+                console.error('[Auto Load Error]', err);
+                showToast('โหลดอัตโนมัติล้มเหลว: ' + err.message, 'error');
+            } finally {
+                setLoading(false);
+                autoRunInFlight = false;
+            }
+        }
 
         // Paste จาก Excel (TSV)
         sheetBody.addEventListener('paste', (e) => {
@@ -3684,24 +3732,22 @@
             saveAuditFilters();
             if (!supabaseClient) return;
             await refreshAuditMonthSelect();
-            await loadReferenceData();
+            await runFullAuditLoad();
         }
 
         async function onAuditMonthChange() {
             saveAuditFilters();
-            if (supabaseClient) await loadReferenceData();
+            if (supabaseClient) await runFullAuditLoad();
         }
 
         async function onAuditAllTimeChange() {
             if (auditFilterMonth) auditFilterMonth.disabled = auditFilterAllTime.checked;
             saveAuditFilters();
             if (!supabaseClient) return;
-            if (auditFilterAllTime.checked) {
-                await loadReferenceData();
-                return;
+            if (!auditFilterAllTime.checked) {
+                await refreshAuditMonthSelect();
             }
-            await refreshAuditMonthSelect();
-            await loadReferenceData();
+            await runFullAuditLoad();
         }
 
         if (auditFilterWarehouse) auditFilterWarehouse.addEventListener('change', onAuditWarehouseChange);
@@ -3715,7 +3761,7 @@
         if (supabaseClient) {
             (async () => {
                 await refreshAuditMonthSelect(localStorage.getItem('audit_check_year_month') || '');
-                await loadReferenceData();
+                await runFullAuditLoad();
             })();
         } else {
             document.getElementById('refBadge').innerHTML =

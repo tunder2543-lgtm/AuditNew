@@ -32,12 +32,20 @@
             border: 1px solid var(--input-border); background: var(--input-bg);
             color: var(--text); font-size: 0.84rem; font-family: 'Kanit', sans-serif;
         }
-        .be-actions { display: flex; gap: 0.5rem; align-items: end; }
+        .be-actions {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            padding-top: 0.1rem;
+        }
         .be-btn {
             border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
             color: var(--text); border-radius: 8px; padding: 0.52rem 0.7rem;
             cursor: pointer; font-size: 0.82rem; font-family: 'Kanit', sans-serif;
             display: inline-flex; align-items: center; gap: 0.35rem;
+            min-height: 38px;
         }
         .be-btn:hover { background: rgba(255,255,255,0.12); }
         .be-btn.primary { background: linear-gradient(135deg,#1d4ed8,#3b82f6); border: none; color: #fff; }
@@ -270,9 +278,13 @@
             }
 
             function toDateRange() {
-                const start = el.dateStart.value ? `${el.dateStart.value}T00:00:00` : '';
-                const end = el.dateEnd.value ? `${el.dateEnd.value}T23:59:59` : '';
-                return { start, end };
+                const startDate = el.dateStart.value ? new Date(`${el.dateStart.value}T00:00:00`) : null;
+                const endDate = el.dateEnd.value ? new Date(`${el.dateEnd.value}T00:00:00`) : null;
+                const endExclusive = endDate ? new Date(endDate.getTime() + (24 * 60 * 60 * 1000)) : null;
+                return {
+                    start: startDate ? startDate.toISOString() : '',
+                    endExclusive: endExclusive ? endExclusive.toISOString() : ''
+                };
             }
 
             function escapedLike(value) {
@@ -331,7 +343,7 @@
                 const wh = el.warehouseFilter.value;
                 const status = el.statusFilter.value;
                 const search = el.searchInput.value.trim();
-                const { start, end } = toDateRange();
+                const { start, endExclusive } = toDateRange();
 
                 if (cycleId) query = query.eq('cycle_id', cycleId);
 
@@ -351,7 +363,7 @@
                 if (status === 'positive') query = query.gt('book_qty', 0);
                 if (status === 'zero') query = query.eq('book_qty', 0);
                 if (start) query = query.gte('created_at', start);
-                if (end) query = query.lte('created_at', end);
+                if (endExclusive) query = query.lt('created_at', endExclusive);
                 if (search) {
                     const q = escapedLike(search);
                     query = query.or(`sku_id.ilike.%${q}%,location.ilike.%${q}%,name_pro.ilike.%${q}%`);
@@ -504,6 +516,12 @@
                 el.statusFilter.addEventListener('change', onFilterChanged);
                 el.dateStart.addEventListener('change', onFilterChanged);
                 el.dateEnd.addEventListener('change', onFilterChanged);
+                el.dateStart.addEventListener('change', () => {
+                    el.dateEnd.min = el.dateStart.value || '';
+                });
+                el.dateEnd.addEventListener('change', () => {
+                    el.dateStart.max = el.dateEnd.value || '';
+                });
 
                 el.searchInput.addEventListener('input', () => {
                     if (state.debounceTimer) clearTimeout(state.debounceTimer);

@@ -41,6 +41,72 @@
             display: block;
             margin-bottom: 0.2rem;
         }
+        .warehouse-toolbar {
+            display: flex;
+            gap: 0.6rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .warehouse-toolbar input {
+            min-width: 220px;
+            flex: 1 1 260px;
+        }
+        .warehouse-list {
+            display: grid;
+            gap: 0.55rem;
+        }
+        .warehouse-item {
+            display: flex;
+            align-items: center;
+            gap: 0.65rem;
+            background: linear-gradient(165deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+            padding: 0.62rem 0.78rem;
+            border: 1px solid var(--card-border);
+            border-radius: 11px;
+            transition: border-color .18s ease, transform .18s ease, background .18s ease;
+        }
+        .warehouse-item:hover {
+            border-color: rgba(59,130,246,0.45);
+            background: rgba(37,99,235,0.08);
+            transform: translateY(-1px);
+        }
+        .warehouse-name {
+            font-weight: 600;
+            font-family: 'Kanit', sans-serif;
+            letter-spacing: 0.1px;
+        }
+        .warehouse-meta {
+            margin-left: auto;
+            color: var(--text-muted);
+            font-size: 0.82rem;
+        }
+        .warehouse-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            border-radius: 999px;
+            font-size: 0.74rem;
+            padding: 0.15rem 0.5rem;
+            border: 1px solid rgba(148, 163, 184, 0.38);
+            color: #cbd5e1;
+            background: rgba(148, 163, 184, 0.12);
+        }
+        .warehouse-pill.active {
+            border-color: rgba(16, 185, 129, 0.55);
+            color: #6ee7b7;
+            background: rgba(16, 185, 129, 0.14);
+        }
+        .warehouse-del-btn {
+            padding: 0.32rem 0.58rem !important;
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.35) !important;
+            background: rgba(127, 29, 29, 0.12);
+        }
+        .warehouse-del-btn:hover {
+            background: rgba(153, 27, 27, 0.22);
+            border-color: rgba(248, 113, 113, 0.55) !important;
+        }
     </style>
 </head>
 <body class="has-sidebar">
@@ -116,7 +182,7 @@
                 คลังที่เพิ่มในหน้านี้จะถูกใช้ร่วมกันทุกหน้าในระบบ (นับ, นำเข้า, ตั้งค่ารอบ, Dashboard)
             </p>
 
-            <div style="display:flex; gap:0.6rem; margin-bottom: 1rem; flex-wrap: wrap;">
+            <div class="warehouse-toolbar">
                 <input type="text" id="newWarehouseName" placeholder="เช่น TEST" autocomplete="off">
                 <button type="button" class="cs-btn-save" onclick="addWarehouseName()">
                     <i data-lucide="plus"></i> เพิ่มคลัง
@@ -126,7 +192,7 @@
                 </button>
             </div>
 
-            <div id="warehouseListWrap" style="display:grid; gap:0.5rem;"></div>
+            <div id="warehouseListWrap" class="warehouse-list"></div>
         </div>
     </div>
         </main>
@@ -228,11 +294,14 @@
                     const name = String(row.name || '').trim();
                     const active = row.is_active !== false;
                     return `
-                        <div style="display:flex;align-items:center;gap:0.6rem;background:rgba(255,255,255,0.02);padding:0.55rem 0.7rem;border:1px solid var(--card-border);border-radius:10px;">
+                        <div class="warehouse-item">
                             <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleWarehouseActive('${name.replace(/'/g, "\\'")}', this.checked)" title="เปิด/ปิดใช้งาน">
-                            <span style="font-weight:500;">${name}</span>
-                            <span style="margin-left:auto;color:var(--text-muted);font-size:0.82rem;">ลำดับ ${Number(row.sort_order) || 0}</span>
-                            <button type="button" class="cs-btn-test" style="padding:0.3rem 0.55rem;" onclick="deleteWarehouseName('${name.replace(/'/g, "\\'")}')">
+                            <span class="warehouse-name">${name}</span>
+                            <span class="warehouse-pill ${active ? 'active' : ''}">
+                                ${active ? 'active' : 'inactive'}
+                            </span>
+                            <span class="warehouse-meta">ลำดับ ${Number(row.sort_order) || 0}</span>
+                            <button type="button" class="cs-btn-test warehouse-del-btn" onclick="deleteWarehouseName('${name.replace(/'/g, "\\'")}')">
                                 <i data-lucide="trash-2" style="width:14px;height:14px;"></i> ลบ
                             </button>
                         </div>

@@ -234,6 +234,10 @@
                 <span>ชื่อคลัง</span>
                 <span class="right">สถานะ / จัดการ</span>
             </div>
+            <label style="display:inline-flex;align-items:center;gap:0.45rem;color:var(--text-muted);font-size:0.82rem;margin:0.15rem 0 0.45rem 0.2rem;">
+                <input type="checkbox" id="toggleShowInactive" onchange="renderWarehouseList()">
+                แสดงคลังที่ปิดใช้งาน
+            </label>
             <div id="warehouseListWrap" class="warehouse-list"></div>
         </div>
     </div>
@@ -332,7 +336,9 @@
             }
             try {
                 const rows = await service.fetchWarehouses({ force: true });
-                wrap.innerHTML = rows.map(row => {
+                const showInactive = !!document.getElementById('toggleShowInactive')?.checked;
+                const visibleRows = showInactive ? rows : rows.filter(r => r.is_active !== false);
+                wrap.innerHTML = visibleRows.map(row => {
                     const name = String(row.name || '').trim();
                     const active = row.is_active !== false;
                     return `
@@ -355,7 +361,7 @@
                             </div>
                         </div>
                     `;
-                }).join('') || '<div style="color:var(--text-muted);">ยังไม่มีรายการคลัง</div>';
+                }).join('') || '<div style="color:var(--text-muted);">ยังไม่มีรายการคลังที่แสดงผล</div>';
                 lucide.createIcons();
             } catch (err) {
                 wrap.innerHTML = `<div style="color:var(--danger);">โหลดคลังไม่สำเร็จ: ${err.message}</div>`;
@@ -392,11 +398,11 @@
         };
 
         window.deleteWarehouseName = async function (name) {
-            const ok = confirm(`ยืนยันลบคลัง "${name}" ?\nหมายเหตุ: ข้อมูลเดิมในตารางอื่นจะยังอยู่ แต่ชื่อคลังนี้จะหายจาก registry`);
+            const ok = confirm(`ยืนยันลบคลัง "${name}" ?\nระบบจะซ่อนคลังนี้ออกจากทุกหน้า (ข้อมูลเดิมจะยังไม่ถูกลบ)`);
             if (!ok) return;
             try {
                 await window.warehouseService.deleteWarehouse(name);
-                showToast(`ลบคลัง ${name} สำเร็จ`, 'success');
+                showToast(`ลบ/ซ่อนคลัง ${name} สำเร็จ`, 'success');
                 await renderWarehouseList();
             } catch (err) {
                 showToast(`ลบคลังไม่สำเร็จ: ${err.message}`, 'error');

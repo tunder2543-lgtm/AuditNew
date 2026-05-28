@@ -187,9 +187,11 @@
         if (!value) throw new Error('ไม่พบชื่อคลัง');
         const client = getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+        // soft delete: ซ่อนคลังจากระบบโดยตั้ง inactive
+        // เพื่อกัน fallback จากข้อมูลเก่าดึงกลับมาเป็น active อีก
         const { error } = await client
             .from('warehouses')
-            .delete()
+            .update({ is_active: false })
             .eq('name', value);
         if (error) throw error;
         await fetchWarehouses({ force: true });

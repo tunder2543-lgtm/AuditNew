@@ -504,6 +504,8 @@
         let importConfirmStep = 0;
         let fileName = '';
         let isImporting = false;
+        /** @type {Array<{ sku, loc, qty, reason }>} แถวที่นำเข้าไม่สำเร็จในรอบล่าสุด */
+        let lastImportFailedRows = [];
 
         function genClientRequestId() {
             try {
@@ -520,13 +522,192 @@
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             const icon = type === 'success' ? 'check-circle-2' : 'alert-circle';
-            toast.innerHTML = `<i data-lucide="${icon}"></i><span>${message}</span>`;
+            const safeMsg = escHtml(String(message ?? '')).replace(/\n/g, '<br>');
+            toast.innerHTML = `<i data-lucide="${icon}"></i><span>${safeMsg}</span>`;
             el.appendChild(toast);
             lucide.createIcons();
             setTimeout(() => {
                 toast.classList.add('toast-closing');
                 toast.addEventListener('animationend', () => toast.remove());
             }, 4500);
+        }
+
+        /** สร้าง payload สำหรับ insert inventory_counts */
+        function buildCountPayload(row, warehouse, counter_name) {
+            return {
+                warehouse,
+                location: row.loc,
+                sku_id: row.sku,
+                counted_qty: row.qty,
+                counter_name,
+                client_request_id: row.client_request_id
+            };
+        }
+
+        /**
+         * บันทึก 1 แถว — คืนสถานะชัดเจน (ไม่โยน error ออกไป)
+         * @returns {Promise<'ok'|'duplicate'|'fail'>}
+         */
+        async function insertOneCountRow(payload) {
+            const { data, error } = await supabaseClient
+                .from('inventory_counts')
+                .insert([payload])
+                .select('id');
+
+            if (!error) return { status: 'ok', id: data?.[0]?.id };
+
+            if (window.DbErrors?.isDuplicateError(error)) {
+                return { status: 'duplicate', error };
+            }
+            return { status: 'fail', error };
+        }
+
+        /**
+         * นำเข้า chunk — ลอง bulk ก่อน ถ้าล้ม (ที่ไม่ใช่ duplicate ทั้งก้อน) จะ fallback ทีละแถว
+         * เพื่อนับ ok/fail/duplicate ต่อแถวจริง ไม่นับทั้ง chunk เป็น fail ทั้งก้อน
+         */
+        async function importChunkRows(chunkRows, warehouse, counter_name) {
+            const payloads = chunkRows.map(r => buildCountPayload(r, warehouse, counter_name));
+
+            const { data, error } = await supabaseClient
+                .from('inventory_counts')
+                .insert(payloads)
+                .select('id');
+
+            if (!error) {
+                return {
+                    ok: (data || []).length,
+                    fail: 0,
+                    duplicateSkipped: 0,
+                    failedRows: [],
+                    lastError: null
+                };
+            }
+
+            // duplicate ทั้ง chunk จาก client_request_id ซ้ำ (retry) — ลองทีละแถวเพื่อแยกแถวที่สำเร็จได้
+            if (window.DbErrors?.isDuplicateError(error)) {
+                return await importRowsOneByOne(chunkRows, warehouse, counter_name);
+            }
+
+            // error อื่น (constraint, network ฯลฯ) — fallback ทีละแถว
+            console.warn('[Import] chunk insert failed, retry row-by-row:', error.message);
+            return await importRowsOneByOne(chunkRows, warehouse, counter_name);
+        }
+
+        async function importRowsOneByOne(rows, warehouse, counter_name) {
+            let ok = 0;
+            let duplicateSkipped = 0;
+            const failedRows = [];
+            let lastError = null;
+
+            for (const row of rows) {
+                const payload = buildCountPayload(row, warehouse, counter_name);
+                const result = await insertOneCountRow(payload);
+
+                if (result.status === 'ok') {
+                    ok += 1;
+                } else if (result.status === 'duplicate') {
+                    duplicateSkipped += 1;
+                } else {
+                    const info = window.DbErrors?.formatDbError(result.error, { context: 'นำเข้า' });
+                    failedRows.push({
+                        sku: row.sku,
+                        loc: row.loc,
+                        qty: row.qty,
+                        reason: info?.message || result.error?.message || 'ไม่ทราบสาเหตุ'
+                    });
+                    lastError = result.error;
+                }
+            }
+
+            return {
+                ok,
+                fail: failedRows.length,
+                duplicateSkipped,
+                failedRows,
+                lastError
+            };
+        }
+
+        /** สรุปข้อความ toast ตามผลนำเข้าจริง */
+        function buildImportToastMessage(stats, warehouse) {
+            const { ok, fail, duplicateSkipped, total } = stats;
+            const lines = [];
+
+            if (ok > 0) lines.push(`นำเข้าสำเร็จ ${ok.toLocaleString()} แถว`);
+            if (duplicateSkipped > 0) lines.push(`ข้ามซ้ำ ${duplicateSkipped.toLocaleString()} แถว (เคยบันทึกแล้ว)`);
+            if (fail > 0) lines.push(`ล้มเหลว ${fail.toLocaleString()} แถว — ดูรายละเอียดด้านล่าง`);
+
+            if (!lines.length) {
+                lines.push(`ไม่มีแถวที่บันทึกได้จาก ${total.toLocaleString()} แถว`);
+            }
+
+            lines.push(`คลัง: ${warehouse}`);
+            return lines.join('\n');
+        }
+
+        function getImportToastType(stats) {
+            if (stats.fail > 0) return 'error';
+            if (stats.ok === 0 && stats.duplicateSkipped > 0) return 'error';
+            if (stats.duplicateSkipped > 0 && stats.ok > 0) return 'success';
+            return 'success';
+        }
+
+        function renderImportResultPanel(stats, failedRows) {
+            const panel = document.getElementById('importResultPanel');
+            if (!panel) return;
+
+            panel.classList.remove('visible', 'partial', 'success-only');
+
+            const hasFail = failedRows.length > 0;
+            const hasPartial = stats.ok > 0 && (hasFail || stats.duplicateSkipped > 0);
+
+            if (!hasFail && stats.fail === 0 && stats.duplicateSkipped === 0) {
+                panel.innerHTML = '';
+                return;
+            }
+
+            panel.classList.add('visible');
+            if (hasFail) panel.classList.add('partial');
+            else if (stats.ok > 0) panel.classList.add('success-only');
+
+            let html = `<p class="import-result-head">`;
+            if (hasFail) {
+                html += `นำเข้าไม่ครบ — สำเร็จ ${stats.ok.toLocaleString()} / ${stats.total.toLocaleString()} แถว`;
+            } else if (stats.duplicateSkipped > 0) {
+                html += `นำเข้า ${stats.ok.toLocaleString()} แถว · ข้ามซ้ำ ${stats.duplicateSkipped.toLocaleString()} แถว`;
+            }
+            html += `</p>`;
+
+            if (hasFail) {
+                const show = failedRows.slice(0, 50);
+                html += `<p style="margin:0 0 0.35rem;font-size:0.8rem;color:var(--text-muted);">
+                    แถวที่ล้มเหลว (${failedRows.length.toLocaleString()} แถว) — แก้ไขแล้วกดนำเข้าอีกครั้งได้ (ระบบจะนำเข้าเฉพาะแถวที่เหลือ)
+                </p>`;
+                html += `<div style="max-height:200px;overflow:auto;"><table class="import-failed-table"><thead><tr>
+                    <th>SKU</th><th>ตำแหน่ง</th><th>จำนวน</th><th>สาเหตุ</th>
+                </tr></thead><tbody>`;
+                html += show.map(r => `<tr>
+                    <td>${escHtml(r.sku)}</td>
+                    <td>${escHtml(r.loc)}</td>
+                    <td>${escHtml(r.qty)}</td>
+                    <td>${escHtml(r.reason)}</td>
+                </tr>`).join('');
+                html += `</tbody></table></div>`;
+                if (failedRows.length > 50) {
+                    html += `<p style="margin:0.35rem 0 0;font-size:0.76rem;color:var(--text-muted);">… และอีก ${failedRows.length - 50} แถว</p>`;
+                }
+            }
+
+            panel.innerHTML = html;
+        }
+
+        function hideImportResultPanel() {
+            const panel = document.getElementById('importResultPanel');
+            if (panel) {
+                panel.classList.remove('visible', 'partial', 'success-only');
+                panel.innerHTML = '';
+            }
         }
 
         function setLoading(on, text = 'กำลังนำเข้า...', sub = '') {
@@ -576,6 +757,9 @@
             const btn = document.getElementById('btnStartImport');
             const zone = document.getElementById('uploadZone');
 
+            hideImportResultPanel();
+            lastImportFailedRows = [];
+
             const valid = parsedRows.filter(r => r.valid);
             const invalid = parsedRows.filter(r => !r.valid);
             pendingValidRows = valid;
@@ -616,8 +800,10 @@
         function clearFile() {
             parsedRows = [];
             pendingValidRows = [];
+            lastImportFailedRows = [];
             importConfirmStep = 0;
             fileName = '';
+            hideImportResultPanel();
             document.getElementById('fileInput').value = '';
             document.getElementById('fileLabel').textContent = 'คลิกหรือลากไฟล์มาวางที่นี่';
             document.getElementById('uploadZone').classList.remove('has-file');
@@ -651,16 +837,21 @@
             return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, fileLabel }) {
-            if (!supabaseClient || rowCount <= 0) return;
+        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel }) {
+            if (!supabaseClient || (rowCount <= 0 && failCount <= 0 && duplicateCount <= 0)) return;
             const preview = pendingValidRows.slice(0, 8).map(r => r.sku).join(', ');
             const skuNote = preview + (rowCount > 8 ? ` ... (+${rowCount - 8})` : '');
+            const statusNote = [
+                `สำเร็จ ${rowCount}`,
+                failCount > 0 ? `ล้มเหลว ${failCount}` : '',
+                duplicateCount > 0 ? `ข้ามซ้ำ ${duplicateCount}` : ''
+            ].filter(Boolean).join(' · ');
             try {
                 const { error } = await supabaseClient.from('inventory_audit_logs').insert([{
                     action_type: 'IMPORT',
                     record_id: 'import-' + Date.now(),
-                    sku_id: fileLabel ? `${fileLabel} · ${skuNote}` : skuNote,
-                    old_qty: null,
+                    sku_id: fileLabel ? `${fileLabel} · ${statusNote} · ${skuNote}` : `${statusNote} · ${skuNote}`,
+                    old_qty: failCount > 0 ? failCount : null,
                     new_qty: rowCount,
                     warehouse: warehouse || '',
                     location: fileLabel || 'Excel Import',
@@ -815,45 +1006,29 @@
             let fail = 0;
             let duplicateSkipped = 0;
             let lastError = null;
+            const allFailedRows = [];
 
             setLoading(true, 'กำลังนำเข้าผลการนับ...', `0 / ${rows.length}`);
+            hideImportResultPanel();
 
             try {
+                // UUID ใหม่ทุกครั้งที่กดนำเข้า — กัน retry หลังนำเข้าบางส่วนแล้วชน client_request_id เดิม
                 const rowsWithReqId = rows.map(r => ({
                     ...r,
-                    client_request_id: r.client_request_id || genClientRequestId()
+                    client_request_id: genClientRequestId()
                 }));
-                pendingValidRows = rowsWithReqId;
 
                 for (let i = 0; i < rowsWithReqId.length; i += CHUNK_SIZE) {
-                    const chunk = rowsWithReqId.slice(i, i + CHUNK_SIZE).map(r => ({
-                        warehouse,
-                        location: r.loc,
-                        sku_id: r.sku,
-                        counted_qty: r.qty,
-                        counter_name,
-                        client_request_id: r.client_request_id
-                    }));
+                    const chunkRows = rowsWithReqId.slice(i, i + CHUNK_SIZE);
+                    const chunkResult = await importChunkRows(chunkRows, warehouse, counter_name);
 
-                    const { data, error } = await supabaseClient
-                        .from('inventory_counts')
-                        .insert(chunk)
-                        .select('id');
-
-                    if (error) {
-                        console.error(error);
-                        // ถ้าเป็น duplicate (จาก client_request_id เดียวกัน หรือ unique index อื่น)
-                        // ให้นับเป็น duplicateSkipped แทน fail เพื่อให้ user เห็นว่า "ไม่ใช่ปัญหาระบบ
-                        // แต่เพราะรายการชุดนี้เคยนำเข้าแล้ว"
-                        if (window.DbErrors?.isDuplicateError(error)) {
-                            duplicateSkipped += chunk.length;
-                        } else {
-                            fail += chunk.length;
-                            lastError = error;
-                        }
-                    } else {
-                        ok += (data || []).length;
+                    ok += chunkResult.ok;
+                    fail += chunkResult.fail;
+                    duplicateSkipped += chunkResult.duplicateSkipped;
+                    if (chunkResult.failedRows?.length) {
+                        allFailedRows.push(...chunkResult.failedRows);
                     }
+                    if (chunkResult.lastError) lastError = chunkResult.lastError;
 
                     setLoading(
                         true,
@@ -862,46 +1037,87 @@
                     );
                 }
 
+                lastImportFailedRows = allFailedRows;
+
+                // เหลือเฉพาะแถวที่ล้มเหลวไว้ retry (map กลับเป็นรูปแบบ pendingValidRows)
+                if (allFailedRows.length > 0) {
+                    pendingValidRows = allFailedRows.map(fr => ({
+                        sku: fr.sku,
+                        loc: fr.loc,
+                        qty: fr.qty,
+                        valid: true,
+                        errors: ''
+                    }));
+                } else {
+                    pendingValidRows = [];
+                }
+
                 localStorage.setItem('saved_counter_name', counter_name);
                 localStorage.setItem('saved_warehouse', warehouse);
                 localStorage.setItem('import_counts_warehouse', warehouse);
 
-                const parts = [`นำเข้าสำเร็จ ${ok} แถว`];
-                if (duplicateSkipped > 0) parts.push(`ข้ามซ้ำ ${duplicateSkipped}`);
-                if (fail > 0) parts.push(`ล้มเหลว ${fail}`);
-                parts.push(`· ${warehouse}`);
-                const summary = parts.join(' ');
+                const stats = {
+                    ok,
+                    fail,
+                    duplicateSkipped,
+                    total: rows.length
+                };
+
+                const toastMsg = buildImportToastMessage(stats, warehouse);
+                const toastType = getImportToastType(stats);
 
                 if (fail > 0 && lastError) {
                     const info = window.DbErrors?.formatDbError(lastError, { context: 'นำเข้า Excel' });
-                    showToast(`${summary}\n${info?.message || lastError.message || ''}`, 'error');
-                } else if (duplicateSkipped > 0 && ok === 0) {
-                    showToast(`${summary} — ข้อมูลทั้งหมดเคยนำเข้าแล้ว`, 'error');
+                    const detail = info?.message && !toastMsg.includes(info.message)
+                        ? `\nตัวอย่างสาเหตุ: ${info.message}`
+                        : '';
+                    showToast(toastMsg + detail, 'error');
                 } else {
-                    showToast(summary, fail > 0 ? 'error' : 'success');
+                    showToast(toastMsg, toastType);
                 }
 
-                if (ok > 0) {
+                renderImportResultPanel(stats, allFailedRows);
+
+                if (ok > 0 || fail > 0 || duplicateSkipped > 0) {
                     await logImportBatch({
                         warehouse,
                         counter_name,
                         rowCount: ok,
                         failCount: fail,
+                        duplicateCount: duplicateSkipped,
                         fileLabel: fileName || 'Excel Import'
                     });
                     await loadImportHistory();
                 }
 
-                if (fail === 0) clearFile();
+                // ล้างไฟล์เฉพาะเมื่อนำเข้าครบ 100% (ไม่มีแถวล้มเหลว)
+                if (fail === 0 && ok > 0) {
+                    clearFile();
+                } else if (fail > 0) {
+                    importConfirmStep = 0;
+                    const summary = document.getElementById('importSummary');
+                    if (summary) {
+                        summary.innerHTML = `
+                            <div class="import-chip ok"><strong>${ok.toLocaleString()}</strong><span>นำเข้าสำเร็จแล้ว</span></div>
+                            <div class="import-chip err"><strong>${fail.toLocaleString()}</strong><span>รอนำเข้าซ้ำ</span></div>
+                            ${duplicateSkipped > 0 ? `<div class="import-chip warn"><strong>${duplicateSkipped.toLocaleString()}</strong><span>ข้ามซ้ำ</span></div>` : ''}
+                        `;
+                    }
+                }
             } catch (err) {
                 console.error(err);
-                showToast('นำเข้าล้มเหลว: ' + err.message, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'นำเข้า Excel' });
+                showToast(info?.message || `นำเข้าล้มเหลว: ${err.message}`, 'error');
             } finally {
                 isImporting = false;
                 setLoading(false);
                 if (btn) {
                     btn.disabled = pendingValidRows.length === 0;
-                    btn.innerHTML = '<i data-lucide="database"></i> นำเข้าข้อมูล (1/2)';
+                    if (lastImportFailedRows.length > 0) {
+                        btn.innerHTML = `<i data-lucide="database"></i> นำเข้าแถวที่เหลือ (${pendingValidRows.length.toLocaleString()}) (1/2)`;
+                    } else {
+                        btn.innerHTML = '<i data-lucide="database"></i> นำเข้าข้อมูล (1/2)';
+                    }
                     lucide.createIcons();
                 }
             }

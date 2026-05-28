@@ -198,7 +198,7 @@
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
         const { error } = await client
             .from('warehouses')
-            .update({ is_active: false })
+            .delete()
             .eq('name', value);
         if (error) throw error;
         await compactActiveSortOrders(client);

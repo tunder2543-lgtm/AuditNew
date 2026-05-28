@@ -407,11 +407,11 @@
         };
 
         window.deleteWarehouseName = async function (name) {
-            const ok = confirm(`ยืนยันลบคลัง "${name}" ?\nระบบจะซ่อนคลังนี้ออกจากทุกหน้า (ข้อมูลเดิมจะยังไม่ถูกลบ)`);
+            const ok = confirm(`ยืนยันลบคลัง "${name}" ออกจากระบบ?\nคลังจะหายจากทุกหน้า (ข้อมูลนับ/SKU เดิมในคลังนี้จะยังอยู่ในฐานข้อมูล)`);
             if (!ok) return;
             try {
                 await window.warehouseService.deleteWarehouse(name);
-                showToast(`ลบ/ซ่อนคลัง ${name} สำเร็จ`, 'success');
+                showToast(`ลบคลัง ${name} สำเร็จ`, 'success');
                 await refreshWarehouseUI();
             } catch (err) {
                 showToast(`ลบคลังไม่สำเร็จ: ${err.message}`, 'error');

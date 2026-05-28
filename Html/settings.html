@@ -338,9 +338,10 @@
                 const rows = await service.fetchRegistryWarehouses({ force: true });
                 const showInactive = !!document.getElementById('toggleShowInactive')?.checked;
                 const visibleRows = showInactive ? rows : rows.filter(r => r.is_active !== false);
-                wrap.innerHTML = visibleRows.map(row => {
+                wrap.innerHTML = visibleRows.map((row, index) => {
                     const name = String(row.name || '').trim();
                     const active = row.is_active !== false;
+                    const displayOrder = index + 1;
                     return `
                         <div class="warehouse-item">
                             <label class="warehouse-toggle-wrap" title="เปิด/ปิดใช้งานคลัง">
@@ -349,7 +350,7 @@
                             </label>
                             <div class="warehouse-main">
                                 <span class="warehouse-name">${name}</span>
-                                <span class="warehouse-meta">ลำดับ ${Number(row.sort_order) || 0}</span>
+                                <span class="warehouse-meta">ลำดับ ${displayOrder}</span>
                             </div>
                             <div class="warehouse-right">
                                 <span class="warehouse-pill ${active ? 'active' : ''}">
@@ -368,6 +369,13 @@
             }
         }
 
+        async function refreshWarehouseUI() {
+            await renderWarehouseList();
+            if (window.RS?.refreshStandardWarehousesFromRegistry) {
+                try { await window.RS.refreshStandardWarehousesFromRegistry(); } catch (_) {}
+            }
+        }
+
         window.addWarehouseName = async function () {
             const el = document.getElementById('newWarehouseName');
             const name = el?.value.trim();
@@ -376,9 +384,10 @@
                 await window.warehouseService.addWarehouse(name);
                 if (el) el.value = '';
                 showToast(`เพิ่มคลัง ${name} สำเร็จ`, 'success');
-                await renderWarehouseList();
+                await refreshWarehouseUI();
             } catch (err) {
                 showToast(`เพิ่มคลังไม่สำเร็จ: ${err.message}`, 'error');
+                await refreshWarehouseUI();
             }
         };
 
@@ -386,15 +395,15 @@
             try {
                 await window.warehouseService.setWarehouseActive(name, active);
                 showToast(`${active ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}คลัง ${name} แล้ว`, 'success');
-                await renderWarehouseList();
+                await refreshWarehouseUI();
             } catch (err) {
                 showToast(`บันทึกสถานะคลังไม่สำเร็จ: ${err.message}`, 'error');
-                await renderWarehouseList();
+                await refreshWarehouseUI();
             }
         };
 
         window.reloadWarehouseList = async function () {
-            await renderWarehouseList();
+            await refreshWarehouseUI();
         };
 
         window.deleteWarehouseName = async function (name) {
@@ -403,14 +412,23 @@
             try {
                 await window.warehouseService.deleteWarehouse(name);
                 showToast(`ลบ/ซ่อนคลัง ${name} สำเร็จ`, 'success');
-                await renderWarehouseList();
+                await refreshWarehouseUI();
             } catch (err) {
                 showToast(`ลบคลังไม่สำเร็จ: ${err.message}`, 'error');
+                await refreshWarehouseUI();
             }
         };
 
+        async function initWarehouseSection() {
+            const service = window.warehouseService;
+            if (service?.compactActiveSortOrders && await window.checkSupabaseConnection?.()) {
+                try { await service.compactActiveSortOrders(); } catch (_) {}
+            }
+            await refreshWarehouseUI();
+        }
+
         refreshStatus();
-        renderWarehouseList();
+        initWarehouseSection();
     </script>
 </body>
 </html>

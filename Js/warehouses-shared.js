@@ -32,7 +32,39 @@
         return out;
     }
 
-    async function fetchRegistryRows(client) {
+    function nextSortOrder(rows) {
+        const active = (rows || []).filter(r => r.is_active !== false);
+        if (!active.length) return 0;
+        // ไม่นับ sort_order 999+ จากข้อมูลเก่า sync มา
+        const managed = active
+            .map(r => Number(r.sort_order))
+            .filter(n => Number.isFinite(n) && n < 900);
+        if (managed.length) return Math.max(...managed) + 1;
+        return active.length;
+    }
+
+    async function compactActiveSortOrders(client) {
+        const rows = await fetchRegistryRows(client);
+        const active = rows
+            .filter(r => r.is_active !== false)
+            .sort((a, b) => {
+                const d = (Number(a.sort_order) || 999) - (Number(b.sort_order) || 999);
+                return d !== 0 ? d : a.name.localeCompare(b.name, 'th');
+            });
+        await Promise.all(active.map((row, index) => {
+            if (Number(row.sort_order) === index) return Promise.resolve();
+            return client.from('warehouses').update({ sort_order: index }).eq('name', row.name);
+        }));
+    }
+
+    function notifyWarehouseRegistryChanged() {
+        window.dispatchEvent(new CustomEvent('warehouseRegistryChanged'));
+    }
+
+    function invalidateCache() {
+        cacheRows = [];
+        cacheAt = 0;
+    }
         const { data, error } = await client
             .from('warehouses')
             .select('name, sort_order, is_active')
@@ -128,13 +160,16 @@
         const client = getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
 
-        const rows = await fetchWarehouses({ force: true });
-        const maxOrder = rows.reduce((m, r) => Math.max(m, Number(r.sort_order) || 0), 0);
+        const rows = await fetchRegistryRows(client);
+        const sortOrder = nextSortOrder(rows);
         const { error } = await client
             .from('warehouses')
-            .upsert([{ name: value, sort_order: maxOrder + 1, is_active: true }], { onConflict: 'name' });
+            .upsert([{ name: value, sort_order: sortOrder, is_active: true }], { onConflict: 'name' });
         if (error) throw error;
+        await compactActiveSortOrders(client);
+        invalidateCache();
         await fetchWarehouses({ force: true });
+        notifyWarehouseRegistryChanged();
         return value;
     }
 
@@ -148,7 +183,10 @@
             .update({ is_active: !!isActive })
             .eq('name', value);
         if (error) throw error;
+        await compactActiveSortOrders(client);
+        invalidateCache();
         await fetchWarehouses({ force: true });
+        notifyWarehouseRegistryChanged();
     }
 
     async function deleteWarehouse(name) {
@@ -156,14 +194,15 @@
         if (!value) throw new Error('ไม่พบชื่อคลัง');
         const client = getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-        // soft delete: ซ่อนคลังจากระบบโดยตั้ง inactive
-        // เพื่อกัน fallback จากข้อมูลเก่าดึงกลับมาเป็น active อีก
         const { error } = await client
             .from('warehouses')
             .update({ is_active: false })
             .eq('name', value);
         if (error) throw error;
+        await compactActiveSortOrders(client);
+        invalidateCache();
         await fetchWarehouses({ force: true });
+        notifyWarehouseRegistryChanged();
     }
 
     function escapeHtml(value) {
@@ -186,6 +225,15 @@
         renderCheckboxGroup,
         addWarehouse,
         setWarehouseActive,
-        deleteWarehouse
+        deleteWarehouse,
+        invalidateCache,
+        compactActiveSortOrders: async () => {
+            const client = getClient();
+            if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+            await compactActiveSortOrders(client);
+            invalidateCache();
+            await fetchWarehouses({ force: true });
+            notifyWarehouseRegistryChanged();
+        }
     };
 })();

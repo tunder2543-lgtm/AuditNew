@@ -896,6 +896,10 @@
                             <i data-lucide="refresh-cw" style="width:16px;height:16px"></i>
                             โหลดข้อมูลอ้างอิงใหม่
                         </button>
+                        <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบแถวซ้ำใน inventory_counts (warehouse + sku + location + counted_qty ซ้ำ) — เก็บแถวเก่าสุด">
+                            <i data-lucide="copy-x" style="width:16px;height:16px"></i>
+                            ลบ duplicate ใน DB
+                        </button>
                         <button type="button" class="btn-gs" id="btnLoadCounts">
                             <i data-lucide="download" style="width:16px;height:16px"></i>
                             ใส่รายการลงตาราง
@@ -3469,6 +3473,109 @@
         });
 
         document.getElementById('btnReloadRef').addEventListener('click', () => loadReferenceData());
+
+        document.getElementById('btnDedupeDb').addEventListener('click', () => dedupeInventoryCountsInDb());
+
+        /**
+         * ค้นหา duplicate ใน inventory_counts (ตามตัวกรอง คลัง/เดือน ปัจจุบัน)
+         * แล้วลบเฉพาะแถวที่ created_at ใหม่กว่า (เก็บแถวเก่าสุด)
+         */
+        async function dedupeInventoryCountsInDb() {
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('btnDedupeDb');
+            if (btn) btn.disabled = true;
+            setLoading(true, 'กำลังค้นหา duplicate...', 'รอสักครู่');
+
+            try {
+                const filters = getAuditFilters();
+                const { rows } = await fetchAllInventoryCounts(
+                    'id, sku_id, location, warehouse, counted_qty, created_at',
+                    filters
+                );
+
+                const groups = new Map();
+                rows.forEach(r => {
+                    const key = [
+                        norm(r.warehouse),
+                        norm(r.sku_id),
+                        norm(r.location),
+                        Number(r.counted_qty)
+                    ].join('|');
+                    if (!groups.has(key)) groups.set(key, []);
+                    groups.get(key).push(r);
+                });
+
+                const dupGroups = [];
+                for (const list of groups.values()) {
+                    if (list.length > 1) dupGroups.push(list);
+                }
+
+                if (!dupGroups.length) {
+                    showToast('ไม่พบ duplicate ในขอบเขตที่กรอง', 'success');
+                    return;
+                }
+
+                const toDelete = [];
+                dupGroups.forEach(list => {
+                    list.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+                    for (let i = 1; i < list.length; i++) toDelete.push(list[i]);
+                });
+
+                const preview = dupGroups.slice(0, 8).map(list => {
+                    const head = list[0];
+                    return `${head.sku_id} @ ${head.location || '-'} = ${head.counted_qty} ชิ้น (${head.warehouse || '-'}) · ${list.length} แถว → ลบ ${list.length - 1}`;
+                });
+                if (dupGroups.length > 8) preview.push(`… และอีก ${dupGroups.length - 8} กลุ่ม`);
+
+                setLoading(false);
+
+                const okConfirm = await uiConfirm.twoStep({
+                    title: 'ลบ duplicate ใน inventory_counts',
+                    variant: 'danger',
+                    step1: {
+                        intro: `พบ ${dupGroups.length.toLocaleString()} กลุ่มซ้ำ — จะลบ ${toDelete.length.toLocaleString()} แถว (เก็บแถวเก่าสุดในแต่ละกลุ่ม)`,
+                        bullets: preview,
+                        confirmLabel: 'ดำเนินการต่อ'
+                    },
+                    step2: {
+                        intro: `ยืนยันลบ ${toDelete.length.toLocaleString()} แถวถาวร`,
+                        note: 'ลบจาก Supabase โดยตรง · ไม่สามารถกู้คืนได้',
+                        noteVariant: 'danger',
+                        confirmLabel: 'ลบถาวร',
+                        confirmIcon: 'trash-2'
+                    }
+                });
+                if (!okConfirm) return;
+
+                setLoading(true, 'กำลังลบ duplicate...', `0 / ${toDelete.length}`);
+                const ids = toDelete.map(r => r.id);
+                const CHUNK = 100;
+                let done = 0;
+                for (let i = 0; i < ids.length; i += CHUNK) {
+                    const chunk = ids.slice(i, i + CHUNK);
+                    const { error } = await supabaseClient
+                        .from('inventory_counts')
+                        .delete()
+                        .in('id', chunk);
+                    if (error) throw error;
+                    done += chunk.length;
+                    setLoadingMessage('กำลังลบ duplicate...', `${done.toLocaleString()} / ${toDelete.length.toLocaleString()}`);
+                }
+
+                await loadReferenceData();
+                showToast(`ลบ duplicate สำเร็จ ${toDelete.length.toLocaleString()} แถว (${dupGroups.length.toLocaleString()} กลุ่ม)`, 'success');
+            } catch (err) {
+                console.error('[Dedupe Error]', err);
+                showToast('ลบ duplicate ล้มเหลว: ' + err.message, 'error');
+            } finally {
+                setLoading(false);
+                if (btn) btn.disabled = false;
+            }
+        }
 
         document.getElementById('btnLoadCounts').addEventListener('click', async () => {
             if (!supabaseClient) {

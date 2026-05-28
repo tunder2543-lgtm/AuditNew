@@ -2,10 +2,18 @@
 -- Stock Audit — กันข้อมูลซ้ำในตารางสำคัญ (idempotency + unique index)
 -- รันใน Supabase SQL Editor (รันได้หลายครั้ง — มี IF NOT EXISTS / IF EXISTS)
 --
+-- นิยาม "ซ้ำ" ของโปรเจกต์นี้:
+--   inventory_counts: warehouse + sku_id + location + counted_qty เหมือนกัน
+--      → ต่างคลังกัน = ไม่ซ้ำ (ของจริงคนละที่)
+--      → ต่างตำแหน่ง = ไม่ซ้ำ
+--      → ต่างจำนวน  = ไม่ซ้ำ
+--
 -- ลำดับการรัน:
---   STEP 1) ดู duplicate ปัจจุบัน (เคียวรี SELECT) — ไม่แก้อะไร
---   STEP 2) ล้าง duplicate เก่า (DELETE) — ⚠ ทำสำรองก่อน
---   STEP 3) สร้าง column + unique index (กันซ้ำในอนาคต)
+--   STEP 1)   ดู duplicate ปัจจุบัน (SELECT) — ไม่แก้อะไร
+--   STEP 2)   ล้าง duplicate เก่า (DELETE) — ⚠ ทำสำรองก่อน
+--   STEP 3)   สร้าง column + unique index (กันซ้ำในอนาคต ผ่าน client_request_id)
+--   STEP 3.5) [OPTIONAL] unique index สตริคต์ระดับ business
+--   STEP 4)   ตรวจซ้ำหลังรัน
 -- =============================================================================
 
 
@@ -129,6 +137,38 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_stock_adj_draft_per_sku
 CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_msg_client_id
     ON chat_messages (client_msg_id)
     WHERE client_msg_id IS NOT NULL;
+
+
+-- -----------------------------------------------------------------------------
+-- STEP 3.5) [OPTIONAL — สตริคต์สูงสุด] unique index ระดับ business
+--   กันแถวซ้ำตามนิยาม: (warehouse + sku_id + location + counted_qty) เดียวกัน
+--   ⚠ ก่อนรัน: ต้องล้าง dup ด้วย STEP 2.1 ก่อน ไม่เช่นนั้นจะ error
+--   ⚠ หลังรัน: ทุก insert ใหม่ที่ซ้ำตามชุดคีย์นี้จะถูก reject ทันที (แม้ไม่มี client_request_id)
+--   เปิดใช้ถ้าโปรเจกต์รับรอง: 1 SKU/ตำแหน่ง/คลัง = 1 ค่านับเท่านั้น
+--      (ถ้ามี workflow re-count ที่อาจให้ค่าเท่ากันโดยตั้งใจ ให้ข้าม index นี้
+--       แล้วใช้ client_request_id เป็น guard เพียงพอ)
+-- -----------------------------------------------------------------------------
+CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_counts_sku_loc_wh_qty
+    ON inventory_counts (warehouse, sku_id, location, counted_qty);
+
+
+-- -----------------------------------------------------------------------------
+-- STEP 4) ตรวจสอบหลังรัน — ควรได้ 0 แถวทั้งหมด
+-- -----------------------------------------------------------------------------
+SELECT 'inventory_counts dup' AS kind, COUNT(*) AS remaining FROM (
+    SELECT 1 FROM inventory_counts
+    GROUP BY warehouse, sku_id, location, counted_qty HAVING COUNT(*) > 1
+) t
+UNION ALL
+SELECT 'sku_master dup', COUNT(*) FROM (
+    SELECT 1 FROM sku_master WHERE COALESCE(TRIM(warehouse), '') <> ''
+    GROUP BY sku_name, warehouse HAVING COUNT(*) > 1
+) t
+UNION ALL
+SELECT 'stock_adj draft dup', COUNT(*) FROM (
+    SELECT 1 FROM stock_adjustments WHERE status = 'draft'
+    GROUP BY cycle_id, sku_id HAVING COUNT(*) > 1
+) t;
 
 
 -- -----------------------------------------------------------------------------

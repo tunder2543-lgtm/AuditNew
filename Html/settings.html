@@ -335,7 +335,7 @@
                 return;
             }
             try {
-                const rows = await service.fetchWarehouses({ force: true });
+                const rows = await service.fetchRegistryWarehouses({ force: true });
                 const showInactive = !!document.getElementById('toggleShowInactive')?.checked;
                 const visibleRows = showInactive ? rows : rows.filter(r => r.is_active !== false);
                 wrap.innerHTML = visibleRows.map(row => {

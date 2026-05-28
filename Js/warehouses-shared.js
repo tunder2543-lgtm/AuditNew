@@ -32,29 +32,18 @@
         return out;
     }
 
-    async function fetchDistinctWarehousesFromData(client) {
-        const names = [];
-        const collect = (rows, field) => {
-            (rows || []).forEach(r => {
-                const val = normalizeName(r?.[field]);
-                if (val) names.push(val);
-            });
-        };
-
-        try {
-            const [{ data: skuData }, { data: invData }, { data: cycData }] = await Promise.all([
-                client.from('sku_master').select('warehouse').limit(1000),
-                client.from('inventory_counts').select('warehouse').limit(1000),
-                client.from('count_cycles').select('warehouse').limit(1000)
-            ]);
-            collect(skuData, 'warehouse');
-            collect(invData, 'warehouse');
-            collect(cycData, 'warehouse');
-        } catch (err) {
-            console.warn('[WarehouseService] fallback distinct fetch failed:', err?.message || err);
-        }
-
-        return uniqueNames(names);
+    async function fetchRegistryRows(client) {
+        const { data, error } = await client
+            .from('warehouses')
+            .select('name, sort_order, is_active')
+            .order('sort_order', { ascending: true })
+            .order('name', { ascending: true });
+        if (error) throw error;
+        return (data || []).map(r => ({
+            name: normalizeName(r.name),
+            sort_order: Number(r.sort_order) || 999,
+            is_active: r.is_active !== false
+        })).filter(r => !!r.name);
     }
 
     async function fetchWarehouses(opts = {}) {
@@ -74,40 +63,20 @@
         /** @type {Array<{name:string, sort_order:number, is_active:boolean}>} */
         let rows = [];
         try {
-            const { data, error } = await client
-                .from('warehouses')
-                .select('name, sort_order, is_active')
-                .order('sort_order', { ascending: true })
-                .order('name', { ascending: true });
-            if (error) throw error;
-            rows = (data || []).map(r => ({
-                name: normalizeName(r.name),
-                sort_order: Number(r.sort_order) || 999,
-                is_active: r.is_active !== false
-            })).filter(r => !!r.name);
+            rows = await fetchRegistryRows(client);
         } catch (err) {
             if (!/warehouses|does not exist|schema cache/i.test(String(err?.message || ''))) {
                 console.warn('[WarehouseService] fetch warehouses failed:', err?.message || err);
             }
         }
 
-        const byKey = new Map();
-        rows.forEach(r => {
-            const key = r.name.toUpperCase();
-            byKey.set(key, { ...r });
-        });
+        // ใช้เฉพาะตาราง warehouses — ไม่ดึงชื่อจากข้อมูลเก่า (sku_master ฯลฯ)
+        // เพื่อไม่ให้รายการที่ลบจาก registry กลับมาแสดงบนหน้าเว็บ
+        if (!rows.length) {
+            rows = FALLBACK_WAREHOUSES.map((name, i) => ({ name, sort_order: i, is_active: true }));
+        }
 
-        const base = rows.map(r => r.name);
-        const fromData = await fetchDistinctWarehousesFromData(client);
-        const merged = uniqueNames([...base, ...fromData, ...FALLBACK_WAREHOUSES]);
-
-        // สำคัญ: ถ้าคลังถูกปิดใช้งานใน table warehouses ต้องคงสถานะ is_active=false ไว้
-        // ห้ามเด้งกลับเป็น active จาก fallback names (sku_master/inventory_counts/count_cycles)
-        cacheRows = merged.map((name, i) => {
-            const hit = byKey.get(name.toUpperCase());
-            if (hit) return hit;
-            return { name, sort_order: 999 + i, is_active: true };
-        });
+        cacheRows = rows;
         cacheAt = now;
         return [...cacheRows];
     }
@@ -205,8 +174,13 @@
             .replace(/"/g, '&quot;');
     }
 
+    async function fetchRegistryWarehouses(opts = {}) {
+        return fetchWarehouses(opts);
+    }
+
     window.warehouseService = {
         fetchWarehouses,
+        fetchRegistryWarehouses,
         getWarehouseList,
         populateSelect,
         renderCheckboxGroup,

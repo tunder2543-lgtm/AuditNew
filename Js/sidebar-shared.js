@@ -26,6 +26,7 @@
                 { id: 'audit_check', label: 'ตรวจสอบ', icon: 'shield-check' },
                 { id: 'count_search', label: 'ค้นหาผลนับ', icon: 'search' },
                 { id: 'reconcile', label: 'Match ยอด', icon: 'scale' },
+                { id: 'book_explorer', label: 'Book Explorer', icon: 'book-copy' },
                 { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
                 { id: 'live_count_wall', label: 'จอนับสด', icon: 'monitor' }
             ]
@@ -57,6 +58,7 @@
         audit_check: 'audit_check.html',
         count_search: 'count_search.html',
         reconcile: 'reconcile.html',
+        book_explorer: 'book_explorer.html',
         dashboard: 'dashboard.html',
         live_count_wall: 'live_count_wall.html',
         sku_master: 'sku_master.html',

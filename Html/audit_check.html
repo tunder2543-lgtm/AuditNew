@@ -1982,6 +1982,12 @@
             return lines;
         }
 
+        function ensureRefLoadedForDestCheck() {
+            if (refBySkuLoc.size > 0) return true;
+            showToast('โหลดข้อมูลอ้างอิงก่อน (เลือกคลัง/เดือน หรือรอโหลดอัตโนมัติ)', 'error');
+            return false;
+        }
+
         async function confirmDestUpdatesWithSkips(title, toApply, blocked) {
             if (!blocked.length) return true;
             if (!toApply.length) {
@@ -2588,46 +2594,65 @@
                 }
             });
             if (!okSwap) return;
+            if (!ensureRefLoadedForDestCheck()) return;
+
+            const planned = rows.map(tr => {
+                const skuInput = tr.querySelector('[data-field="sku"]');
+                const locInput = tr.querySelector('[data-field="loc"]');
+                const oldSku = skuInput.value.trim();
+                const oldLoc = locInput.value.trim();
+                const newSkuId = window.SkuUtils.normalizeSku(oldLoc);
+                return {
+                    recordId: tr.dataset.recordId,
+                    destSku: newSkuId,
+                    destLoc: oldSku,
+                    warehouse: getWarehouseForRecordId(tr.dataset.recordId),
+                    label: `${oldSku} ↔ ${oldLoc}`,
+                    tr,
+                    oldSku,
+                    oldLoc,
+                    newSkuId
+                };
+            });
+            const { ok: toApply, blocked } = validateDestUpdateBatch(planned);
+            const proceedSwap = await confirmDestUpdatesWithSkips('สลับ SKU↔ตำแหน่ง', toApply, blocked);
+            if (!proceedSwap) return;
 
             const btnApply = document.getElementById('btnApplySwapSkuLoc');
             if (btnApply) btnApply.disabled = true;
-            setLoading(true, 'กำลังสลับ SKU ↔ ตำแหน่ง...', `0 / ${rows.length}`);
+            setLoading(true, 'กำลังสลับ SKU ↔ ตำแหน่ง...', `0 / ${toApply.length}`);
 
             let ok = 0;
             let fail = 0;
+            let skipped = blocked.length;
             let lastUpdateError = null;
 
             try {
-                for (let i = 0; i < rows.length; i++) {
-                    const tr = rows[i];
+                for (let i = 0; i < toApply.length; i++) {
+                    const item = toApply[i];
+                    const tr = item.tr;
                     const skuInput = tr.querySelector('[data-field="sku"]');
                     const locInput = tr.querySelector('[data-field="loc"]');
-                    const oldSku = skuInput.value.trim();
-                    const oldLoc = locInput.value.trim();
-                    const id = tr.dataset.recordId;
+                    const id = item.recordId;
 
-                    // ตอน swap: location เดิม (oldLoc) จะกลายเป็น sku_id ใหม่ → ต้อง normalize SKU ก่อนเขียนลง DB
-                    // เพื่อให้ตรงรูปแบบมาตรฐาน (UPPERCASE+trim) ของระบบ
-                    const newSkuId = window.SkuUtils.normalizeSku(oldLoc);
                     const { error } = await supabaseClient
                         .from('inventory_counts')
-                        .update({ sku_id: newSkuId, location: oldSku })
+                        .update({ sku_id: item.newSkuId, location: item.destLoc })
                         .eq('id', id);
 
                     if (error) {
                         console.error(error);
-                        // เก็บ error สุดท้ายไว้แสดงรายละเอียดให้ user
                         lastUpdateError = error;
                         fail += 1;
                     } else {
-                        skuInput.value = newSkuId;
-                        locInput.value = oldSku;
-                        tr.dataset.originalLoc = oldSku;
+                        skuInput.value = item.newSkuId;
+                        locInput.value = item.destLoc;
+                        tr.dataset.originalLoc = item.destLoc;
                         tr.classList.remove('loc-dirty');
                         ok += 1;
                     }
 
-                    setLoadingProgress(i + 1, rows.length, 'กำลังสลับ SKU ↔ ตำแหน่ง...');
+                    setLoadingProgress(i + 1, toApply.length, 'กำลังสลับ SKU ↔ ตำแหน่ง...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
@@ -2637,16 +2662,17 @@
                 setLoadingMessage('กำลังตรวจสอบรายการหลังสลับ...', `${trList.length.toLocaleString()} แถว`);
                 await verifyRowsInBatches(trList);
 
+                const skipPart = skipped > 0 ? ` · ข้ามปลายทางซ้ำ ${skipped}` : '';
                 if (fail > 0 && lastUpdateError) {
                     const info = window.DbErrors?.formatDbError(lastUpdateError, { context: 'สลับ SKU↔ตำแหน่ง' });
                     showToast(
-                        `สลับสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})\n${info?.message || lastUpdateError.message || ''}`,
+                        `สลับสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})${skipPart}\n${info?.message || lastUpdateError.message || ''}`,
                         'error'
                     );
                 } else {
                     showToast(
-                        `สลับสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
-                        fail > 0 ? 'error' : 'success'
+                        `สลับสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}${skipPart}`,
+                        fail > 0 || skipped > 0 ? 'error' : 'success'
                     );
                 }
             } catch (err) {
@@ -2741,24 +2767,44 @@
                 }
             });
             if (!okLoc) return;
+            if (!ensureRefLoadedForDestCheck()) return;
+
+            const planned = dirtyRows.map(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim();
+                const newLoc = tr.querySelector('[data-field="loc"]').value.trim();
+                const oldLoc = tr.dataset.originalLoc || '';
+                return {
+                    recordId: tr.dataset.recordId,
+                    destSku: sku,
+                    destLoc: newLoc,
+                    warehouse: getWarehouseForRecordId(tr.dataset.recordId),
+                    label: `${sku}: ${oldLoc} → ${newLoc}`,
+                    tr,
+                    newLoc
+                };
+            });
+            const { ok: toApply, blocked } = validateDestUpdateBatch(planned);
+            const proceedLoc = await confirmDestUpdatesWithSkips('บันทึกตำแหน่ง', toApply, blocked);
+            if (!proceedLoc) return;
 
             const btnSave = document.getElementById('btnSaveLocChanges');
             if (btnSave) btnSave.disabled = true;
-            setLoading(true, 'กำลังบันทึกตำแหน่ง...', `0 / ${dirtyRows.length}`);
+            setLoading(true, 'กำลังบันทึกตำแหน่ง...', `0 / ${toApply.length}`);
 
             let ok = 0;
             let fail = 0;
+            let skipped = blocked.length;
             let lastUpdateError = null;
 
             try {
-                for (let i = 0; i < dirtyRows.length; i++) {
-                    const tr = dirtyRows[i];
-                    const newLoc = tr.querySelector('[data-field="loc"]').value.trim();
-                    const id = tr.dataset.recordId;
+                for (let i = 0; i < toApply.length; i++) {
+                    const item = toApply[i];
+                    const tr = item.tr;
+                    const id = item.recordId;
 
                     const { error } = await supabaseClient
                         .from('inventory_counts')
-                        .update({ location: newLoc })
+                        .update({ location: item.newLoc })
                         .eq('id', id);
 
                     if (error) {
@@ -2766,27 +2812,28 @@
                         lastUpdateError = error;
                         fail += 1;
                     } else {
-                        tr.dataset.originalLoc = newLoc;
+                        tr.dataset.originalLoc = item.newLoc;
                         tr.classList.remove('loc-dirty');
                         ok += 1;
                     }
 
-                    setLoadingProgress(i + 1, dirtyRows.length, 'กำลังบันทึกตำแหน่ง...');
+                    setLoadingProgress(i + 1, toApply.length, 'กำลังบันทึกตำแหน่ง...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
                 await loadReferenceData();
 
+                const skipPart = skipped > 0 ? ` · ข้ามปลายทางซ้ำ ${skipped}` : '';
                 if (fail > 0 && lastUpdateError) {
                     const info = window.DbErrors?.formatDbError(lastUpdateError, { context: 'บันทึกตำแหน่ง' });
                     showToast(
-                        `บันทึกสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})\n${info?.message || lastUpdateError.message || ''}`,
+                        `บันทึกสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})${skipPart}\n${info?.message || lastUpdateError.message || ''}`,
                         'error'
                     );
                 } else {
                     showToast(
-                        `บันทึกสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
-                        fail > 0 ? 'error' : 'success'
+                        `บันทึกสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}${skipPart}`,
+                        fail > 0 || skipped > 0 ? 'error' : 'success'
                     );
                 }
             } catch (err) {
@@ -3495,17 +3542,33 @@
                 confirmIcon: 'check'
             });
             if (!ok2) return;
+            if (!ensureRefLoadedForDestCheck()) return;
+
+            const planned = items.map(item => ({
+                recordId: item.id,
+                destSku: item.sku,
+                destLoc: item.newLocation,
+                warehouse: item.warehouse,
+                label: `${item.sku}: ${item.dbLocation} → ${item.newLocation}`,
+                item
+            }));
+            const { ok: toApply, blocked } = validateDestUpdateBatch(planned);
+            const proceedCmp = await confirmDestUpdatesWithSkips('แก้ตำแหน่งจาก Excel', toApply, blocked);
+            if (!proceedCmp) return;
 
             if (applyBtn) applyBtn.disabled = true;
-            setLoading(true, 'กำลังปรับเปลี่ยนตำแหน่ง...', `0 / ${items.length} รายการ`);
+            setLoading(true, 'กำลังปรับเปลี่ยนตำแหน่ง...', `0 / ${toApply.length} รายการ`);
 
             let ok = 0;
             let fail = 0;
+            let skipped = blocked.length;
             let lastUpdateError = null;
+            const successIds = new Set();
 
             try {
-                for (let i = 0; i < items.length; i++) {
-                    const item = items[i];
+                for (let i = 0; i < toApply.length; i++) {
+                    const entry = toApply[i];
+                    const item = entry.item;
                     const { error } = await supabaseClient
                         .from('inventory_counts')
                         .update({ location: item.newLocation })
@@ -3516,24 +3579,29 @@
                         lastUpdateError = error;
                         fail += 1;
                     } else {
+                        successIds.add(String(item.id));
                         ok += 1;
                     }
 
-                    setLoadingProgress(i + 1, items.length, 'กำลังปรับเปลี่ยนตำแหน่งจาก Excel...');
+                    setLoadingProgress(i + 1, toApply.length, 'กำลังปรับเปลี่ยนตำแหน่งจาก Excel...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
-                syncTableRowsAfterLocCompare(items);
+                syncTableRowsAfterLocCompare(
+                    toApply.filter(e => successIds.has(String(e.item.id))).map(e => e.item)
+                );
                 await loadReferenceData();
 
-                locCompareState.mismatches = [];
+                locCompareState.mismatches = items.filter(it => !successIds.has(String(it.id)));
                 locCompareConfirmStep = 0;
 
                 const skippedLeft =
+                    locCompareState.mismatches.length +
                     (locCompareState.notInSystem || []).length +
                     (locCompareState.dbAmbiguous || []).length;
 
-                const baseMsg = `อัปเดตตำแหน่งสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}` +
+                const skipDest = skipped > 0 ? ` · ข้ามปลายทางซ้ำ ${skipped}` : '';
+                const baseMsg = `อัปเดตตำแหน่งสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}${skipDest}` +
                     (skippedLeft ? ` · เหลือไม่อัปเดต ${skippedLeft} รายการ (ยังแสดงในรายการด้านล่าง)` : '');
 
                 if (fail > 0 && lastUpdateError) {

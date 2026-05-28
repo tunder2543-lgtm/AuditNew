@@ -889,6 +889,71 @@
             return (s || '').toString().trim().toUpperCase();
         }
 
+        /** รวมแถวซ้ำในไฟล์นำเข้า (SKU เดียวกัน — ใช้แถวสุดท้าย) */
+        function dedupeImportRows(rows) {
+            const byKey = new Map();
+            for (const row of rows) {
+                const key = normSkuKey(row.sku_name);
+                if (!key) continue;
+                byKey.set(key, {
+                    sku_name: row.sku_name,
+                    name_pro: row.name_pro
+                });
+            }
+            return [...byKey.values()];
+        }
+
+        const SKU_UPSERT_OPTS = { onConflict: 'sku_name,warehouse' };
+
+        async function upsertOneSkuMasterRow(item) {
+            const { error } = await supabaseClient
+                .from('sku_master')
+                .upsert([item], SKU_UPSERT_OPTS);
+            if (!error) return { ok: true };
+
+            if (!window.DbErrors?.isDuplicateError(error)) {
+                return { ok: false, error };
+            }
+
+            const { data: matches, error: lookupErr } = await supabaseClient
+                .from('sku_master')
+                .select('id')
+                .eq('warehouse', item.warehouse)
+                .eq('sku_name', item.sku_name);
+            if (lookupErr) return { ok: false, error: lookupErr };
+            if ((matches || []).length !== 1) {
+                return { ok: false, error };
+            }
+
+            const { error: updateErr } = await supabaseClient
+                .from('sku_master')
+                .update({ name_pro: item.name_pro })
+                .eq('id', matches[0].id)
+                .eq('warehouse', item.warehouse);
+            return updateErr ? { ok: false, error: updateErr } : { ok: true };
+        }
+
+        async function upsertSkuMasterChunk(chunk) {
+            const { error } = await supabaseClient
+                .from('sku_master')
+                .upsert(chunk, SKU_UPSERT_OPTS);
+            if (!error) return { ok: chunk.length, fail: 0, lastError: null };
+
+            console.warn('[SKU Import] chunk upsert failed, retry row-by-row:', error.message);
+            let ok = 0;
+            let fail = 0;
+            let lastError = error;
+            for (const item of chunk) {
+                const result = await upsertOneSkuMasterRow(item);
+                if (result.ok) ok += 1;
+                else {
+                    fail += 1;
+                    lastError = result.error || error;
+                }
+            }
+            return { ok, fail, lastError };
+        }
+
         async function uploadToSupabase(data) {
             if (!supabaseClient) return;
             const warehouse = getSelectedWarehouse();
@@ -897,7 +962,10 @@
                 return;
             }
 
-            showLoading(`กำลังบันทึกข้อมูล 0 / ${data.length}`);
+            const deduped = dedupeImportRows(data);
+            const dupInFile = data.length - deduped.length;
+
+            showLoading(`กำลังบันทึกข้อมูล 0 / ${deduped.length}`);
             const progressFill = document.getElementById('progressFill');
 
             const CHUNK_SIZE = 500;
@@ -908,7 +976,7 @@
             const ambiguousSamples = [];
 
             try {
-                const skuNames = [...new Set(data.map(d => d.sku_name).filter(Boolean))];
+                const skuNames = deduped.map(d => d.sku_name).filter(Boolean);
                 /** @type {Map<string, Array<{id, sku_name, name_pro, warehouse}>>} */
                 const existingBySku = new Map();
 
@@ -927,45 +995,40 @@
                     });
                 }
 
-                const toInsert = [];
-                const toUpdate = [];
+                const toUpsert = [];
 
-                for (const row of data) {
+                for (const row of deduped) {
                     const key = normSkuKey(row.sku_name);
                     if (!key) continue;
                     const matches = existingBySku.get(key) || [];
 
-                    if (matches.length === 0) {
-                        toInsert.push({
-                            sku_name: row.sku_name,
-                            name_pro: row.name_pro,
-                            warehouse
-                        });
-                    } else if (matches.length === 1) {
-                        toUpdate.push({
-                            id: matches[0].id,
-                            name_pro: row.name_pro
-                        });
-                    } else {
+                    if (matches.length > 1) {
                         ambiguousCount += 1;
                         if (ambiguousSamples.length < 8) {
                             ambiguousSamples.push(`${row.sku_name} (${matches.length} แถว)`);
                         }
+                        continue;
                     }
+
+                    if (matches.length === 1) updateCount += 1;
+                    else insertCount += 1;
+
+                    toUpsert.push({
+                        sku_name: row.sku_name,
+                        name_pro: row.name_pro,
+                        warehouse
+                    });
                 }
 
                 let done = 0;
-                const totalOps = toInsert.length + toUpdate.length;
+                const totalOps = toUpsert.length;
+                let lastUpsertError = null;
 
-                for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
-                    const chunk = toInsert.slice(i, i + CHUNK_SIZE);
-                    const { error } = await supabaseClient.from('sku_master').insert(chunk);
-                    if (error) {
-                        console.error('Insert chunk error:', error);
-                        errorCount += chunk.length;
-                    } else {
-                        insertCount += chunk.length;
-                    }
+                for (let i = 0; i < toUpsert.length; i += CHUNK_SIZE) {
+                    const chunk = toUpsert.slice(i, i + CHUNK_SIZE);
+                    const result = await upsertSkuMasterChunk(chunk);
+                    errorCount += result.fail;
+                    if (result.fail > 0) lastUpsertError = result.lastError;
                     done += chunk.length;
                     if (totalOps) {
                         progressFill.style.width = `${Math.round((done / totalOps) * 100)}%`;
@@ -974,43 +1037,27 @@
                     }
                 }
 
-                for (let i = 0; i < toUpdate.length; i += 20) {
-                    const chunk = toUpdate.slice(i, i + 20);
-                    for (const item of chunk) {
-                        const { error } = await supabaseClient
-                            .from('sku_master')
-                            .update({ name_pro: item.name_pro })
-                            .eq('id', item.id)
-                            .eq('warehouse', warehouse);
-                        if (error) {
-                            console.error('Update error:', error);
-                            errorCount += 1;
-                        } else {
-                            updateCount += 1;
-                        }
-                    }
-                    done += chunk.length;
-                    if (totalOps) {
-                        progressFill.style.width = `${Math.round((done / totalOps) * 100)}%`;
-                        document.getElementById('loadingText').textContent =
-                            `กำลังบันทึก ${done} / ${totalOps}`;
-                    }
-                }
-
-                let msg = `นำเข้า ${warehouse}: เพิ่ม ${insertCount} · อัปเดต ${updateCount}`;
+                const successCount = Math.max(0, toUpsert.length - errorCount);
+                let msg = `นำเข้า ${warehouse}: บันทึก ${successCount} รายการ (แผนใหม่ ${insertCount} · แผนอัปเดต ${updateCount})`;
+                if (dupInFile > 0) msg += ` · รวม SKU ซ้ำในไฟล์ ${dupInFile} แถว`;
                 if (ambiguousCount > 0) {
                     msg += ` · ข้าม ambiguous ${ambiguousCount}`;
                     if (ambiguousSamples.length) {
                         msg += ` (${ambiguousSamples.join(', ')}${ambiguousCount > ambiguousSamples.length ? '...' : ''})`;
                     }
                 }
-                if (errorCount > 0) msg += ` · ผิดพลาด ${errorCount}`;
+                if (errorCount > 0) {
+                    const info = window.DbErrors?.formatDbError(lastUpsertError, { context: 'นำเข้า SKU' });
+                    msg += ` · ผิดพลาด ${errorCount}`;
+                    if (info?.message) msg += `\n${info.message}`;
+                }
                 showToast(msg, errorCount > 0 || ambiguousCount > 0 ? 'error' : 'success');
 
                 await loadData();
             } catch (err) {
                 console.error(err);
-                showToast(`ล้มเหลว: ${err.message}`, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'นำเข้า SKU' });
+                showToast(info?.message || `ล้มเหลว: ${err.message}`, 'error');
             } finally {
                 hideLoading();
                 progressFill.style.width = '0%';

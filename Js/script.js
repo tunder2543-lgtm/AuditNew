@@ -198,6 +198,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return String(value ?? '').trim().toUpperCase();
     }
 
+    function normalizeLocKey(value) {
+        return String(value ?? '').trim().toUpperCase();
+    }
+
+    /**
+     * ตรวจปลายทางแก้ไข (sku + ตำแหน่ง + คลัง) ว่ามีแถวอื่นใน cache แล้วหรือไม่
+     */
+    function getEditDestinationCollision(sku, location, warehouse, excludeRecordId) {
+        const skuN = normalizeSkuKey(sku);
+        const locN = normalizeLocKey(location);
+        const whN = String(warehouse || '').trim();
+        if (!skuN || !locN) {
+            return { blocked: true, message: 'SKU หรือตำแหน่งปลายทางว่าง' };
+        }
+
+        const exclude = String(excludeRecordId || '');
+        const others = allRecords.filter(r => {
+            if (String(r.id) === exclude) return false;
+            if (whN && String(r.warehouse || '').trim() !== whN) return false;
+            return normalizeSkuKey(r.sku_id) === skuN && normalizeLocKey(r.location) === locN;
+        });
+
+        if (!others.length) return null;
+
+        const total = others.length + 1;
+        return {
+            blocked: true,
+            message: `ปลายทางซ้ำในระบบ (มี ${total} แถวที่ SKU+ตำแหน่ง+คลังเดียวกันอยู่แล้ว)`
+        };
+    }
+
     function getMasterSkuKeySet() {
         return new Set(
             skuMasterList.map(s => normalizeSkuKey(s.sku_name)).filter(Boolean)
@@ -1246,10 +1277,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
                 const qtyChanged = newQty !== edState.oldQty;
-                const locChanged = newLocation.toUpperCase() !== String(edState.oldLocation || '').trim().toUpperCase();
+                const locChanged = normalizeLocKey(newLocation) !== normalizeLocKey(edState.oldLocation);
                 if (!qtyChanged && !locChanged) {
                     showToast('ไม่มีการเปลี่ยนแปลง', 'error');
                     return;
+                }
+                if (locChanged) {
+                    const coll = getEditDestinationCollision(
+                        edState.sku, newLocation, edState.warehouse, edState.id
+                    );
+                    if (coll) {
+                        showToast(coll.message, 'error');
+                        return;
+                    }
                 }
                 edState.newQty = newQty;
                 edState.newLocation = newLocation;
@@ -1269,11 +1309,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 lucide.createIcons();
             } else if (edState.step === 2) {
                 try {
+                    const locWillChange = normalizeLocKey(edState.newLocation) !== normalizeLocKey(edState.oldLocation);
+                    if (locWillChange) {
+                        const coll = getEditDestinationCollision(
+                            edState.sku, edState.newLocation, edState.warehouse, edState.id
+                        );
+                        if (coll) {
+                            showToast(coll.message, 'error');
+                            return;
+                        }
+                    }
+
                     const payload = {};
                     if (edState.newQty !== edState.oldQty) payload.counted_qty = edState.newQty;
-                    if (edState.newLocation.toUpperCase() !== String(edState.oldLocation || '').trim().toUpperCase()) {
-                        payload.location = edState.newLocation;
-                    }
+                    if (locWillChange) payload.location = edState.newLocation;
 
                     let updateQuery = supabaseClient
                         .from('inventory_counts')
@@ -1314,7 +1363,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     closeEdModal();
                 } catch (err) {
                     console.error('[Update Error]', err);
-                    showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
+                    const info = window.DbErrors?.formatDbError(err, { context: 'แก้ไขรายการ' });
+                    showToast(info?.message || `เกิดข้อผิดพลาด: ${err.message}`, 'error');
                 }
             }
         } else if (edState.mode === 'delete') {

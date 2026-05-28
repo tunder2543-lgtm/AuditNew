@@ -800,6 +800,10 @@
         const savedWh = localStorage.getItem('saved_warehouse') || localStorage.getItem('import_counts_warehouse');
         if (savedWh && WAREHOUSES.includes(savedWh)) document.getElementById('qWarehouse').value = savedWh;
         await window.checkSupabaseConnection?.();
+        if (window.reconcileService?.ensureSchemaReadyWithNotice) {
+            const toastFn = typeof showToast === 'function' ? showToast : null;
+            await window.reconcileService.ensureSchemaReadyWithNotice(toastFn);
+        }
         lucide.createIcons();
     })();
 </script>

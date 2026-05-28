@@ -558,28 +558,41 @@
                     .delete()
                     .eq('room_id', ROOM_ID);
                 if (error) throw error;
+                let storageWarn = '';
                 try {
-                    const { data: listed } = await supabaseClient.storage.from(CHAT_BUCKET).list(ROOM_ID, { limit: 500 });
-                    if (listed?.length) {
+                    const { data: listed, error: listErr } = await supabaseClient.storage
+                        .from(CHAT_BUCKET)
+                        .list(ROOM_ID, { limit: 500 });
+                    if (listErr) {
+                        storageWarn = ' (ไฟล์แนบใน Storage อาจยังเหลือ)';
+                    } else if (listed?.length) {
                         const paths = listed.map(f => ROOM_ID + '/' + f.name);
-                        await supabaseClient.storage.from(CHAT_BUCKET).remove(paths);
+                        const { error: removeErr } = await supabaseClient.storage
+                            .from(CHAT_BUCKET)
+                            .remove(paths);
+                        if (removeErr) {
+                            storageWarn = ' (ลบไฟล์แนบไม่ครบ: ' + removeErr.message + ')';
+                        }
                     }
-                } catch { /* bucket อาจยังไม่สร้าง */ }
+                } catch (storageErr) {
+                    storageWarn = ' (ไฟล์แนบใน Storage อาจยังเหลือ)';
+                    console.warn('[Chat] clear storage:', storageErr);
+                }
+
+                localStorage.removeItem(STORAGE_KEY);
+                sessionStorage.removeItem('join_sent_' + ROOM_ID);
+
+                if (window.chatNotifyShared) {
+                    window.chatNotifyShared.resetSeen?.();
+                    window.chatNotifyShared.markRead?.();
+                }
+
+                const messages = [];
+                updateHint(messages);
+                render(messages);
+                showChatStatus('ล้างแชทแล้ว' + storageWarn, !!storageWarn);
+                setTimeout(() => updateHint(messages), 2500);
             }
-
-            localStorage.removeItem(STORAGE_KEY);
-            sessionStorage.removeItem('join_sent_' + ROOM_ID);
-
-            if (window.chatNotifyShared) {
-                window.chatNotifyShared.resetSeen?.();
-                window.chatNotifyShared.markRead?.();
-            }
-
-            const messages = [];
-            updateHint(messages);
-            render(messages);
-            showChatStatus('ล้างแชทแล้ว', false);
-            setTimeout(() => updateHint(messages), 2500);
         } catch (err) {
             showChatStatus('ล้างแชทไม่สำเร็จ: ' + (err?.message || String(err)), true);
         } finally {

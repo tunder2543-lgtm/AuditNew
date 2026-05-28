@@ -1279,11 +1279,15 @@
             showToast('กรุณาตั้งค่า Supabase ในหน้าตั้งค่า', 'error');
             loadImportHistory();
         } else {
+            window.reconcileService?.ensureSchemaReadyWithNotice?.(showToast);
             loadImportHistory();
         }
 
         window.checkSupabaseConnection?.().then(function () {
             supabaseClient = window.apiService ? window.apiService.getClient() : null;
+            if (supabaseClient) {
+                window.reconcileService?.ensureSchemaReadyWithNotice?.(showToast);
+            }
             loadImportHistory();
         });
     </script>

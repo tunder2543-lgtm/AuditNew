@@ -2282,6 +2282,10 @@
             els.progressText.textContent = 'กำลังโหลดข้อมูล...';
 
             try {
+                await RS.ensureSchemaReadyWithNotice?.(msg => {
+                    console.warn('[Schema]', msg);
+                    if (els.connectionLabel) els.connectionLabel.textContent = msg;
+                });
                 await populateCycleSelect();
                 updateCycleFilterHint();
 

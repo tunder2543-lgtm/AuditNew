@@ -7,7 +7,8 @@
     const SESSION_KEY = 'audit_chat_session_v1';
     const UNREAD_KEY = 'audit_chat_unread_v1';
     const LAST_READ_KEY = 'audit_chat_last_read_v1';
-    const POLL_MS = 8000;
+    const POLL_MS_FAST = 8000;
+    const POLL_MS_SLOW = 60000;
     const INIT_RETRY_MS = 1500;
     const INIT_RETRY_MAX = 20;
 
@@ -236,7 +237,9 @@
             if (data && data.length) {
                 lastPollIso = data[0].created_at;
             }
-        } catch { /* ignore */ }
+        } catch (err) {
+            console.warn('[ChatNotify] seedSeenFromHistory failed:', err?.message || err);
+        }
     }
 
     async function pollNewMessages() {
@@ -250,18 +253,27 @@
                 .gt('created_at', since)
                 .order('created_at', { ascending: true })
                 .limit(50);
-            if (error) return;
+            if (error) {
+                console.warn('[ChatNotify] poll error:', error.message);
+                return;
+            }
             const rows = data || [];
             if (rows.length) {
                 lastPollIso = rows[rows.length - 1].created_at;
             }
             rows.forEach(row => onNewMessage(row));
-        } catch { /* ignore */ }
+        } catch (err) {
+            console.warn('[ChatNotify] poll failed:', err?.message || err);
+        }
+    }
+
+    function getPollIntervalMs() {
+        return realtimeReady ? POLL_MS_SLOW : POLL_MS_FAST;
     }
 
     function startPolling() {
-        if (pollTimer) return;
-        pollTimer = setInterval(pollNewMessages, POLL_MS);
+        stopPolling();
+        pollTimer = setInterval(pollNewMessages, getPollIntervalMs());
     }
 
     function stopPolling() {
@@ -294,13 +306,15 @@
             .subscribe((status) => {
                 if (status === 'SUBSCRIBED') {
                     realtimeReady = true;
+                    startPolling();
                 } else if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR' || status === 'CLOSED') {
                     realtimeReady = false;
+                    console.warn('[ChatNotify] Realtime unavailable:', status);
                     startPolling();
                 }
             });
 
-        startPolling();
+        if (!realtimeReady) startPolling();
     }
 
     function scheduleInitRetry() {

@@ -9,10 +9,34 @@ const SUPABASE_CONFIG = {
     KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5maGZ1eWJxaHNremxsbGtnbXlpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTI0MjI4OCwiZXhwIjoyMDgwODE4Mjg4fQ.crKVAeRVBA6m2h8KPKmtePKSjPyRiFqRdRU7pjuFxx0'
 };
 
+let _sbStorageWarned = false;
+
+function readSupabaseStorage() {
+    try {
+        return {
+            url: localStorage.getItem('SB_URL'),
+            key: localStorage.getItem('SB_KEY')
+        };
+    } catch (err) {
+        if (!_sbStorageWarned) {
+            _sbStorageWarned = true;
+            console.warn('[Supabase API] อ่าน localStorage ไม่ได้:', err);
+            setTimeout(() => {
+                if (typeof window.showToast === 'function') {
+                    window.showToast(
+                        'การตั้งค่า Supabase ในเบราว์เซอร์เสีย — ใช้ค่าเริ่มต้นจากระบบ',
+                        'error'
+                    );
+                }
+            }, 0);
+        }
+        return { url: null, key: null };
+    }
+}
+
 function getSupabaseClient() {
     // 1. อ่านจาก localStorage ก่อน (กรณีผู้ใช้แก้ไขผ่านหน้า Settings Modal)
-    let url = localStorage.getItem('SB_URL');
-    let key = localStorage.getItem('SB_KEY');
+    let { url, key } = readSupabaseStorage();
 
     // 2. ถ้าใน localStorage ไม่มี ให้ใช้ค่าจาก Config ด้านบน
     if (!url || !key) {

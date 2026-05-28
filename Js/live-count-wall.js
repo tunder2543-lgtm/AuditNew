@@ -674,6 +674,13 @@
             return;
         }
 
+        if (RS?.ensureSchemaReadyWithNotice) {
+            await RS.ensureSchemaReadyWithNotice(msg => {
+                console.warn('[Schema]', msg);
+                if (els.statusText) els.statusText.textContent = msg;
+            });
+        }
+
         await populateCycleSelect();
         await reloadAll(false);
         populateWarehouseSelect();

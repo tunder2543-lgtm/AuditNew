@@ -89,9 +89,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     //  INITIAL DATA LOADING (SKU Master + Existing Records)
     // =============================================
+    let lastDataLoadAt = 0;
+    const VISIBILITY_RELOAD_MS = 30000;
+
     async function loadAllData() {
         await loadSkuMaster();
         await loadExistingRecords();
+        lastDataLoadAt = Date.now();
     }
 
     function getActiveWarehouse() {
@@ -2253,8 +2257,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initSupabase();
 
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && supabaseClient) {
-            loadAllData();
-        }
+        if (document.visibilityState !== 'visible' || !supabaseClient) return;
+        if (Date.now() - lastDataLoadAt < VISIBILITY_RELOAD_MS) return;
+        loadAllData();
     });
 });

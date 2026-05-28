@@ -45,7 +45,11 @@
             updateSaveHint(true);
         } catch (e) {
             console.warn('manual save failed', e);
-            updateSaveHint(false, 'พื้นที่เก็บเต็ม — ลดจำนวนรูปหรือขนาดไฟล์');
+            const msg = 'บันทึกคู่มือไม่สำเร็จ — พื้นที่เต็มหรือโหมด Private?';
+            updateSaveHint(false, msg);
+            if (typeof window.showToast === 'function') {
+                window.showToast(msg, 'error');
+            }
         }
     }
 

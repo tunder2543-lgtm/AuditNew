@@ -1522,8 +1522,14 @@
             return showToast('คลังไม่เปลี่ยน');
         }
         const [bookN, countN] = await Promise.all([
-            RS.countBookLines(selectedCycle.id).catch(() => 0),
-            RS.countLinkedInventory(selectedCycle.id).catch(() => 0)
+            RS.countBookLines(selectedCycle.id).catch(err => {
+                showToast('นับ Book ล้มเหลว: ' + (err?.message || err), 'error');
+                return 0;
+            }),
+            RS.countLinkedInventory(selectedCycle.id).catch(err => {
+                showToast('นับผลนับที่ผูกแล้วล้มเหลว: ' + (err?.message || err), 'error');
+                return 0;
+            })
         ]);
         const okWh = await uiConfirm.show({
             title: 'เปลี่ยนคลังรอบ',
@@ -1545,13 +1551,13 @@
             if (idx >= 0) cyclesCache[idx] = selectedCycle;
             const active = RS.getActiveCycle();
             if (active?.id === selectedCycle.id) RS.setActiveCycle(selectedCycle);
-            showToast(`บันทึกคลัง: ${RS.formatWarehouseDisplay(selectedCycle)}`);
             document.getElementById('detailTitle').textContent = RS.formatCycleLabel(selectedCycle);
             fillEditWarehouseUi(selectedCycle);
             const prev = await RS.previewLinkInventoryCounts(selectedCycle);
             document.getElementById('linkPreview').textContent = RS.formatLinkPreviewText(selectedCycle, prev);
             await refreshLinkPendingPanel(selectedCycle, prev);
             await loadCycles();
+            showToast(`บันทึกคลัง: ${RS.formatWarehouseDisplay(selectedCycle)}`);
         } catch (err) { showToast(err.message, 'error'); }
         finally { setLoading(false); }
     });
@@ -1872,8 +1878,9 @@
             const rows = await RS.fetchLinkableInventoryRows(cycle);
             linkPendingRowsCache = rows;
             renderLinkPendingPanel(rows);
-        } catch {
+        } catch (err) {
             clearLinkPendingPanel();
+            showToast('โหลดรายการรอผูกล้มเหลว: ' + (err?.message || err), 'error');
         }
     }
 

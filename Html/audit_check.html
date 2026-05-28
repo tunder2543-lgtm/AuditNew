@@ -1444,6 +1444,18 @@
 
         /** ดึงเฉพาะเดือนที่มีข้อมูลการนับจริง */
         async function fetchAvailableMonths(warehouse) {
+            const { data, error } = await supabaseClient.rpc('get_inventory_count_months', {
+                p_warehouse: warehouse || null
+            });
+            if (!error && Array.isArray(data)) {
+                return data
+                    .map(row => row.year_month || row)
+                    .filter(Boolean);
+            }
+            if (error && !/get_inventory_count_months|function.*does not exist/i.test(error.message)) {
+                throw error;
+            }
+
             let allRows = [];
             let from = 0;
             const PAGE = 1000;
@@ -1456,9 +1468,9 @@
 
                 if (warehouse) query = query.eq('warehouse', warehouse);
 
-                const { data, error } = await query.range(from, from + PAGE - 1);
-                if (error) throw error;
-                const batch = data || [];
+                const { data: batchData, error: pageErr } = await query.range(from, from + PAGE - 1);
+                if (pageErr) throw pageErr;
+                const batch = batchData || [];
                 allRows = allRows.concat(batch);
                 if (batch.length < PAGE) break;
                 from += PAGE;
@@ -3856,8 +3868,12 @@
          * เรียกอัตโนมัติเมื่อผู้ใช้เปลี่ยน คลัง/เดือน/ทุกช่วงเวลา
          */
         let autoRunInFlight = false;
+        let autoRunQueued = false;
         async function runFullAuditLoad({ skipVerify = false } = {}) {
-            if (autoRunInFlight) return;
+            if (autoRunInFlight) {
+                autoRunQueued = true;
+                return;
+            }
             if (!supabaseClient) return;
             if (editLocationMode || swapSkuLocMode) return;
 
@@ -3891,6 +3907,10 @@
             } finally {
                 setLoading(false);
                 autoRunInFlight = false;
+                if (autoRunQueued) {
+                    autoRunQueued = false;
+                    runFullAuditLoad({ skipVerify });
+                }
             }
         }
 

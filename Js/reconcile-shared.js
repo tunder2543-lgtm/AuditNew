@@ -2533,6 +2533,44 @@
 
 
 
+    /** Apply draft ทั้งรอบ — refresh reconciliation ครั้งเดียว (A11) */
+    async function applyAllDraftsForCycle(cycleId, appliedBy) {
+        const client = getClient();
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+        if (!cycleId) throw new Error('ไม่พบรอบ');
+
+        const { data, error } = await client.rpc('apply_all_drafts_for_cycle', {
+            p_cycle_id: cycleId,
+            p_applied_by: appliedBy || null
+        });
+
+        if (error) {
+            if (/apply_all_drafts_for_cycle|function.*does not exist/i.test(error.message)) {
+                throw new Error(
+                    'ฟังก์ชัน apply_all_drafts_for_cycle ยังไม่มี — รัน docs/sql/013_audit_warnings.sql ใน Supabase'
+                );
+            }
+            throw error;
+        }
+
+        return Number(data) || 0;
+    }
+
+
+
+    async function ensureSchemaReadyWithNotice(showToastFn) {
+        const ready = await checkSchemaReady();
+        if (!ready.ok) {
+            console.warn('[Schema]', ready.message);
+            if (typeof showToastFn === 'function') {
+                showToastFn(ready.message, 'error');
+            }
+        }
+        return ready;
+    }
+
+
+
     /** ยอมรับผลนับเป็นยอดถูกต้อง — สร้างปรับยอดแล้ว Apply ทันที (reason: reconcile) */
 
     async function acceptCountedQtyAsMatch({ cycleId, skuId, adjustmentQty, varianceBefore, note }) {
@@ -3018,6 +3056,10 @@
         createStockAdjustmentsBatch,
 
         applyStockAdjustment,
+
+        applyAllDraftsForCycle,
+
+        ensureSchemaReadyWithNotice,
 
         acceptCountedQtyAsMatch,
 

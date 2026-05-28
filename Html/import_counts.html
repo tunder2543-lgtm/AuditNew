@@ -356,6 +356,33 @@
             font-size: 0.75rem;
             color: var(--text-muted);
         }
+
+        .import-cycle-banner {
+            margin-top: 0.85rem;
+            padding: 0.65rem 0.85rem;
+            border-radius: 10px;
+            font-size: 0.82rem;
+            line-height: 1.45;
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .import-cycle-banner svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 0.1rem; }
+
+        .import-cycle-banner.linked {
+            border: 1px solid rgba(34, 197, 94, 0.35);
+            background: rgba(34, 197, 94, 0.08);
+            color: #86efac;
+        }
+
+        .import-cycle-banner.unlinked {
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            background: rgba(245, 158, 11, 0.08);
+            color: #fcd34d;
+        }
+
+        .import-cycle-banner a { color: #93c5fd; text-decoration: underline; }
     </style>
 </head>
 <body class="has-sidebar">
@@ -394,7 +421,11 @@
                             <input type="text" id="importCounterName" placeholder="เช่น สมชาย" autocomplete="off">
                         </label>
                     </div>
-                    <p style="margin:0;font-size:0.82rem;color:var(--text-muted);">
+                    <div class="import-cycle-banner unlinked" id="importCycleBanner" role="status">
+                        <i data-lucide="link-2"></i>
+                        <span id="importCycleBannerText">กำลังตรวจสอบรอบการนับ...</span>
+                    </div>
+                    <p style="margin:0.75rem 0 0;font-size:0.82rem;color:var(--text-muted);">
                         คอลัมน์ Excel: <strong>A = ตำแหน่ง</strong> (เช่น E2-04) · <strong>B = SKU</strong> (เช่น RJBL0350) · <strong>C = จำนวน</strong> · แถวว่างจะข้าม
                     </p>
                 </div>
@@ -490,6 +521,7 @@
     <script src="../Js/sku-utils.js"></script>
     <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
+    <script src="../Js/reconcile-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
     <script src="../Js/ui-confirm-modal.js"></script>
     <script>
@@ -532,9 +564,67 @@
             }, 4500);
         }
 
-        /** สร้าง payload สำหรับ insert inventory_counts */
-        function buildCountPayload(row, warehouse, counter_name) {
+        /** ข้อมูลรอบนับที่จะผูกกับแถวที่นำเข้า (อ่านจาก reconcileService / localStorage) */
+        function getImportCycleHint(warehouse) {
+            const RS = window.reconcileService;
+            if (!RS?.getCycleIdForWarehouse) {
+                return {
+                    linked: false,
+                    cycleId: null,
+                    bullet: 'รอบนับ: ไม่ได้ผูก (ระบบรอบยังไม่พร้อม)',
+                    warn: true
+                };
+            }
+
+            const cycleId = RS.getCycleIdForWarehouse(warehouse);
+            const active = RS.getActiveCycle?.() || null;
+
+            if (!cycleId) {
+                let detail = 'ยังไม่ได้เลือกรอบนับที่ตรงกับคลังนี้';
+                if (active?.warehouse) {
+                    detail = `รอบที่เลือกอยู่ (${RS.formatWarehouseDisplay?.(active.warehouse) || active.warehouse}) ไม่ครอบคลัง "${warehouse}"`;
+                }
+                return {
+                    linked: false,
+                    cycleId: null,
+                    bullet: `รอบนับ: ${detail}`,
+                    warn: true
+                };
+            }
+
+            const whLabel = active ? (RS.formatWarehouseDisplay?.(active.warehouse) || active.warehouse) : warehouse;
+            const ym = active?.year_month || '';
+            const label = active?.label || ym || 'รอบปัจจุบัน';
             return {
+                linked: true,
+                cycleId,
+                bullet: `รอบนับ: ${label}${ym && label !== ym ? ` (${ym})` : ''} · ${whLabel}`,
+                warn: false
+            };
+        }
+
+        function refreshImportCycleBanner() {
+            const banner = document.getElementById('importCycleBanner');
+            const textEl = document.getElementById('importCycleBannerText');
+            if (!banner || !textEl) return;
+
+            const warehouse = document.getElementById('importWarehouse')?.value?.trim() || '';
+            const hint = getImportCycleHint(warehouse);
+
+            banner.classList.toggle('linked', hint.linked);
+            banner.classList.toggle('unlinked', !hint.linked);
+
+            if (hint.linked) {
+                textEl.innerHTML = `<strong>จะผูก cycle_id</strong> ให้ทุกแถวที่นำเข้า — ${escHtml(hint.bullet.replace(/^รอบนับ:\s*/, ''))}`;
+            } else {
+                textEl.innerHTML = `${escHtml(hint.bullet)} — นำเข้าได้แต่ <strong>cycle_id จะว่าง</strong> จนกว่าจะผูกรอบที่ <a href="cycle_config.html">ตั้งค่ารอบการนับ</a>`;
+            }
+            lucide.createIcons();
+        }
+
+        /** สร้าง payload สำหรับ insert inventory_counts (รวม cycle_id ถ้ามีรอบที่เลือก) */
+        function buildCountPayload(row, warehouse, counter_name) {
+            const base = {
                 warehouse,
                 location: row.loc,
                 sku_id: row.sku,
@@ -542,6 +632,11 @@
                 counter_name,
                 client_request_id: row.client_request_id
             };
+            const RS = window.reconcileService;
+            if (RS?.attachCycleToPayload) {
+                return RS.attachCycleToPayload(base, warehouse);
+            }
+            return base;
         }
 
         /**
@@ -837,14 +932,15 @@
             return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel }) {
+        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel, cycleId }) {
             if (!supabaseClient || (rowCount <= 0 && failCount <= 0 && duplicateCount <= 0)) return;
             const preview = pendingValidRows.slice(0, 8).map(r => r.sku).join(', ');
             const skuNote = preview + (rowCount > 8 ? ` ... (+${rowCount - 8})` : '');
             const statusNote = [
                 `สำเร็จ ${rowCount}`,
                 failCount > 0 ? `ล้มเหลว ${failCount}` : '',
-                duplicateCount > 0 ? `ข้ามซ้ำ ${duplicateCount}` : ''
+                duplicateCount > 0 ? `ข้ามซ้ำ ${duplicateCount}` : '',
+                cycleId ? `cycle_id=${String(cycleId).slice(0, 8)}…` : 'ไม่มี cycle_id'
             ].filter(Boolean).join(' · ');
             try {
                 const { error } = await supabaseClient.from('inventory_audit_logs').insert([{
@@ -955,6 +1051,7 @@
             const btn = document.getElementById('btnStartImport');
 
             if (importConfirmStep === 0) {
+                const cycleHint = getImportCycleHint(warehouse);
                 const bullets = rows.slice(0, 6).map(r =>
                     `${r.sku} @ ${r.loc} = ${r.qty}`
                 );
@@ -963,15 +1060,20 @@
                 }
                 const ok = await uiConfirm.show({
                     title: 'ยืนยันนำเข้าผลการนับ',
-                    variant: 'primary',
+                    variant: cycleHint.warn ? 'amber' : 'primary',
                     step: 1,
                     stepTotal: 2,
                     intro: `บันทึก ${rows.length.toLocaleString()} แถวเข้า inventory_counts`,
                     bullets: [
                         `คลัง: ${warehouse}`,
                         `ผู้นับ: ${counter_name}`,
+                        cycleHint.bullet,
                         ...bullets
                     ],
+                    note: cycleHint.warn
+                        ? 'ข้อมูลจะนำเข้าได้ แต่ cycle_id จะว่างจนกว่าจะเลือกรอบที่ตรงคลังใน ตั้งค่ารอบการนับ'
+                        : '',
+                    noteVariant: cycleHint.warn ? 'warn' : undefined,
                     confirmLabel: 'ดำเนินการต่อ',
                     confirmIcon: 'arrow-right'
                 });
@@ -984,13 +1086,16 @@
                 return;
             }
 
+            const cycleHintFinal = getImportCycleHint(warehouse);
             const ok2 = await uiConfirm.show({
                 title: 'ยืนยันนำเข้าผลการนับ',
                 variant: 'primary',
                 step: 2,
                 stepTotal: 2,
                 intro: `เพิ่ม ${rows.length.toLocaleString()} รายการการนับใน Supabase`,
-                hideBulletsBox: true,
+                bullets: cycleHintFinal.linked
+                    ? [cycleHintFinal.bullet]
+                    : [cycleHintFinal.bullet, 'cycle_id จะว่าง — ผูกรอบทีหลังได้ที่ ตั้งค่ารอบการนับ'],
                 note: 'ไม่สามารถยกเลิกได้หลังยืนยันขั้นสุดท้าย',
                 noteVariant: 'danger',
                 confirmLabel: 'นำเข้าเลย',
@@ -1085,7 +1190,8 @@
                         rowCount: ok,
                         failCount: fail,
                         duplicateCount: duplicateSkipped,
-                        fileLabel: fileName || 'Excel Import'
+                        fileLabel: fileName || 'Excel Import',
+                        cycleId: getImportCycleHint(warehouse).cycleId
                     });
                     await loadImportHistory();
                 }
@@ -1155,9 +1261,16 @@
         const savedWh = localStorage.getItem('import_counts_warehouse') ||
             localStorage.getItem('saved_warehouse') || 'ตึกกันตนา';
         if (whEl && STANDARD_WAREHOUSES.includes(savedWh)) whEl.value = savedWh;
+        if (whEl) whEl.addEventListener('change', refreshImportCycleBanner);
         if (counterEl) {
             counterEl.value = localStorage.getItem('saved_counter_name') || '';
         }
+        refreshImportCycleBanner();
+
+        // อัปเดตแบนเนอร์รอบเมื่อเปลี่ยนรอบจากหน้าอื่น (storage event)
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'active_count_cycle_v1') refreshImportCycleBanner();
+        });
 
         document.getElementById('btnRefreshImportLog').addEventListener('click', loadImportHistory);
 

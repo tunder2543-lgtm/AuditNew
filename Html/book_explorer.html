@@ -608,14 +608,24 @@
                 setConnected(false);
                 showWarn(`มุมมองนี้เป็น read-only | ฟิลเตอร์ปัจจุบัน: ${buildFilterSummary()}`);
 
+                // #region agent log
+                fetch('http://127.0.0.1:7912/ingest/6df3d168-f544-4842-aa0c-aafdd1784d9b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae4a9b'},body:JSON.stringify({sessionId:'ae4a9b',runId:'run1',hypothesisId:'H1',location:'Html/book_explorer.html:init:pre-client',message:'Initial layout metrics before client init',data:(() => { const page=document.querySelector('.be-page'); const area=document.querySelector('.content-area'); const main=document.querySelector('.main-content'); const panel=document.getElementById('bookExplorerPanel'); const rect=(el)=>el?el.getBoundingClientRect():null; const css=(el)=>el?getComputedStyle(el):null; const pr=rect(page), ar=rect(area), mr=rect(main), panr=rect(panel); const pcs=css(page), acs=css(area), mcs=css(main); return { windowWidth: window.innerWidth, pageRect: pr ? {left:pr.left,width:pr.width,right:pr.right} : null, areaRect: ar ? {left:ar.left,width:ar.width,right:ar.right} : null, mainRect: mr ? {left:mr.left,width:mr.width,right:mr.right} : null, panelRect: panr ? {left:panr.left,width:panr.width,right:panr.right} : null, pageCss: pcs ? {maxWidth:pcs.maxWidth, width:pcs.width, marginLeft:pcs.marginLeft, marginRight:pcs.marginRight, alignSelf:pcs.alignSelf} : null, areaCss: acs ? {display:acs.display, justifyContent:acs.justifyContent, paddingLeft:acs.paddingLeft, paddingRight:acs.paddingRight} : null, mainCss: mcs ? {display:mcs.display, justifyContent:mcs.justifyContent, paddingLeft:mcs.paddingLeft, paddingRight:mcs.paddingRight} : null }; })(),timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+
                 if (!window.apiService?.getClient) {
                     showError('ไม่พบ apiService กรุณาตรวจสอบการเชื่อมต่อหน้า Settings');
+                    // #region agent log
+                    fetch('http://127.0.0.1:7912/ingest/6df3d168-f544-4842-aa0c-aafdd1784d9b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae4a9b'},body:JSON.stringify({sessionId:'ae4a9b',runId:'run1',hypothesisId:'H4',location:'Html/book_explorer.html:init:no-apiService',message:'apiService missing, possible fallback layout path',data:{hasApiService:false},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                     return;
                 }
 
                 state.client = window.apiService.getClient();
                 if (!state.client) {
                     showError('ยังไม่ได้เชื่อมต่อ Supabase');
+                    // #region agent log
+                    fetch('http://127.0.0.1:7912/ingest/6df3d168-f544-4842-aa0c-aafdd1784d9b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae4a9b'},body:JSON.stringify({sessionId:'ae4a9b',runId:'run1',hypothesisId:'H4',location:'Html/book_explorer.html:init:no-client',message:'Supabase client not ready',data:{hasClient:false},timestamp:Date.now()})}).catch(()=>{});
+                    // #endregion
                     return;
                 }
 
@@ -623,6 +633,14 @@
                 wireEvents();
                 await loadCycles();
                 await fetchRows();
+
+                // #region agent log
+                fetch('http://127.0.0.1:7912/ingest/6df3d168-f544-4842-aa0c-aafdd1784d9b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae4a9b'},body:JSON.stringify({sessionId:'ae4a9b',runId:'run1',hypothesisId:'H2',location:'Html/book_explorer.html:init:post-render',message:'Layout metrics after first render',data:(() => { const page=document.querySelector('.be-page'); const area=document.querySelector('.content-area'); const main=document.querySelector('.main-content'); const aside=document.getElementById('appSidebar'); const panel=document.getElementById('bookExplorerPanel'); const rect=(el)=>el?el.getBoundingClientRect():null; const css=(el)=>el?getComputedStyle(el):null; const pr=rect(page), ar=rect(area), mr=rect(main), sr=rect(aside), panr=rect(panel); const acs=css(area), mcs=css(main); return { windowWidth: window.innerWidth, sidebarRect: sr ? {left:sr.left,width:sr.width,right:sr.right} : null, pageRect: pr ? {left:pr.left,width:pr.width,right:pr.right} : null, areaRect: ar ? {left:ar.left,width:ar.width,right:ar.right} : null, mainRect: mr ? {left:mr.left,width:mr.width,right:mr.right} : null, panelRect: panr ? {left:panr.left,width:panr.width,right:panr.right} : null, areaCss: acs ? {display:acs.display, justifyContent:acs.justifyContent, alignItems:acs.alignItems} : null, mainCss: mcs ? {display:mcs.display, justifyContent:mcs.justifyContent, alignItems:mcs.alignItems} : null, leftGap: pr && ar ? Number((pr.left - ar.left).toFixed(2)) : null, rightGap: pr && ar ? Number((ar.right - pr.right).toFixed(2)) : null }; })(),timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+
+                // #region agent log
+                fetch('http://127.0.0.1:7912/ingest/6df3d168-f544-4842-aa0c-aafdd1784d9b',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'ae4a9b'},body:JSON.stringify({sessionId:'ae4a9b',runId:'run1',hypothesisId:'H3',location:'Html/book_explorer.html:init:scrollbars',message:'Viewport and scrollbar indicators',data:{innerWidth:window.innerWidth, clientWidth:document.documentElement.clientWidth, hasVerticalScrollbar:document.documentElement.scrollHeight>document.documentElement.clientHeight, bodyScrollWidth:document.body.scrollWidth, bodyClientWidth:document.body.clientWidth},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
             }
 
             init();

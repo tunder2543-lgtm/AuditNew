@@ -418,6 +418,38 @@
             color: #a1a1aa;
         }
 
+        /* ── Toolbar groups ── */
+        .audit-toolbar {
+            align-items: flex-start;
+        }
+
+        .tb-group {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .tb-group-label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            padding: 0 0.25rem;
+            opacity: 0.75;
+        }
+
+        .tb-group-btns {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            align-items: center;
+            padding: 0.35rem 0.5rem;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.025);
+        }
+
         .ref-badge {
             font-size: 0.78rem;
             color: var(--text-muted);
@@ -851,54 +883,70 @@
                 <div class="loading-bar" id="loadingBar"></div>
 
                 <div class="audit-toolbar">
-                    <div class="audit-toolbar-left">
-                        <button type="button" class="btn-gs" id="btnAddRows">
-                            <i data-lucide="plus" style="width:16px;height:16px"></i>
-                            เพิ่มแถว
-                        </button>
-                        <button type="button" class="btn-gs btn-danger" id="btnDeleteSelected" disabled>
-                            <i data-lucide="trash-2" style="width:16px;height:16px"></i>
-                            ลบรายการที่เลือก (<span id="selectedCount">0</span>)
-                        </button>
-                        <button type="button" class="btn-gs" id="btnImport">
-                            <i data-lucide="upload" style="width:16px;height:16px"></i>
-                            นำเข้า Excel
-                        </button>
-                        <button type="button" class="btn-gs btn-loc-compare" id="btnImportLocCompare" title="นำเข้า Excel เทียบตำแหน่งกับ Supabase ตามโซน">
-                            <i data-lucide="file-diff" style="width:16px;height:16px"></i>
-                            Import เทียบตำแหน่ง
-                        </button>
-                        <button type="button" class="btn-gs" id="btnExport">
-                            <i data-lucide="file-spreadsheet" style="width:16px;height:16px"></i>
-                            Export Excel
-                        </button>
-                        <button type="button" class="btn-gs btn-edit-loc" id="btnEditLocMode" title="เปิดโหมดแก้ไขตำแหน่งใน Supabase">
-                            <i data-lucide="map-pin" style="width:16px;height:16px"></i>
-                            โหมดแก้ไขตำแหน่ง
-                        </button>
-                        <button type="button" class="btn-gs btn-save-loc" id="btnSaveLocChanges" style="display:none;" disabled>
-                            <i data-lucide="save" style="width:16px;height:16px"></i>
-                            บันทึกตำแหน่ง (<span id="locDirtyCount">0</span>)
-                        </button>
-                        <button type="button" class="btn-gs btn-swap-sku-loc" id="btnSwapSkuLocMode" title="โหมดสลับค่า SKU กับตำแหน่งใน Supabase">
-                            <i data-lucide="arrow-left-right" style="width:16px;height:16px"></i>
-                            โหมดสลับ SKU/ตำแหน่ง
-                        </button>
-                        <button type="button" class="btn-gs btn-apply-swap" id="btnApplySwapSkuLoc" style="display:none;" disabled>
-                            <i data-lucide="repeat" style="width:16px;height:16px"></i>
-                            สลับค่าที่เลือก (<span id="swapSelectedCount">0</span>)
-                        </button>
-                        <button type="button" class="btn-gs" id="btnReloadRef">
-                            <i data-lucide="refresh-cw" style="width:16px;height:16px"></i>
-                            โหลดข้อมูลอ้างอิงใหม่
-                        </button>
-                        <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบแถวซ้ำใน inventory_counts (warehouse + sku + location + counted_qty ซ้ำ) — เก็บแถวเก่าสุด">
-                            <i data-lucide="copy-x" style="width:16px;height:16px"></i>
-                            ลบ duplicate ใน DB
-                        </button>
-                        <input type="file" id="fileImport" accept=".xlsx,.xls,.csv">
-                        <input type="file" id="fileLocCompare" accept=".xlsx,.xls,.csv">
+                    <!-- ── กลุ่ม: ผลลัพธ์/Export ── -->
+                    <div class="tb-group">
+                        <span class="tb-group-label">ผลลัพธ์</span>
+                        <div class="tb-group-btns">
+                            <button type="button" class="btn-gs" id="btnExport">
+                                <i data-lucide="file-spreadsheet" style="width:16px;height:16px"></i>
+                                Export Excel
+                            </button>
+                            <button type="button" class="btn-gs" id="btnReloadRef">
+                                <i data-lucide="refresh-cw" style="width:16px;height:16px"></i>
+                                โหลดข้อมูลอ้างอิงใหม่
+                            </button>
+                        </div>
                     </div>
+
+                    <!-- ── กลุ่ม: จัดการข้อมูล ── -->
+                    <div class="tb-group">
+                        <span class="tb-group-label">จัดการข้อมูล</span>
+                        <div class="tb-group-btns">
+                            <button type="button" class="btn-gs btn-danger" id="btnDeleteSelected" disabled>
+                                <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+                                ลบรายการที่เลือก (<span id="selectedCount">0</span>)
+                            </button>
+                            <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบแถวซ้ำใน inventory_counts (warehouse + sku + location + counted_qty ซ้ำ) — เก็บแถวเก่าสุด">
+                                <i data-lucide="copy-x" style="width:16px;height:16px"></i>
+                                ลบ duplicate ใน DB
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ── กลุ่ม: โหมดปรับแต่ง ── -->
+                    <div class="tb-group">
+                        <span class="tb-group-label">โหมดปรับแต่ง</span>
+                        <div class="tb-group-btns">
+                            <button type="button" class="btn-gs btn-loc-compare" id="btnImportLocCompare" title="เปลี่ยนตำแหน่ง SKU ตาม Excel ที่นำเข้า">
+                                <i data-lucide="file-diff" style="width:16px;height:16px"></i>
+                                เทียบตำแหน่ง Excel
+                            </button>
+                            <button type="button" class="btn-gs btn-swap-sku-loc" id="btnSwapSkuLocMode" title="โหมดสลับค่า SKU กับตำแหน่งใน Supabase">
+                                <i data-lucide="arrow-left-right" style="width:16px;height:16px"></i>
+                                สลับ SKU/ตำแหน่ง
+                            </button>
+                            <button type="button" class="btn-gs btn-apply-swap" id="btnApplySwapSkuLoc" style="display:none;" disabled>
+                                <i data-lucide="repeat" style="width:16px;height:16px"></i>
+                                สลับค่าที่เลือก (<span id="swapSelectedCount">0</span>)
+                            </button>
+                            <button type="button" class="btn-gs btn-edit-loc" id="btnEditLocMode" title="เปิดโหมดแก้ไขตำแหน่งใน Supabase">
+                                <i data-lucide="map-pin" style="width:16px;height:16px"></i>
+                                แก้ไขตำแหน่ง
+                            </button>
+                            <button type="button" class="btn-gs btn-save-loc" id="btnSaveLocChanges" style="display:none;" disabled>
+                                <i data-lucide="save" style="width:16px;height:16px"></i>
+                                บันทึกตำแหน่ง (<span id="locDirtyCount">0</span>)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ซ่อน: ใช้งานภายในระบบเท่านั้น -->
+                    <button type="button" class="btn-gs" id="btnAddRows" style="display:none;">
+                        <i data-lucide="plus" style="width:16px;height:16px"></i>
+                        เพิ่มแถว
+                    </button>
+                    <input type="file" id="fileLocCompare" accept=".xlsx,.xls,.csv">
+
                     <span class="ref-badge" id="refBadge">ข้อมูลอ้างอิง: <strong>0</strong> รายการ</span>
                 </div>
 
@@ -3423,41 +3471,7 @@
             reader.readAsBinaryString(file);
         });
 
-        document.getElementById('btnImport').addEventListener('click', () => document.getElementById('fileImport').click());
         document.getElementById('btnExport').addEventListener('click', exportTableToExcel);
-        document.getElementById('fileImport').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (ev) => {
-                try {
-                    const wb = XLSX.read(ev.target.result, { type: 'binary' });
-                    const sheet = wb.Sheets[wb.SheetNames[0]];
-                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-                    const items = [];
-                    for (const row of rows) {
-                        const sku = (row[0] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
-                        const loc = (row[1] ?? row['location'] ?? row['ตำแหน่ง'] ?? '').toString().trim();
-                        const qty = row[2] ?? row['qty'] ?? row['จำนวน'] ?? '';
-                        if (!sku && !loc) continue;
-                        if (/^(sku|รหัส|#)/i.test(sku)) continue;
-                        items.push({ sku, loc, qty });
-                    }
-                    setLoading(true, 'กำลังนำเข้า Excel...', `${items.length.toLocaleString()} แถว`);
-                    await fillRows(items);
-                    document.getElementById('sortLocation').value = 'num-asc';
-                    applyTableView();
-                    showToast(`นำเข้า ${items.length} แถว · เรียง 1→10 แล้ว`);
-                } catch (err) {
-                    showToast('อ่านไฟล์ไม่สำเร็จ: ' + err.message, 'error');
-                } finally {
-                    setLoading(false);
-                }
-                e.target.value = '';
-            };
-            reader.readAsBinaryString(file);
-        });
-
         document.getElementById('btnReloadRef').addEventListener('click', () => runFullAuditLoad());
 
         document.getElementById('btnDedupeDb').addEventListener('click', () => dedupeInventoryCountsInDb());

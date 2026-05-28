@@ -56,15 +56,47 @@
             display: grid;
             gap: 0.55rem;
         }
+        .warehouse-list-head {
+            display: grid;
+            grid-template-columns: 84px 1fr auto;
+            align-items: center;
+            gap: 0.65rem;
+            padding: 0.15rem 0.4rem 0.3rem;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            letter-spacing: 0.2px;
+        }
+        .warehouse-list-head .right {
+            padding-right: 0.35rem;
+        }
         .warehouse-item {
-            display: flex;
+            display: grid;
+            grid-template-columns: 84px 1fr auto;
             align-items: center;
             gap: 0.65rem;
             background: linear-gradient(165deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
-            padding: 0.62rem 0.78rem;
+            padding: 0.7rem 0.78rem;
             border: 1px solid var(--card-border);
             border-radius: 11px;
             transition: border-color .18s ease, transform .18s ease, background .18s ease;
+        }
+        .warehouse-toggle-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+        .warehouse-toggle-wrap input {
+            width: 16px;
+            height: 16px;
+            accent-color: #8b5cf6;
+        }
+        .warehouse-main {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.2rem;
         }
         .warehouse-item:hover {
             border-color: rgba(59,130,246,0.45);
@@ -77,9 +109,9 @@
             letter-spacing: 0.1px;
         }
         .warehouse-meta {
-            margin-left: auto;
             color: var(--text-muted);
-            font-size: 0.82rem;
+            font-size: 0.78rem;
+            white-space: nowrap;
         }
         .warehouse-pill {
             display: inline-flex;
@@ -106,6 +138,11 @@
         .warehouse-del-btn:hover {
             background: rgba(153, 27, 27, 0.22);
             border-color: rgba(248, 113, 113, 0.55) !important;
+        }
+        .warehouse-right {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.55rem;
         }
     </style>
 </head>
@@ -192,6 +229,11 @@
                 </button>
             </div>
 
+            <div class="warehouse-list-head">
+                <span>ใช้งาน</span>
+                <span>ชื่อคลัง</span>
+                <span class="right">สถานะ / จัดการ</span>
+            </div>
             <div id="warehouseListWrap" class="warehouse-list"></div>
         </div>
     </div>
@@ -295,15 +337,22 @@
                     const active = row.is_active !== false;
                     return `
                         <div class="warehouse-item">
-                            <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleWarehouseActive('${name.replace(/'/g, "\\'")}', this.checked)" title="เปิด/ปิดใช้งาน">
-                            <span class="warehouse-name">${name}</span>
-                            <span class="warehouse-pill ${active ? 'active' : ''}">
-                                ${active ? 'active' : 'inactive'}
-                            </span>
-                            <span class="warehouse-meta">ลำดับ ${Number(row.sort_order) || 0}</span>
-                            <button type="button" class="cs-btn-test warehouse-del-btn" onclick="deleteWarehouseName('${name.replace(/'/g, "\\'")}')">
-                                <i data-lucide="trash-2" style="width:14px;height:14px;"></i> ลบ
-                            </button>
+                            <label class="warehouse-toggle-wrap" title="เปิด/ปิดใช้งานคลัง">
+                                <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleWarehouseActive('${name.replace(/'/g, "\\'")}', this.checked)">
+                                <span>${active ? 'on' : 'off'}</span>
+                            </label>
+                            <div class="warehouse-main">
+                                <span class="warehouse-name">${name}</span>
+                                <span class="warehouse-meta">ลำดับ ${Number(row.sort_order) || 0}</span>
+                            </div>
+                            <div class="warehouse-right">
+                                <span class="warehouse-pill ${active ? 'active' : ''}">
+                                    ${active ? 'active' : 'inactive'}
+                                </span>
+                                <button type="button" class="cs-btn-test warehouse-del-btn" onclick="deleteWarehouseName('${name.replace(/'/g, "\\'")}')">
+                                    <i data-lucide="trash-2" style="width:14px;height:14px;"></i> ลบ
+                                </button>
+                            </div>
                         </div>
                     `;
                 }).join('') || '<div style="color:var(--text-muted);">ยังไม่มีรายการคลัง</div>';

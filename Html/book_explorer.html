@@ -356,8 +356,9 @@
 
                 const cycleOpts = ['<option value="">ทุกรอบ</option>'];
                 state.cycles.forEach(c => {
-                    const label = c.label || `${c.warehouse} · ${c.year_month}`;
-                    cycleOpts.push(`<option value="${escapeHtml(c.id)}">${escapeHtml(label)} (${escapeHtml(c.status || '-')})</option>`);
+                    const cycleName = (c.label || c.warehouse || c.year_month || '').trim();
+                    const optionText = cycleName || c.id;
+                    cycleOpts.push(`<option value="${escapeHtml(c.id)}">${escapeHtml(optionText)}</option>`);
                 });
                 el.cycleFilter.innerHTML = cycleOpts.join('');
 
@@ -550,6 +551,19 @@
                 });
                 el.dateEnd.addEventListener('change', () => {
                     el.dateStart.max = el.dateEnd.value || '';
+                });
+                // Fallback บางเครื่องคลิกแล้วปฏิทินไม่เด้ง: บังคับเรียก native picker
+                [el.dateStart, el.dateEnd].forEach((dateEl) => {
+                    if (!dateEl) return;
+                    const openNativePicker = () => {
+                        try {
+                            if (typeof dateEl.showPicker === 'function') dateEl.showPicker();
+                        } catch (_) {
+                            // ignore: บาง browser ไม่รองรับหรือบล็อกตาม policy
+                        }
+                    };
+                    dateEl.addEventListener('click', openNativePicker);
+                    dateEl.addEventListener('focus', openNativePicker);
                 });
 
                 el.searchInput.addEventListener('input', () => {

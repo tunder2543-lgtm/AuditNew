@@ -107,19 +107,13 @@
                         <div class="be-head">
                             <div>
                                 <h1>Book Explorer</h1>
-                                <p>ดูรายการ BOOK แบบอ่านอย่างเดียว พร้อมฟิลเตอร์รอบ/คลัง/วันที่/สถานะ</p>
+                                <p>ดูรายการ BOOK แบบอ่านอย่างเดียว พร้อมฟิลเตอร์คลัง/วันที่/สถานะ</p>
                             </div>
                             <div id="connBadge" class="be-conn">เชื่อมต่อแล้ว</div>
                         </div>
 
                         <div class="be-filter-wrap">
                             <div class="be-filter-grid">
-                                <div class="be-field">
-                                    <label for="cycleFilter">รอบ (Cycle)</label>
-                                    <select id="cycleFilter">
-                                        <option value="">ทุกรอบ</option>
-                                    </select>
-                                </div>
                                 <div class="be-field">
                                     <label for="warehouseFilter">คลัง (Warehouse)</label>
                                     <select id="warehouseFilter">
@@ -228,7 +222,6 @@
             const el = {
                 panel: document.getElementById('bookExplorerPanel'),
                 connBadge: document.getElementById('connBadge'),
-                cycleFilter: document.getElementById('cycleFilter'),
                 warehouseFilter: document.getElementById('warehouseFilter'),
                 statusFilter: document.getElementById('statusFilter'),
                 searchInput: document.getElementById('searchInput'),
@@ -349,7 +342,6 @@
 
             function buildFilterSummary() {
                 const items = [];
-                if (el.cycleFilter.value) items.push(`รอบ=${el.cycleFilter.value}`);
                 if (el.warehouseFilter.value) items.push(`คลัง=${el.warehouseFilter.value}`);
                 if (el.statusFilter.value && el.statusFilter.value !== 'all') items.push(`สถานะ=${el.statusFilter.value}`);
                 if (el.searchInput.value.trim()) items.push(`ค้นหา="${el.searchInput.value.trim()}"`);
@@ -381,13 +373,6 @@
                     state.cycleIdsByWarehouse.get(wh).push(c.id);
                 });
 
-                const cycleOpts = ['<option value="">ทุกรอบ</option>'];
-                state.cycles.forEach(c => {
-                    const optionText = buildCycleOptionLabel(c);
-                    cycleOpts.push(`<option value="${escapeHtml(c.id)}">${escapeHtml(optionText)}</option>`);
-                });
-                el.cycleFilter.innerHTML = cycleOpts.join('');
-
                 const whList = [...state.cycleIdsByWarehouse.keys()].sort((a, b) => a.localeCompare(b, 'th'));
                 const whOpts = ['<option value="">ทุกคลัง</option>'];
                 whList.forEach(wh => whOpts.push(`<option value="${escapeHtml(wh)}">${escapeHtml(wh)}</option>`));
@@ -395,25 +380,15 @@
             }
 
             function applyBaseFilters(query) {
-                const cycleId = el.cycleFilter.value;
                 const wh = el.warehouseFilter.value;
                 const status = el.statusFilter.value;
                 const search = el.searchInput.value.trim();
                 const { start, endExclusive } = toDateRange();
 
-                if (cycleId) query = query.eq('cycle_id', cycleId);
-
                 if (wh) {
                     const ids = state.cycleIdsByWarehouse.get(wh) || [];
-                    if (!cycleId) {
-                        if (!ids.length) return { query, noResult: true };
-                        query = query.in('cycle_id', ids);
-                    } else {
-                        const cycle = state.cycleById.get(cycleId);
-                        if (cycle && String(cycle.warehouse || '') !== wh) {
-                            return { query, noResult: true };
-                        }
-                    }
+                    if (!ids.length) return { query, noResult: true };
+                    query = query.in('cycle_id', ids);
                 }
 
                 if (status === 'positive') query = query.gt('book_qty', 0);
@@ -539,7 +514,6 @@
             }
 
             function resetFilters() {
-                el.cycleFilter.value = '';
                 el.warehouseFilter.value = '';
                 el.statusFilter.value = 'all';
                 el.searchInput.value = '';
@@ -567,7 +541,6 @@
                 });
 
                 el.pageSize.addEventListener('change', onFilterChanged);
-                el.cycleFilter.addEventListener('change', onFilterChanged);
                 el.warehouseFilter.addEventListener('change', onFilterChanged);
                 el.statusFilter.addEventListener('change', onFilterChanged);
                 el.dateStart.addEventListener('change', onFilterChanged);

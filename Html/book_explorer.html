@@ -276,6 +276,33 @@
                 });
             }
 
+            function formatCycleDate(iso) {
+                if (!iso) return '';
+                const d = new Date(iso);
+                if (Number.isNaN(d.getTime())) return '';
+                return d.toLocaleDateString('th-TH', {
+                    day: 'numeric',
+                    month: 'short'
+                });
+            }
+
+            function buildCycleOptionLabel(cycle) {
+                const wh = String(cycle?.warehouse || '').trim();
+                const ym = String(cycle?.year_month || '').trim();
+                const label = String(cycle?.label || '').trim();
+                const status = String(cycle?.status || '').trim();
+                const start = formatCycleDate(cycle?.count_start_at);
+                const end = formatCycleDate(cycle?.count_end_at);
+
+                const namePart = label || wh || ym || String(cycle?.id || '');
+                const ymPart = ym ? ` ${ym}` : '';
+                const datePart = (start && end)
+                    ? ` ${start}–${end}`
+                    : (start ? ` ${start}` : '');
+                const statusPart = status ? ` [${status}]` : '';
+                return `${namePart}${ymPart}${datePart}${statusPart}`.trim();
+            }
+
             function escapeHtml(s) {
                 return String(s || '')
                     .replace(/&/g, '&amp;')
@@ -338,7 +365,7 @@
             async function loadCycles() {
                 const { data, error } = await state.client
                     .from('count_cycles')
-                    .select('id, warehouse, year_month, label, status, book_imported_at, created_at')
+                    .select('id, warehouse, year_month, label, status, count_start_at, count_end_at, book_imported_at, created_at')
                     .order('created_at', { ascending: false })
                     .limit(500);
                 if (error) throw error;
@@ -356,8 +383,7 @@
 
                 const cycleOpts = ['<option value="">ทุกรอบ</option>'];
                 state.cycles.forEach(c => {
-                    const cycleName = (c.label || c.warehouse || c.year_month || '').trim();
-                    const optionText = cycleName || c.id;
+                    const optionText = buildCycleOptionLabel(c);
                     cycleOpts.push(`<option value="${escapeHtml(c.id)}">${escapeHtml(optionText)}</option>`);
                 });
                 el.cycleFilter.innerHTML = cycleOpts.join('');

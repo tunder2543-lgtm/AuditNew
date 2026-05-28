@@ -71,12 +71,12 @@
             return [...cacheRows];
         }
 
+        /** @type {Array<{name:string, sort_order:number, is_active:boolean}>} */
         let rows = [];
         try {
             const { data, error } = await client
                 .from('warehouses')
                 .select('name, sort_order, is_active')
-                .eq('is_active', true)
                 .order('sort_order', { ascending: true })
                 .order('name', { ascending: true });
             if (error) throw error;
@@ -91,18 +91,30 @@
             }
         }
 
+        const byKey = new Map();
+        rows.forEach(r => {
+            const key = r.name.toUpperCase();
+            byKey.set(key, { ...r });
+        });
+
         const base = rows.map(r => r.name);
         const fromData = await fetchDistinctWarehousesFromData(client);
         const merged = uniqueNames([...base, ...fromData, ...FALLBACK_WAREHOUSES]);
 
-        cacheRows = merged.map((name, i) => ({ name, sort_order: i, is_active: true }));
+        // สำคัญ: ถ้าคลังถูกปิดใช้งานใน table warehouses ต้องคงสถานะ is_active=false ไว้
+        // ห้ามเด้งกลับเป็น active จาก fallback names (sku_master/inventory_counts/count_cycles)
+        cacheRows = merged.map((name, i) => {
+            const hit = byKey.get(name.toUpperCase());
+            if (hit) return hit;
+            return { name, sort_order: 999 + i, is_active: true };
+        });
         cacheAt = now;
         return [...cacheRows];
     }
 
     async function getWarehouseList(opts = {}) {
         const rows = await fetchWarehouses(opts);
-        return rows.map(r => r.name);
+        return rows.filter(r => r.is_active !== false).map(r => r.name);
     }
 
     async function populateSelect(selectEl, opts = {}) {

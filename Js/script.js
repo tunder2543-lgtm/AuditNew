@@ -192,7 +192,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function normalizeSkuKey(value) {
-        return String(value || '').toLowerCase().trim();
+        // ใช้ shared utility (UPPERCASE + trim) เพื่อความสอดคล้องทั้งระบบ
+        // fallback กรณี window.SkuUtils ยังไม่โหลด (ไม่ควรเกิด แต่กันไว้)
+        if (window.SkuUtils?.normalizeSku) return window.SkuUtils.normalizeSku(value);
+        return String(value ?? '').trim().toUpperCase();
     }
 
     function getMasterSkuKeySet() {
@@ -680,7 +683,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const sku = skuInput.value.trim();
+        const sku = window.SkuUtils.normalizeSku(skuInput.value);
         const quantity = parseInt(quantityInput.value.trim(), 10);
         let proName = skuNameText.textContent || '';
         if (!proName) proName = 'ไม่พบชื่อรหัสสินค้า';
@@ -913,7 +916,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const counter_name = counterNameInput.value.trim();
         const warehouse    = (warehouseInput.value === 'custom' ? document.getElementById('warehouseCustom').value.trim() : warehouseInput.value.trim());
         const location     = locationInput.value.trim();
-        const sku          = skuInput.value.trim();
+        const sku          = window.SkuUtils.normalizeSku(skuInput.value);
         const quantity     = parseInt(quantityInput.value.trim(), 10);
         let proName      = skuNameText.textContent || '';
         if (!proName) proName = 'ไม่พบชื่อรหัสสินค้า';

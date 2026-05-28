@@ -444,6 +444,7 @@
     </style>
 
     <script src="../Js/api.js"></script>
+    <script src="../Js/sku-utils.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
     <script>
@@ -820,7 +821,8 @@
                 
                 const warehouse = getSelectedWarehouse();
                 const formattedData = rows.map(row => ({
-                    sku_name: String(row[skuKey] || '').trim(),
+                    // SKU normalize เป็น UPPERCASE+trim ก่อนบันทึก เพื่อกัน duplicate จากตัวพิมพ์ใหญ่/เล็ก
+                    sku_name: window.SkuUtils.normalizeSku(row[skuKey]),
                     name_pro: String(nameKey ? (row[nameKey] || '') : '').trim(),
                     warehouse
                 })).filter(item => item.sku_name); // กรองแถวที่ไม่มี SKU ออก

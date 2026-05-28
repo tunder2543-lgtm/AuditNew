@@ -62,7 +62,15 @@
 
     function normalizeSku(value) {
 
-        return String(value ?? '').trim();
+        // ใช้ shared utility (UPPERCASE + trim) เพื่อความสอดคล้องทั้งระบบ
+
+        if (typeof window !== 'undefined' && window.SkuUtils?.normalizeSku) {
+
+            return window.SkuUtils.normalizeSku(value);
+
+        }
+
+        return String(value ?? '').trim().toUpperCase();
 
     }
 
@@ -999,7 +1007,7 @@
     function aggregateBookRowsBySku(validItems) {
         const byKey = new Map();
         (validItems || []).forEach(r => {
-            const key = normalizeSku(r.sku) || String(r.sku || '').toLowerCase();
+            const key = normalizeSku(r.sku);
             if (!key) return;
             const existing = byKey.get(key);
             if (!existing) {
@@ -1117,7 +1125,7 @@
 
 
 
-            const key = sku.toLowerCase();
+            const key = sku;
 
             skuTotals.set(key, (skuTotals.get(key) || 0) + floored);
 
@@ -1129,7 +1137,7 @@
 
         skuTotals.forEach((total, key) => {
 
-            const rows = items.filter(r => r.valid && r.sku.toLowerCase() === key);
+            const rows = items.filter(r => r.valid && r.sku === key);
 
             if (rows.length > 1) {
 
@@ -1191,7 +1199,7 @@
 
 
 
-        const sku = String(skuId ?? '').trim();
+        const sku = normalizeSku(skuId);
 
         if (!sku) throw new Error('SKU ไม่ถูกต้อง');
 
@@ -1293,7 +1301,7 @@
 
             chunk.forEach(r => {
 
-                const sku = String(r.sku_id ?? '').trim();
+                const sku = normalizeSku(r.sku_id);
 
                 if (sku) set.add(sku);
 
@@ -1319,7 +1327,7 @@
 
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
 
-        const sku = String(skuId ?? '').trim();
+        const sku = normalizeSku(skuId);
 
         if (!sku) return false;
 
@@ -1405,7 +1413,7 @@
 
             (data || []).forEach(r => {
 
-                const sku = String(r.sku_name ?? '').trim();
+                const sku = normalizeSku(r.sku_name);
 
                 if (sku && r.name_pro && !map[sku]) map[sku] = String(r.name_pro).trim();
 
@@ -1431,7 +1439,7 @@
 
 
 
-        const sku = String(skuId ?? '').trim();
+        const sku = normalizeSku(skuId);
 
         if (!sku) throw new Error('SKU ไม่ถูกต้อง');
 
@@ -1485,7 +1493,7 @@
 
         for (const item of items) {
 
-            const sku = String(item?.skuId ?? '').trim();
+            const sku = normalizeSku(item?.skuId);
 
             if (!sku) {
 

@@ -29,7 +29,11 @@
     }
 
     function normalizeSku(value) {
-        return String(value ?? '').toLowerCase().trim();
+        // ใช้ shared utility (UPPERCASE + trim) เพื่อความสอดคล้องทั้งระบบ
+        if (typeof window !== 'undefined' && window.SkuUtils?.normalizeSku) {
+            return window.SkuUtils.normalizeSku(value);
+        }
+        return String(value ?? '').trim().toUpperCase();
     }
 
     function normalizeId(value) {

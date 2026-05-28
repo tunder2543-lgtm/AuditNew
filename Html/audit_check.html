@@ -1162,6 +1162,7 @@
 
     <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
+    <script src="../Js/sku-utils.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/ui-confirm-modal.js"></script>
     <script>
@@ -2485,16 +2486,19 @@
                     const oldLoc = locInput.value.trim();
                     const id = tr.dataset.recordId;
 
+                    // ตอน swap: location เดิม (oldLoc) จะกลายเป็น sku_id ใหม่ → ต้อง normalize SKU ก่อนเขียนลง DB
+                    // เพื่อให้ตรงรูปแบบมาตรฐาน (UPPERCASE+trim) ของระบบ
+                    const newSkuId = window.SkuUtils.normalizeSku(oldLoc);
                     const { error } = await supabaseClient
                         .from('inventory_counts')
-                        .update({ sku_id: oldLoc, location: oldSku })
+                        .update({ sku_id: newSkuId, location: oldSku })
                         .eq('id', id);
 
                     if (error) {
                         console.error(error);
                         fail += 1;
                     } else {
-                        skuInput.value = oldLoc;
+                        skuInput.value = newSkuId;
                         locInput.value = oldSku;
                         tr.dataset.originalLoc = oldSku;
                         tr.classList.remove('loc-dirty');
@@ -2929,10 +2933,12 @@
         function parseExcelSkuLocRows(rows) {
             const items = [];
             for (const row of rows) {
-                const sku = (row[0] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
+                const rawSku = (row[0] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
                 const loc = (row[1] ?? row['location'] ?? row['ตำแหน่ง'] ?? '').toString().trim();
-                if (!sku && !loc) continue;
-                if (/^(sku|รหัส|#|คอลัมน์)/i.test(sku)) continue;
+                if (!rawSku && !loc) continue;
+                if (/^(sku|รหัส|#|คอลัมน์)/i.test(rawSku)) continue;
+                // SKU normalize เป็นมาตรฐานเดียวกับทั้งระบบ (UPPERCASE+trim) ก่อนนำไปเปรียบเทียบ/บันทึก
+                const sku = window.SkuUtils.normalizeSku(rawSku);
                 items.push({ sku, loc });
             }
             return items;

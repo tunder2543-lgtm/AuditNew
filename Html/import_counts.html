@@ -442,6 +442,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="../Js/api.js"></script>
+    <script src="../Js/sku-utils.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
     <script src="../Js/ui-confirm-modal.js"></script>
@@ -496,11 +497,14 @@
             const items = [];
             for (const row of sheetRows) {
                 const loc = (row[0] ?? row['location'] ?? row['ตำแหน่ง'] ?? '').toString().trim();
-                const sku = (row[1] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
+                const rawSku = (row[1] ?? row['sku'] ?? row['SKU'] ?? '').toString().trim();
                 const qtyRaw = row[2] ?? row['qty'] ?? row['จำนวน'] ?? '';
-                if (!sku && !loc && (qtyRaw === '' || qtyRaw == null)) continue;
-                if (/^(sku|รหัส|#|คอลัมน์)/i.test(sku) && /^(ตำแหน่ง|location|loc)/i.test(loc)) continue;
-                if (/^(sku|รหัส|#|คอลัมน์)/i.test(sku) && !loc) continue;
+                if (!rawSku && !loc && (qtyRaw === '' || qtyRaw == null)) continue;
+                if (/^(sku|รหัส|#|คอลัมน์)/i.test(rawSku) && /^(ตำแหน่ง|location|loc)/i.test(loc)) continue;
+                if (/^(sku|รหัส|#|คอลัมน์)/i.test(rawSku) && !loc) continue;
+
+                // SKU normalize เป็นมาตรฐานเดียว (UPPERCASE+trim) ก่อนบันทึกลง DB เพื่อกัน duplicate จากตัวพิมพ์ใหญ่/เล็ก
+                const sku = window.SkuUtils.normalizeSku(rawSku);
 
                 const errors = [];
                 if (!sku) errors.push('ไม่มี SKU');

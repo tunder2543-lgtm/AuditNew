@@ -1801,27 +1801,14 @@
     }
 
     /**
-     * นำเข้า Book
-     *   mode: 'replace' — ลบ Book ทั้งรอบก่อน insert (default)
-     *   mode: 'merge'   — ลบเฉพาะ SKU ในไฟล์แล้ว insert
-     * รองรับ replaceExisting (legacy) เพื่อ backward-compat กับ cycle_config
-     * validRows จะถูกรวม SKU ซ้ำก่อน insert เสมอ
+     * นำเข้า Book (legacy — ลบก่อน insert แยก 2 request ไม่ atomic)
+     * ใช้เมื่อ DB ยังไม่มีฟังก์ชัน import_book_stock_lines_atomic
      */
-    async function importBookStockLines(cycleId, validRows, fileName, options = {}) {
+    async function importBookStockLinesLegacy(cycleId, mergedRows, fileName, mode) {
 
         const client = getClient();
 
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-
-        let mode = options.mode;
-        if (!mode) {
-            mode = options.replaceExisting === false ? 'merge' : 'replace';
-        }
-
-        const mergedRows = aggregateBookRowsBySku(
-            (validRows || []).filter(r => r && r.sku != null && r.qty != null)
-        );
-        if (!mergedRows.length) throw new Error('ไม่มีแถวที่นำเข้าได้');
 
         if (mode === 'replace') {
             const { error: delErr } = await client
@@ -1843,6 +1830,84 @@
 
         const inserted = await insertBookStockPayloads(cycleId, mergedRows);
         await touchCycleBookSource(cycleId, fileName);
+
+        if (mode === 'merge') {
+            const skuIds = mergedRows.map(r => normalizeSku(r.sku)).filter(Boolean);
+            return { inserted, skuIds, skuCount: mergedRows.length };
+        }
+        return inserted;
+
+    }
+
+
+
+    function bookRowsToRpcPayload(mergedRows) {
+        return mergedRows.map(r => ({
+            sku_id: normalizeSku(r.sku),
+            book_qty: r.qty,
+            name_pro: r.namePro || null,
+            row_no: r.rowNo ?? null,
+            location: null
+        }));
+    }
+
+
+
+    function isMissingRpcError(err) {
+        const msg = String(err?.message || err?.details || '').toLowerCase();
+        return /function.*does not exist|could not find the function|schema cache/i.test(msg);
+    }
+
+
+
+    /**
+     * นำเข้า Book
+     *   mode: 'replace' — ลบ Book ทั้งรอบแล้ว insert (atomic ผ่าน RPC)
+     *   mode: 'merge'   — ลบเฉพาะ SKU ในไฟล์แล้ว insert (atomic ผ่าน RPC)
+     * รองรับ replaceExisting (legacy) เพื่อ backward-compat กับ cycle_config
+     * validRows จะถูกรวม SKU ซ้ำก่อน insert เสมอ
+     */
+    async function importBookStockLines(cycleId, validRows, fileName, options = {}) {
+
+        const client = getClient();
+
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+        let mode = options.mode;
+        if (!mode) {
+            mode = options.replaceExisting === false ? 'merge' : 'replace';
+        }
+
+        const mergedRows = aggregateBookRowsBySku(
+            (validRows || []).filter(r => r && r.sku != null && r.qty != null)
+        );
+        if (!mergedRows.length) throw new Error('ไม่มีแถวที่นำเข้าได้');
+
+        const rpcPayload = bookRowsToRpcPayload(mergedRows);
+
+        const { data, error } = await client.rpc('import_book_stock_lines_atomic', {
+            p_cycle_id: cycleId,
+            p_rows: rpcPayload,
+            p_mode: mode,
+            p_book_source: fileName || null
+        });
+
+        if (error) {
+            if (isMissingRpcError(error)) {
+                console.warn(
+                    '[importBookStockLines] RPC import_book_stock_lines_atomic ไม่พบ — ใช้ legacy (ไม่ atomic). รัน docs/sql/012_import_book_stock_atomic.sql'
+                );
+                return importBookStockLinesLegacy(cycleId, mergedRows, fileName, mode);
+            }
+            throw error;
+        }
+
+        const inserted = Number(data) || 0;
+        if (inserted !== mergedRows.length) {
+            console.warn(
+                `[importBookStockLines] คาด insert ${mergedRows.length} แต่ DB รายงาน ${inserted}`
+            );
+        }
 
         if (mode === 'merge') {
             const skuIds = mergedRows.map(r => normalizeSku(r.sku)).filter(Boolean);

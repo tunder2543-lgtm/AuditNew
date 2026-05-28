@@ -33,12 +33,10 @@
             color: var(--text); font-size: 0.84rem; font-family: 'Kanit', sans-serif;
         }
         .be-actions {
-            grid-column: 1 / -1;
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
             align-items: center;
-            padding-top: 0.1rem;
         }
         .be-btn {
             border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
@@ -278,12 +276,34 @@
             }
 
             function toDateRange() {
-                const startDate = el.dateStart.value ? new Date(`${el.dateStart.value}T00:00:00`) : null;
-                const endDate = el.dateEnd.value ? new Date(`${el.dateEnd.value}T00:00:00`) : null;
-                const endExclusive = endDate ? new Date(endDate.getTime() + (24 * 60 * 60 * 1000)) : null;
+                const startDate = el.dateStart.value || '';
+                const endDate = el.dateEnd.value || '';
+                const nextDate = endDate ? new Date(`${endDate}T00:00:00`) : null;
+                if (nextDate) nextDate.setDate(nextDate.getDate() + 1);
+
+                const toOffsetIso = (dateText, useNextDay) => {
+                    if (!dateText) return '';
+                    const d = useNextDay
+                        ? nextDate
+                        : new Date(`${dateText}T00:00:00`);
+                    if (!d || Number.isNaN(d.getTime())) return '';
+                    const pad = (n) => String(Math.abs(n)).padStart(2, '0');
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mm = String(d.getMinutes()).padStart(2, '0');
+                    const ss = String(d.getSeconds()).padStart(2, '0');
+                    const offsetMin = -d.getTimezoneOffset();
+                    const sign = offsetMin >= 0 ? '+' : '-';
+                    const offH = pad(Math.floor(Math.abs(offsetMin) / 60));
+                    const offM = pad(Math.abs(offsetMin) % 60);
+                    return `${y}-${m}-${day}T${hh}:${mm}:${ss}${sign}${offH}:${offM}`;
+                };
+
                 return {
-                    start: startDate ? startDate.toISOString() : '',
-                    endExclusive: endExclusive ? endExclusive.toISOString() : ''
+                    start: toOffsetIso(startDate, false),
+                    endExclusive: toOffsetIso(endDate, true)
                 };
             }
 

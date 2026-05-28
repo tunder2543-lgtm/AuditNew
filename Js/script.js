@@ -12,8 +12,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     let supabaseClient = null;
     let skuMasterList  = []; // Cache SKU list { sku_name, name_pro, warehouse } ตามคลังที่เลือก
+    let skuMasterLoadedFor = '';
+    let skuMasterLoadGen = 0;
     let allRecords     = []; // Cache inventory_counts records for audit log context
     let supabaseDataLoaded = false;
+    let warehouseReady = false;
 
     let knownWarehouses = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
@@ -29,9 +32,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (supabaseClient) {
             console.log('[Supabase] Client initialized ✓');
             updateBadge(true);
-            if (!supabaseDataLoaded) {
-                supabaseDataLoaded = true;
-                loadAllData();
+            if (!warehouseReady) {
+                console.log('[Supabase] Waiting warehouse context before first load');
             }
             return true;
         } else {
@@ -93,9 +95,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const VISIBILITY_RELOAD_MS = 30000;
 
     async function loadAllData() {
-        await loadSkuMaster();
-        await loadExistingRecords();
-        lastDataLoadAt = Date.now();
+        await onWarehouseContextChanged();
     }
 
     function getActiveWarehouse() {
@@ -133,6 +133,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             warehouseInput.value = knownWarehouses[0];
         }
+        warehouseReady = true;
+        return getActiveWarehouse();
     }
 
     function filterRecordsByWarehouse(records) {
@@ -148,6 +150,7 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadSkuMaster() {
         if (!supabaseClient) return;
         const wh = getActiveWarehouse();
+        const loadGen = ++skuMasterLoadGen;
         try {
             let allRows = [];
             let from = 0;
@@ -164,11 +167,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!data || data.length < PAGE) break;
                 from += PAGE;
             }
+            if (loadGen !== skuMasterLoadGen) return;
             skuMasterList = allRows;
+            skuMasterLoadedFor = wh;
             console.log(`[SKU Master] Loaded ${skuMasterList.length} items (${wh || 'ทุกคลัง'}) ✓`);
         } catch (err) {
+            if (loadGen !== skuMasterLoadGen) return;
             console.warn('[SKU Master] Load failed:', err.message);
             skuMasterList = [];
+            skuMasterLoadedFor = wh;
         }
     }
 
@@ -176,9 +183,16 @@ document.addEventListener('DOMContentLoaded', () => {
         hideSkuInfo();
         if (skuDropdown) skuDropdown.style.display = 'none';
         activeDropIdx = -1;
+        skuMasterLoadGen += 1;
+        skuMasterList = [];
+        skuMasterLoadedFor = '';
+        updateStats();
         await loadSkuMaster();
         await loadExistingRecords();
+        if (skuMasterLoadedFor && skuMasterLoadedFor !== getActiveWarehouse()) return;
         updateStats();
+        supabaseDataLoaded = true;
+        lastDataLoadAt = Date.now();
     }
 
     async function loadPagedInventoryCounts() {
@@ -424,7 +438,15 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    refreshWarehouseSelectOptions(savedWarehouse);
+    async function bootPage() {
+        await refreshWarehouseSelectOptions(savedWarehouse);
+        initSupabase();
+        if (supabaseClient) {
+            await onWarehouseContextChanged();
+        }
+    }
+
+    bootPage();
 
     if (warehouseInput) {
         warehouseInput.addEventListener('change', async () => {
@@ -1089,7 +1111,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStats() {
         const scopedRecords = getWarehouseScopedRecords();
         const allCountedSkus = new Set(scopedRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
-        const masterKeys = getMasterSkuKeySet();
+        const activeWarehouse = getActiveWarehouse();
+        const isMasterReadyForWarehouse = !activeWarehouse || skuMasterLoadedFor === activeWarehouse;
+        const masterKeys = isMasterReadyForWarehouse ? getMasterSkuKeySet() : new Set();
 
         const todayRecords = scopedRecords.filter(r => isTodayInThailand(r.created_at));
         const todaySkus = new Set(todayRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
@@ -1106,7 +1130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const extraBoxEl = document.getElementById('extraSkuStatBox');
         const extraEl = document.getElementById('totalExtraSku');
         const kpiPanelEl = document.getElementById('headerKpiPanel');
-        const totalItems = skuMasterList.length;
+        const totalItems = isMasterReadyForWarehouse ? skuMasterList.length : 0;
 
         let countedInMaster = 0;
         allCountedSkus.forEach(key => {
@@ -2266,8 +2290,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dashboardCounterFilter) {
         dashboardCounterFilter.addEventListener('change', applyDashboardFilters);
     }
-
-    initSupabase();
 
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState !== 'visible' || !supabaseClient) return;

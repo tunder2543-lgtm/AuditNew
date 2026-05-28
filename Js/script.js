@@ -880,7 +880,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('[Insert Group Error]', err);
                 groupItems = snapshot;
                 renderGroupList();
-                showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'บันทึกกลุ่ม' })
+                    || { message: `เกิดข้อผิดพลาด: ${err.message}`, severity: 'error' };
+                // duplicate ก็แสดงเป็น error toast (สี class เดียวกัน) แต่ข้อความเป็นมิตรกว่า raw error
+                showToast(info.message, 'error');
                 submitGroupBtn.disabled = false;
             } finally {
                 isGroupSubmitting = false;
@@ -974,8 +977,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (err) {
             console.error('[Insert Error]', err);
-            showToast(`เกิดข้อผิดพลาด: ${err.message}`, 'error');
-            updateBadge(false);
+            const info = window.DbErrors?.formatDbError(err, { context: 'บันทึกการนับ' })
+                || { message: `เกิดข้อผิดพลาด: ${err.message}`, severity: 'error' };
+            showToast(info.message, 'error');
+            // duplicate ไม่ใช่ปัญหาการเชื่อมต่อ ไม่ต้องเปลี่ยน badge
+            if (!info.isDuplicate) updateBadge(false);
         } finally {
             isSingleSubmitting = false;
             submitBtn.disabled  = false;

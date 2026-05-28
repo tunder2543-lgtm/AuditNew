@@ -1163,6 +1163,7 @@
     <script src="../Js/sidebar-shared.js"></script>
 <script src="../Js/api.js"></script>
     <script src="../Js/sku-utils.js"></script>
+    <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/ui-confirm-modal.js"></script>
     <script>
@@ -2302,7 +2303,8 @@
                 }
             } catch (err) {
                 console.error('[Delete Error]', err);
-                showToast(`ลบล้มเหลว: ${err.message}`, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'ลบรายการ' });
+                showToast(info?.message || `ลบล้มเหลว: ${err.message}`, 'error');
             } finally {
                 setLoading(false);
                 updateSelectionUI();
@@ -2476,6 +2478,7 @@
 
             let ok = 0;
             let fail = 0;
+            let lastUpdateError = null;
 
             try {
                 for (let i = 0; i < rows.length; i++) {
@@ -2496,6 +2499,8 @@
 
                     if (error) {
                         console.error(error);
+                        // เก็บ error สุดท้ายไว้แสดงรายละเอียดให้ user
+                        lastUpdateError = error;
                         fail += 1;
                     } else {
                         skuInput.value = newSkuId;
@@ -2515,13 +2520,22 @@
                 setLoadingMessage('กำลังตรวจสอบรายการหลังสลับ...', `${trList.length.toLocaleString()} แถว`);
                 await verifyRowsInBatches(trList);
 
-                showToast(
-                    `สลับสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
-                    fail > 0 ? 'error' : 'success'
-                );
+                if (fail > 0 && lastUpdateError) {
+                    const info = window.DbErrors?.formatDbError(lastUpdateError, { context: 'สลับ SKU↔ตำแหน่ง' });
+                    showToast(
+                        `สลับสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})\n${info?.message || lastUpdateError.message || ''}`,
+                        'error'
+                    );
+                } else {
+                    showToast(
+                        `สลับสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
+                        fail > 0 ? 'error' : 'success'
+                    );
+                }
             } catch (err) {
                 console.error(err);
-                showToast(`สลับล้มเหลว: ${err.message}`, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'สลับ SKU↔ตำแหน่ง' });
+                showToast(info?.message || `สลับล้มเหลว: ${err.message}`, 'error');
                 await loadReferenceData();
             } finally {
                 setLoading(false);
@@ -2617,6 +2631,7 @@
 
             let ok = 0;
             let fail = 0;
+            let lastUpdateError = null;
 
             try {
                 for (let i = 0; i < dirtyRows.length; i++) {
@@ -2631,6 +2646,7 @@
 
                     if (error) {
                         console.error(error);
+                        lastUpdateError = error;
                         fail += 1;
                     } else {
                         tr.dataset.originalLoc = newLoc;
@@ -2644,13 +2660,22 @@
 
                 await loadReferenceData();
 
-                showToast(
-                    `บันทึกสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
-                    fail > 0 ? 'error' : 'success'
-                );
+                if (fail > 0 && lastUpdateError) {
+                    const info = window.DbErrors?.formatDbError(lastUpdateError, { context: 'บันทึกตำแหน่ง' });
+                    showToast(
+                        `บันทึกสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})\n${info?.message || lastUpdateError.message || ''}`,
+                        'error'
+                    );
+                } else {
+                    showToast(
+                        `บันทึกสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}`,
+                        fail > 0 ? 'error' : 'success'
+                    );
+                }
             } catch (err) {
                 console.error(err);
-                showToast(`บันทึกล้มเหลว: ${err.message}`, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'บันทึกตำแหน่ง' });
+                showToast(info?.message || `บันทึกล้มเหลว: ${err.message}`, 'error');
                 await loadReferenceData();
             } finally {
                 setLoading(false);
@@ -3359,6 +3384,7 @@
 
             let ok = 0;
             let fail = 0;
+            let lastUpdateError = null;
 
             try {
                 for (let i = 0; i < items.length; i++) {
@@ -3370,6 +3396,7 @@
 
                     if (error) {
                         console.error(error);
+                        lastUpdateError = error;
                         fail += 1;
                     } else {
                         ok += 1;
@@ -3389,11 +3416,15 @@
                     (locCompareState.notInSystem || []).length +
                     (locCompareState.dbAmbiguous || []).length;
 
-                showToast(
-                    `อัปเดตตำแหน่งสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}` +
-                    (skippedLeft ? ` · เหลือไม่อัปเดต ${skippedLeft} รายการ (ยังแสดงในรายการด้านล่าง)` : ''),
-                    fail > 0 ? 'error' : 'success'
-                );
+                const baseMsg = `อัปเดตตำแหน่งสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}` +
+                    (skippedLeft ? ` · เหลือไม่อัปเดต ${skippedLeft} รายการ (ยังแสดงในรายการด้านล่าง)` : '');
+
+                if (fail > 0 && lastUpdateError) {
+                    const info = window.DbErrors?.formatDbError(lastUpdateError, { context: 'แก้ตำแหน่งจาก Excel' });
+                    showToast(`${baseMsg}\n${info?.message || lastUpdateError.message || ''}`, 'error');
+                } else {
+                    showToast(baseMsg, fail > 0 ? 'error' : 'success');
+                }
 
                 if (skippedLeft > 0) {
                     renderLocCompareResultsAfterApply();
@@ -3402,7 +3433,8 @@
                 }
             } catch (err) {
                 console.error(err);
-                showToast(`บันทึกล้มเหลว: ${err.message}`, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'แก้ตำแหน่งจาก Excel' });
+                showToast(info?.message || `บันทึกล้มเหลว: ${err.message}`, 'error');
                 await loadReferenceData();
             } finally {
                 setLoading(false);
@@ -3576,7 +3608,8 @@
                 showToast(`ลบ duplicate สำเร็จ ${toDelete.length.toLocaleString()} แถว (${dupGroups.length.toLocaleString()} กลุ่ม)`, 'success');
             } catch (err) {
                 console.error('[Dedupe Error]', err);
-                showToast('ลบ duplicate ล้มเหลว: ' + err.message, 'error');
+                const info = window.DbErrors?.formatDbError(err, { context: 'ลบ duplicate' });
+                showToast(info?.message || `ลบ duplicate ล้มเหลว: ${err.message}`, 'error');
             } finally {
                 setLoading(false);
                 if (btn) btn.disabled = false;

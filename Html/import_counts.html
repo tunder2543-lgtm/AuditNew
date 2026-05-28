@@ -443,6 +443,7 @@
 
     <script src="../Js/api.js"></script>
     <script src="../Js/sku-utils.js"></script>
+    <script src="../Js/db-errors.js"></script>
     <script src="../Js/settings-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
     <script src="../Js/ui-confirm-modal.js"></script>
@@ -767,6 +768,8 @@
 
             let ok = 0;
             let fail = 0;
+            let duplicateSkipped = 0;
+            let lastError = null;
 
             setLoading(true, 'กำลังนำเข้าผลการนับ...', `0 / ${rows.length}`);
 
@@ -794,10 +797,15 @@
 
                     if (error) {
                         console.error(error);
-                        if (/client_request_id|duplicate|unique/i.test(error.message || '')) {
-                            console.warn('[Import] retry/duplicate prevented by idempotency key — chunk skipped');
+                        // ถ้าเป็น duplicate (จาก client_request_id เดียวกัน หรือ unique index อื่น)
+                        // ให้นับเป็น duplicateSkipped แทน fail เพื่อให้ user เห็นว่า "ไม่ใช่ปัญหาระบบ
+                        // แต่เพราะรายการชุดนี้เคยนำเข้าแล้ว"
+                        if (window.DbErrors?.isDuplicateError(error)) {
+                            duplicateSkipped += chunk.length;
+                        } else {
+                            fail += chunk.length;
+                            lastError = error;
                         }
-                        fail += chunk.length;
                     } else {
                         ok += (data || []).length;
                     }
@@ -813,10 +821,20 @@
                 localStorage.setItem('saved_warehouse', warehouse);
                 localStorage.setItem('import_counts_warehouse', warehouse);
 
-                showToast(
-                    `นำเข้าสำเร็จ ${ok} แถว${fail > 0 ? ` (ล้มเหลว ${fail})` : ''} · ${warehouse}`,
-                    fail > 0 ? 'error' : 'success'
-                );
+                const parts = [`นำเข้าสำเร็จ ${ok} แถว`];
+                if (duplicateSkipped > 0) parts.push(`ข้ามซ้ำ ${duplicateSkipped}`);
+                if (fail > 0) parts.push(`ล้มเหลว ${fail}`);
+                parts.push(`· ${warehouse}`);
+                const summary = parts.join(' ');
+
+                if (fail > 0 && lastError) {
+                    const info = window.DbErrors?.formatDbError(lastError, { context: 'นำเข้า Excel' });
+                    showToast(`${summary}\n${info?.message || lastError.message || ''}`, 'error');
+                } else if (duplicateSkipped > 0 && ok === 0) {
+                    showToast(`${summary} — ข้อมูลทั้งหมดเคยนำเข้าแล้ว`, 'error');
+                } else {
+                    showToast(summary, fail > 0 ? 'error' : 'success');
+                }
 
                 if (ok > 0) {
                     await logImportBatch({

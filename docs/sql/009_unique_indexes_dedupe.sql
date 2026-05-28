@@ -12,7 +12,7 @@
 --   STEP 1)   ดู duplicate ปัจจุบัน (SELECT) — ไม่แก้อะไร
 --   STEP 2)   ล้าง duplicate เก่า (DELETE) — ⚠ ทำสำรองก่อน
 --   STEP 3)   สร้าง column + unique index (กันซ้ำในอนาคต ผ่าน client_request_id)
---   STEP 3.5) [OPTIONAL] unique index สตริคต์ระดับ business
+--   STEP 3.5) ❌ DEPRECATED — ใช้ docs/sql/011 แทน
 --   STEP 4)   ตรวจซ้ำหลังรัน
 -- =============================================================================
 
@@ -140,16 +140,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_msg_client_id
 
 
 -- -----------------------------------------------------------------------------
--- STEP 3.5) [OPTIONAL — สตริคต์สูงสุด] unique index ระดับ business
---   กันแถวซ้ำตามนิยาม: (warehouse + sku_id + location + counted_qty) เดียวกัน
---   ⚠ ก่อนรัน: ต้องล้าง dup ด้วย STEP 2.1 ก่อน ไม่เช่นนั้นจะ error
---   ⚠ หลังรัน: ทุก insert ใหม่ที่ซ้ำตามชุดคีย์นี้จะถูก reject ทันที (แม้ไม่มี client_request_id)
---   เปิดใช้ถ้าโปรเจกต์รับรอง: 1 SKU/ตำแหน่ง/คลัง = 1 ค่านับเท่านั้น
---      (ถ้ามี workflow re-count ที่อาจให้ค่าเท่ากันโดยตั้งใจ ให้ข้าม index นี้
---       แล้วใช้ client_request_id เป็น guard เพียงพอ)
+-- STEP 3.5) ❌ DEPRECATED — ห้ามรัน
+--
+-- เดิม index นี้ใช้สำหรับ "1 SKU/ตำแหน่ง/คลัง = 1 ค่านับ" แต่ปิดกั้น
+-- business case จริงหลายอย่าง (verify ข้ามคน, นับข้ามรอบ, re-count)
+--
+-- ถูกแทนที่ด้วย policy ใหม่ (Option A): กันซ้ำผ่าน client_request_id เท่านั้น
+-- ดูรายละเอียดที่ docs/sql/011_drop_strict_inventory_counts_index.sql
+--
+-- หากเคยรันมาก่อน → รัน 011 เพื่อ DROP index นี้ออก
 -- -----------------------------------------------------------------------------
-CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_counts_sku_loc_wh_qty
-    ON inventory_counts (warehouse, sku_id, location, counted_qty);
+-- CREATE UNIQUE INDEX IF NOT EXISTS uq_inventory_counts_sku_loc_wh_qty
+--     ON inventory_counts (warehouse, sku_id, location, counted_qty);
 
 
 -- -----------------------------------------------------------------------------

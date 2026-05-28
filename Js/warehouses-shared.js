@@ -170,6 +170,19 @@
         await fetchWarehouses({ force: true });
     }
 
+    async function deleteWarehouse(name) {
+        const value = normalizeName(name);
+        if (!value) throw new Error('ไม่พบชื่อคลัง');
+        const client = getClient();
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+        const { error } = await client
+            .from('warehouses')
+            .delete()
+            .eq('name', value);
+        if (error) throw error;
+        await fetchWarehouses({ force: true });
+    }
+
     function escapeHtml(value) {
         return String(value || '')
             .replace(/&/g, '&amp;')
@@ -184,6 +197,7 @@
         populateSelect,
         renderCheckboxGroup,
         addWarehouse,
-        setWarehouseActive
+        setWarehouseActive,
+        deleteWarehouse
     };
 })();

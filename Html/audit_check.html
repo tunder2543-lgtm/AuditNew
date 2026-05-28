@@ -852,10 +852,6 @@
 
                 <div class="audit-toolbar">
                     <div class="audit-toolbar-left">
-                        <button type="button" class="btn-gs primary" id="btnVerifyAll">
-                            <i data-lucide="check-circle" style="width:16px;height:16px"></i>
-                            ตรวจสอบทั้งหมด
-                        </button>
                         <button type="button" class="btn-gs" id="btnAddRows">
                             <i data-lucide="plus" style="width:16px;height:16px"></i>
                             เพิ่มแถว
@@ -899,10 +895,6 @@
                         <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบแถวซ้ำใน inventory_counts (warehouse + sku + location + counted_qty ซ้ำ) — เก็บแถวเก่าสุด">
                             <i data-lucide="copy-x" style="width:16px;height:16px"></i>
                             ลบ duplicate ใน DB
-                        </button>
-                        <button type="button" class="btn-gs" id="btnLoadCounts">
-                            <i data-lucide="download" style="width:16px;height:16px"></i>
-                            ใส่รายการลงตาราง
                         </button>
                         <input type="file" id="fileImport" accept=".xlsx,.xls,.csv">
                         <input type="file" id="fileLocCompare" accept=".xlsx,.xls,.csv">
@@ -1535,18 +1527,12 @@
             const allTimeEl = document.getElementById('auditFilterAllTime');
             if (!warehouseEl || !monthEl || !allTimeEl) return;
 
-            const savedWh = localStorage.getItem('audit_check_warehouse') || '';
             const savedMonth = localStorage.getItem('audit_check_year_month') || '';
             const allTime = localStorage.getItem('audit_check_all_time') === '1';
 
-            if (STANDARD_WAREHOUSES.includes(savedWh)) {
-                warehouseEl.value = savedWh;
-            } else if (savedWh === '') {
-                warehouseEl.value = 'ตึกกันตนา';
-                localStorage.setItem('audit_check_warehouse', 'ตึกกันตนา');
-            } else {
-                warehouseEl.value = savedWh;
-            }
+            // ค่าเริ่มต้นคลัง = ทุกคลัง เสมอ (ไม่บันทึก/กู้คืนจาก localStorage)
+            warehouseEl.value = '';
+            localStorage.setItem('audit_check_warehouse', '');
             allTimeEl.checked = allTime;
             monthEl.innerHTML = '<option value="">กำลังโหลดเดือน...</option>';
             monthEl.disabled = true;
@@ -2754,7 +2740,7 @@
             updateStats();
         }
 
-        document.getElementById('btnVerifyAll').addEventListener('click', () => verifyAll());
+        document.getElementById('btnVerifyAll')?.addEventListener('click', () => verifyAll());
         document.getElementById('btnEditLocMode').addEventListener('click', () => {
             setEditLocationMode(!editLocationMode);
             showToast(editLocationMode ? 'เปิดโหมดแก้ไขตำแหน่ง' : 'ปิดโหมดแก้ไขตำแหน่ง — กลับโหมดตรวจสอบ');
@@ -3625,7 +3611,7 @@
             }
         }
 
-        document.getElementById('btnLoadCounts').addEventListener('click', () => loadCountsToTable());
+        document.getElementById('btnLoadCounts')?.addEventListener('click', () => loadCountsToTable());
 
         /**
          * Pipeline ออโต้: โหลดอ้างอิง → ใส่รายการลงตาราง → ตรวจสอบทั้งหมด

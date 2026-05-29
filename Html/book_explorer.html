@@ -51,6 +51,7 @@
             border: 1px solid var(--input-border); background: var(--input-bg);
             color: var(--text); font-size: 0.84rem; font-family: 'Kanit', sans-serif;
         }
+        .be-field.be-field-cycle select { min-width: 280px; }
         .be-actions {
             display: flex;
             flex-wrap: nowrap;
@@ -119,7 +120,7 @@
                         <div class="be-head">
                             <div>
                                 <h1>Book Explorer</h1>
-                                <p>ดูรายการ BOOK แบบอ่านอย่างเดียว พร้อมฟิลเตอร์คลัง/ปี-เดือน/รอบ/สถานะ</p>
+                                <p>ดูรายการ BOOK แบบอ่านอย่างเดียว — เลือกปี/เดือน แล้วเลือกรอบ</p>
                             </div>
                             <div id="connBadge" class="be-conn">เชื่อมต่อแล้ว</div>
                         </div>
@@ -127,9 +128,21 @@
                         <div class="be-filter-wrap">
                             <div class="be-filter-grid">
                                 <div class="be-field">
-                                    <label for="warehouseFilter">คลัง (Warehouse)</label>
-                                    <select id="warehouseFilter">
-                                        <option value="">ทุกคลัง</option>
+                                    <label for="filterYear">ปี (Book)</label>
+                                    <select id="filterYear">
+                                        <option value="">— กำลังโหลด —</option>
+                                    </select>
+                                </div>
+                                <div class="be-field">
+                                    <label for="filterMonth">เดือน</label>
+                                    <select id="filterMonth" disabled>
+                                        <option value="">เลือกปีก่อน</option>
+                                    </select>
+                                </div>
+                                <div class="be-field be-field-cycle">
+                                    <label for="cycleFilter">เลือกรอบที่ต้องการดู</label>
+                                    <select id="cycleFilter" disabled>
+                                        <option value="">เลือกปี-เดือนก่อน</option>
                                     </select>
                                 </div>
                                 <div class="be-field">
@@ -143,24 +156,6 @@
                                 <div class="be-field">
                                     <label for="searchInput">ค้นหา SKU / Location / ชื่อสินค้า</label>
                                     <input id="searchInput" type="text" placeholder="เช่น ABC123, A01, ชื่อสินค้า">
-                                </div>
-                                <div class="be-field">
-                                    <label for="filterYear">ปี (Book)</label>
-                                    <select id="filterYear">
-                                        <option value="">— กำลังโหลด —</option>
-                                    </select>
-                                </div>
-                                <div class="be-field">
-                                    <label for="filterMonth">เดือน</label>
-                                    <select id="filterMonth" disabled>
-                                        <option value="">เลือกปีก่อน</option>
-                                    </select>
-                                </div>
-                                <div class="be-field">
-                                    <label for="cycleFilter">รอบ</label>
-                                    <select id="cycleFilter" disabled>
-                                        <option value="">เลือกปี-เดือนก่อน</option>
-                                    </select>
                                 </div>
                                 <div class="be-field">
                                     <label for="pageSize">จำนวนต่อหน้า</label>
@@ -240,14 +235,12 @@
                 cycles: [],
                 cyclesWithBook: [],
                 cycleById: new Map(),
-                cycleIdsByWarehouse: new Map(),
                 debounceTimer: null
             };
 
             const el = {
                 panel: document.getElementById('bookExplorerPanel'),
                 connBadge: document.getElementById('connBadge'),
-                warehouseFilter: document.getElementById('warehouseFilter'),
                 statusFilter: document.getElementById('statusFilter'),
                 searchInput: document.getElementById('searchInput'),
                 filterYear: document.getElementById('filterYear'),
@@ -307,12 +300,12 @@
             }
 
             function formatCycleOptionLabel(cycle) {
-                const name = formatCycleName(cycle);
                 const RS = window.reconcileService;
-                const status = RS?.statusLabel
-                    ? RS.statusLabel(cycle.status)
-                    : String(cycle.status || '').trim();
-                return status ? `${name} [${status}]` : name;
+                if (!cycle) return '-';
+                if (RS?.formatCycleLabel && RS?.statusLabel) {
+                    return `${RS.formatCycleLabel(cycle)} [${RS.statusLabel(cycle.status)}]`;
+                }
+                return formatCycleName(cycle);
             }
 
             const THAI_MONTHS = [
@@ -333,18 +326,16 @@
                 return `${year}-${month}`;
             }
 
-            function getCyclesForPeriod({ yearMonth, warehouse } = {}) {
+            function getCyclesForPeriod({ yearMonth } = {}) {
                 return state.cyclesWithBook.filter(c => {
                     if (yearMonth && c.year_month !== yearMonth) return false;
-                    if (warehouse && String(c.warehouse || '').trim() !== warehouse) return false;
                     return true;
                 });
             }
 
             function getAvailableYears() {
                 const years = new Set();
-                const wh = el.warehouseFilter.value.trim();
-                getCyclesForPeriod({ warehouse: wh || undefined }).forEach(c => {
+                getCyclesForPeriod().forEach(c => {
                     const parsed = parseYearMonth(c.year_month);
                     if (parsed) years.add(parsed.year);
                 });
@@ -353,9 +344,8 @@
 
             function getAvailableMonthsForYear(year) {
                 if (!year) return [];
-                const wh = el.warehouseFilter.value.trim();
                 const months = new Set();
-                getCyclesForPeriod({ warehouse: wh || undefined }).forEach(c => {
+                getCyclesForPeriod().forEach(c => {
                     const parsed = parseYearMonth(c.year_month);
                     if (parsed && parsed.year === year) months.add(parsed.month);
                 });
@@ -409,34 +399,47 @@
                 if (!yearMonth) {
                     el.cycleFilter.innerHTML = '<option value="">เลือกปี-เดือนก่อน</option>';
                     el.cycleFilter.disabled = true;
-                    return;
+                    return [];
                 }
-                const wh = el.warehouseFilter.value.trim();
-                const cycles = getCyclesForPeriod({ yearMonth, warehouse: wh || undefined })
+
+                const cycles = getCyclesForPeriod({ yearMonth })
                     .slice()
                     .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
 
                 if (!cycles.length) {
                     el.cycleFilter.innerHTML = '<option value="">ไม่มีรอบในช่วงนี้</option>';
                     el.cycleFilter.disabled = true;
-                    return;
+                    return [];
                 }
 
                 el.cycleFilter.disabled = false;
-                const opts = ['<option value="">ทุกรอบในช่วงนี้</option>'];
+                const opts = ['<option value="">— เลือกรอบ —</option>'];
                 cycles.forEach(c => {
                     opts.push(`<option value="${escapeHtml(c.id)}">${escapeHtml(formatCycleOptionLabel(c))}</option>`);
                 });
                 el.cycleFilter.innerHTML = opts.join('');
+
                 if (preferredCycleId && cycles.some(c => String(c.id) === String(preferredCycleId))) {
                     el.cycleFilter.value = preferredCycleId;
+                } else if (cycles.length === 1) {
+                    el.cycleFilter.value = cycles[0].id;
                 }
+                return cycles;
+            }
+
+            function autoSelectFirstCycle() {
+                if (el.cycleFilter.value || el.cycleFilter.disabled) return;
+                const ym = getSelectedYearMonth();
+                if (!ym) return;
+                const cycles = getCyclesForPeriod({ yearMonth: ym });
+                if (cycles.length) el.cycleFilter.value = cycles[0].id;
             }
 
             function refreshPeriodFilters(preferred = {}) {
                 refreshYearSelect(preferred.year || el.filterYear.value);
                 refreshMonthSelect(preferred.month || el.filterMonth.value);
                 refreshCycleSelect(preferred.cycleId || el.cycleFilter.value);
+                if (!preferred.cycleId) autoSelectFirstCycle();
             }
 
             function escapeHtml(s) {
@@ -453,14 +456,13 @@
 
             function buildFilterSummary() {
                 const items = [];
-                if (el.warehouseFilter.value) items.push(`คลัง=${el.warehouseFilter.value}`);
                 if (el.statusFilter.value && el.statusFilter.value !== 'all') items.push(`สถานะ=${el.statusFilter.value}`);
                 if (el.searchInput.value.trim()) items.push(`ค้นหา="${el.searchInput.value.trim()}"`);
                 const ym = getSelectedYearMonth();
                 if (ym) items.push(`ช่วง=${ym}`);
                 if (el.cycleFilter.value) {
                     const cycle = state.cycleById.get(el.cycleFilter.value);
-                    items.push(`รอบ=${formatCycleName(cycle)}`);
+                    items.push(`รอบ=${formatCycleOptionLabel(cycle)}`);
                 }
                 return items.length ? items.join(' | ') : 'ไม่มีเงื่อนไข';
             }
@@ -481,13 +483,8 @@
 
                 state.cycles = data || [];
                 state.cycleById.clear();
-                state.cycleIdsByWarehouse.clear();
                 state.cycles.forEach(c => {
                     state.cycleById.set(c.id, c);
-                    const wh = String(c.warehouse || '').trim();
-                    if (!wh) return;
-                    if (!state.cycleIdsByWarehouse.has(wh)) state.cycleIdsByWarehouse.set(wh, []);
-                    state.cycleIdsByWarehouse.get(wh).push(c.id);
                 });
 
                 const withBookFlag = state.cycles.filter(c => c.book_imported_at);
@@ -497,11 +494,6 @@
                     const bookCycleIds = await fetchCycleIdsWithBookLines();
                     state.cyclesWithBook = state.cycles.filter(c => bookCycleIds.has(String(c.id)));
                 }
-
-                const whList = [...state.cycleIdsByWarehouse.keys()].sort((a, b) => a.localeCompare(b, 'th'));
-                const whOpts = ['<option value="">ทุกคลัง</option>'];
-                whList.forEach(wh => whOpts.push(`<option value="${escapeHtml(wh)}">${escapeHtml(wh)}</option>`));
-                el.warehouseFilter.innerHTML = whOpts.join('');
 
                 const latestYm = state.cyclesWithBook
                     .map(c => c.year_month)
@@ -538,18 +530,8 @@
 
             function getFilteredCycleIds() {
                 const cycleId = el.cycleFilter.value.trim();
-                if (cycleId) return [cycleId];
-
-                const yearMonth = getSelectedYearMonth();
-                if (yearMonth) {
-                    const wh = el.warehouseFilter.value.trim();
-                    const ids = getCyclesForPeriod({ yearMonth, warehouse: wh || undefined }).map(c => c.id);
-                    return ids;
-                }
-
-                const wh = el.warehouseFilter.value.trim();
-                if (wh) return state.cycleIdsByWarehouse.get(wh) || [];
-                return null;
+                if (!cycleId) return [];
+                return [cycleId];
             }
 
             function applyBaseFilters(query) {
@@ -583,6 +565,14 @@
 
                 if (!getSelectedYearMonth()) {
                     showWarn('กรุณาเลือกปีและเดือนที่มีข้อมูล Book');
+                    state.rows = [];
+                    state.total = 0;
+                    renderAll();
+                    return;
+                }
+
+                if (!el.cycleFilter.value.trim()) {
+                    showWarn('กรุณาเลือกรอบที่ต้องการดู');
                     state.rows = [];
                     state.total = 0;
                     renderAll();
@@ -712,7 +702,6 @@
             }
 
             function resetFilters() {
-                el.warehouseFilter.value = '';
                 el.statusFilter.value = 'all';
                 el.searchInput.value = '';
                 el.pageSize.value = '1000';
@@ -728,7 +717,6 @@
                     .sort()
                     .reverse()[0];
                 const parsed = parseYearMonth(latestYm);
-                el.cycleFilter.value = '';
                 refreshPeriodFilters({
                     year: parsed?.year || '',
                     month: parsed?.month || '',
@@ -743,23 +731,10 @@
                 fetchRows();
             }
 
-            function onWarehouseChanged() {
-                const year = el.filterYear.value;
-                const month = el.filterMonth.value;
-                const cycleId = el.cycleFilter.value;
-                refreshPeriodFilters({ year, month, cycleId });
-                onFilterChanged();
-            }
-
             function onYearChanged() {
                 el.filterMonth.value = '';
                 el.cycleFilter.value = '';
                 refreshMonthSelect('');
-                refreshCycleSelect('');
-            }
-
-            function onMonthChanged() {
-                el.cycleFilter.value = '';
                 refreshCycleSelect('');
             }
 
@@ -772,14 +747,14 @@
                 });
 
                 el.pageSize.addEventListener('change', onFilterChanged);
-                el.warehouseFilter.addEventListener('change', onWarehouseChanged);
                 el.statusFilter.addEventListener('change', onFilterChanged);
                 el.filterYear.addEventListener('change', () => {
                     onYearChanged();
                     onFilterChanged();
                 });
                 el.filterMonth.addEventListener('change', () => {
-                    onMonthChanged();
+                    el.cycleFilter.value = '';
+                    autoSelectFirstCycle();
                     onFilterChanged();
                 });
                 el.cycleFilter.addEventListener('change', onFilterChanged);

@@ -2213,7 +2213,6 @@
     (function setupImportUi() {
         const drop = document.getElementById('importDropZone');
         const input = document.getElementById('importFileInput');
-        drop.addEventListener('click', () => input.click());
         drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
         drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
         drop.addEventListener('drop', (e) => {

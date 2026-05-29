@@ -2909,6 +2909,22 @@
 
 
 
+    /** Template Excel สำหรับ Import Book — คอลัมน์ A=SKU, B=จำนวน, C=ชื่อสินค้า (parseBookExcelRows) */
+    function downloadBookImportTemplate(filename = 'Template_Match_Book.xlsx') {
+        const XLSX_ = window.XLSX;
+        if (!XLSX_) throw new Error('XLSX library ไม่พร้อม');
+        const ws = XLSX_.utils.aoa_to_sheet([
+            ['SKU', 'จำนวน (ยอดก่อนนับ)', 'ชื่อสินค้า'],
+            ['ZA001', 100, 'ตัวอย่าง A'],
+            ['XY100', 50, '']
+        ]);
+        const wb = XLSX_.utils.book_new();
+        XLSX_.utils.book_append_sheet(wb, ws, 'Book');
+        XLSX_.writeFile(wb, filename);
+    }
+
+
+
     /** min/max สำหรับ input type=date ตาม year_month */
 
     function getMonthDateBounds(yearMonth) {
@@ -3093,7 +3109,9 @@
 
         formatCycleLabel,
 
-        statusLabel
+        statusLabel,
+
+        downloadBookImportTemplate
 
     };
 

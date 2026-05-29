@@ -193,23 +193,60 @@
         }
         .rc-adj-use-counted:hover { color: #bfdbfe; }
 
-        .rc-import-block {
-            margin-bottom: 0.85rem; padding-bottom: 0.85rem;
-            border-bottom: 1px solid rgba(255,255,255,0.08);
+        .rc-import-panel {
+            margin: 0 1.25rem 1rem;
+            padding: 1rem 1.15rem;
+            border: 1px solid rgba(96,165,250,0.22);
+            border-radius: 12px;
+            background: rgba(59,130,246,0.06);
         }
+        .rc-import-panel-head {
+            display: flex; align-items: center; gap: 0.45rem;
+            font-family: 'Kanit', sans-serif; font-size: 0.92rem; font-weight: 500;
+            margin-bottom: 0.85rem; color: #e0f2fe;
+        }
+        .rc-import-panel-body {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.2fr);
+            gap: 1rem;
+            align-items: start;
+        }
+        @media (max-width: 860px) {
+            .rc-import-panel-body { grid-template-columns: 1fr; }
+        }
+        .rc-template-banner {
+            display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+            gap: 0.75rem; padding: 0.75rem 0.85rem;
+            border-radius: 10px; border: 1px solid rgba(245,158,11,0.35);
+            background: rgba(245,158,11,0.1);
+        }
+        .rc-template-text {
+            display: flex; align-items: flex-start; gap: 0.55rem; min-width: 0;
+        }
+        .rc-template-text svg { color: #fbbf24; width: 22px; height: 22px; flex-shrink: 0; margin-top: 0.1rem; }
+        .rc-template-text strong { display: block; font-size: 0.82rem; margin-bottom: 0.15rem; color: #fde68a; }
+        .rc-template-text span { font-size: 0.74rem; color: var(--text-muted); line-height: 1.4; }
+        .rc-btn-template {
+            background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+            color: #1c1917; border: none; font-weight: 500;
+            box-shadow: 0 4px 12px rgba(245,158,11,0.25);
+            white-space: nowrap;
+        }
+        .rc-btn-template:hover:not(:disabled) { filter: brightness(1.08); }
+        .rc-import-upload-col { display: flex; flex-direction: column; gap: 0.45rem; min-width: 0; }
         .rc-import-drop {
-            border: 1px dashed rgba(96,165,250,0.45); border-radius: 10px; padding: 0.65rem 0.75rem;
-            text-align: center; font-size: 0.72rem; color: var(--text-muted); cursor: pointer;
-            background: rgba(59,130,246,0.06); transition: background 0.15s, border-color 0.15s;
+            border: 1px dashed rgba(96,165,250,0.45); border-radius: 10px; padding: 0.85rem 0.75rem;
+            text-align: center; font-size: 0.78rem; color: var(--text-muted); cursor: pointer;
+            background: rgba(15,23,42,0.35); transition: background 0.15s, border-color 0.15s;
         }
         .rc-import-drop:hover, .rc-import-drop.dragover {
             background: rgba(59,130,246,0.12); border-color: rgba(96,165,250,0.75);
         }
         .rc-import-drop input[type=file] { display: none; }
-        .rc-import-meta { font-size: 0.68rem; color: var(--text-muted); margin-top: 0.35rem; word-break: break-all; }
-        .rc-import-opt { display: flex; align-items: center; gap: 0.4rem; margin: 0.5rem 0; font-size: 0.72rem; color: var(--text-muted); }
+        .rc-import-meta { font-size: 0.68rem; color: var(--text-muted); word-break: break-all; }
+        .rc-import-opt { display: flex; align-items: flex-start; gap: 0.4rem; font-size: 0.72rem; color: var(--text-muted); line-height: 1.35; }
         .rc-import-preview {
-            max-height: 140px; overflow: auto; margin: 0.5rem 0; font-size: 0.68rem;
+            max-height: 160px; overflow: auto; font-size: 0.68rem;
             border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
         }
         .rc-import-preview table { width: 100%; border-collapse: collapse; }
@@ -364,24 +401,27 @@
             <section class="rc-panel" id="resultsPanel" style="display:none;">
                 <div class="rc-kpis" id="kpiRow"></div>
 
-                <div class="rc-grid">
-                    <!-- แผนปรับยอด -->
-                    <aside class="rc-side">
-                        <div class="rc-side-title"><i data-lucide="sliders-horizontal" style="width:16px;"></i> ปรับยอด Book</div>
-                        <div class="rc-mode-btns">
-                            <button type="button" class="rc-mode-btn active" data-mode="all" id="modeAll">ดูทั้งหมด</button>
-                            <button type="button" class="rc-mode-btn short" data-mode="short" id="modeShort">ขาด</button>
-                            <button type="button" class="rc-mode-btn over" data-mode="over" id="modeOver">เกิน</button>
-                        </div>
-
-                        <button type="button" class="rc-btn rc-btn-warn rc-btn-auto" id="btnAutoAdjust" disabled title="สร้าง Draft ปรับยอดทุก SKU ในโหมดที่เลือก">
-                            <i data-lucide="wand-2"></i> ปรับยอด Auto
-                        </button>
-
-                        <div class="rc-import-block">
-                            <div class="rc-side-title" style="margin-bottom:0.5rem;font-size:0.85rem;">
-                                <i data-lucide="file-up" style="width:14px;"></i> Import อ้างอิงไฟล์
+                <div class="rc-import-panel">
+                    <div class="rc-import-panel-head">
+                        <i data-lucide="file-up" style="width:16px;height:16px;"></i>
+                        Import อ้างอิงไฟล์ Excel
+                    </div>
+                    <div class="rc-import-panel-body">
+                        <div class="rc-import-panel-left">
+                            <div class="rc-template-banner">
+                                <div class="rc-template-text">
+                                    <i data-lucide="file-spreadsheet"></i>
+                                    <div>
+                                        <strong>ไฟล์ต้นแบบสำหรับนำเข้า Book</strong>
+                                        <span>คอลัมน์ A = SKU · B = จำนวน (ยอดก่อนนับ) · C = ชื่อสินค้า (ไม่บังคับ)</span>
+                                    </div>
+                                </div>
+                                <button type="button" class="rc-btn rc-btn-template rc-btn-sm" id="btnDownloadImportTemplate">
+                                    <i data-lucide="download"></i> โหลด Template
+                                </button>
                             </div>
+                        </div>
+                        <div class="rc-import-upload-col">
                             <label class="rc-import-drop" id="importDropZone">
                                 <input type="file" id="importFileInput" accept=".xlsx,.xls,.csv">
                                 <span id="importDropLabel">คลิกหรือลากไฟล์ Excel (.xlsx)</span>
@@ -405,15 +445,30 @@
                                     <tbody id="importPreviewBody"></tbody>
                                 </table>
                             </div>
-                            <button type="button" class="rc-btn rc-btn-primary rc-btn-sm" id="btnImportApply" style="width:100%;justify-content:center;display:none;margin-top:0.35rem;">
+                            <button type="button" class="rc-btn rc-btn-primary rc-btn-sm" id="btnImportApply" style="width:100%;justify-content:center;display:none;">
                                 <i data-lucide="play"></i> ปรับตามไฟล์ (Apply)
                             </button>
                         </div>
+                    </div>
+                    <div class="rc-import-results" id="importResultsPanel">
+                        <h4>รายการที่ปรับจาก Import ล่าสุด (<span id="importResultsCount">0</span>)</h4>
+                        <div id="importResultsList" style="max-height:120px;overflow:auto;color:var(--text-muted);"></div>
+                    </div>
+                </div>
 
-                        <div class="rc-import-results" id="importResultsPanel">
-                            <h4>รายการที่ปรับจาก Import ล่าสุด (<span id="importResultsCount">0</span>)</h4>
-                            <div id="importResultsList" style="max-height:120px;overflow:auto;color:var(--text-muted);"></div>
+                <div class="rc-grid">
+                    <!-- แผนปรับยอด -->
+                    <aside class="rc-side">
+                        <div class="rc-side-title"><i data-lucide="sliders-horizontal" style="width:16px;"></i> ปรับยอด Book</div>
+                        <div class="rc-mode-btns">
+                            <button type="button" class="rc-mode-btn active" data-mode="all" id="modeAll">ดูทั้งหมด</button>
+                            <button type="button" class="rc-mode-btn short" data-mode="short" id="modeShort">ขาด</button>
+                            <button type="button" class="rc-mode-btn over" data-mode="over" id="modeOver">เกิน</button>
                         </div>
+
+                        <button type="button" class="rc-btn rc-btn-warn rc-btn-auto" id="btnAutoAdjust" disabled title="สร้าง Draft ปรับยอดทุก SKU ในโหมดที่เลือก">
+                            <i data-lucide="wand-2"></i> ปรับยอด Auto
+                        </button>
 
                         <div class="rc-adj-hint" id="adjHint"></div>
 
@@ -553,7 +608,7 @@
 <script src="../Js/sku-utils.js"></script>
 <script src="../Js/db-errors.js"></script>
 <script src="../Js/settings-shared.js"></script>
-<script src="../Js/reconcile-shared.js?v=20260527d"></script>
+<script src="../Js/reconcile-shared.js?v=20260529a"></script>
 <script src="../Js/ui-confirm-modal.js"></script>
 <script>
     lucide.createIcons();
@@ -2173,6 +2228,14 @@
             input.value = '';
         });
         document.getElementById('btnImportApply').addEventListener('click', () => runImportApply());
+        document.getElementById('btnDownloadImportTemplate').addEventListener('click', () => {
+            try {
+                RS.downloadBookImportTemplate();
+                showToast('ดาวน์โหลด Template แล้ว — กรอกคอลัมน์ A (SKU) และ B (จำนวน)');
+            } catch (err) {
+                showToast(err.message || 'ดาวน์โหลด Template ไม่สำเร็จ', 'error');
+            }
+        });
     })();
 
     document.getElementById('btnExport').addEventListener('click', () => {

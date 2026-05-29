@@ -492,9 +492,14 @@
                 <div class="ic-panel import-meta-card import-log-card">
                     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
                         <h3 class="ic-panel-head" style="margin:0;"><i data-lucide="history"></i> ประวัติการนำเข้า (Log)</h3>
-                        <button type="button" class="ic-btn ic-btn-ghost" id="btnRefreshImportLog" style="font-size:0.82rem;padding:0.4rem 0.75rem;">
-                            <i data-lucide="refresh-cw"></i> รีเฟรช
-                        </button>
+                        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;align-items:center;">
+                            <button type="button" class="ic-btn ic-btn-ghost" id="btnExportImportLog" style="font-size:0.82rem;padding:0.4rem 0.75rem;">
+                                <i data-lucide="file-spreadsheet"></i> Export ประวัติ
+                            </button>
+                            <button type="button" class="ic-btn ic-btn-ghost" id="btnRefreshImportLog" style="font-size:0.82rem;padding:0.4rem 0.75rem;">
+                                <i data-lucide="refresh-cw"></i> รีเฟรช
+                            </button>
+                        </div>
                     </div>
                     <p style="margin:0.35rem 0 0;font-size:0.78rem;color:var(--text-muted);">
                         บันทึกทุกครั้งที่นำเข้า Excel สำเร็จ — แสดงใน <code>inventory_audit_logs</code> (เดียวกับประวัติในหน้านับสต็อก)
@@ -538,6 +543,8 @@
         let isImporting = false;
         /** @type {Array<{ sku, loc, qty, reason }>} แถวที่นำเข้าไม่สำเร็จในรอบล่าสุด */
         let lastImportFailedRows = [];
+        const IMPORT_LOG_PAGE = 1000;
+        let isExportingImportLog = false;
 
         function genClientRequestId() {
             try {
@@ -959,6 +966,74 @@
             }
         }
 
+        function formatImportLogDate(iso) {
+            if (!iso) return '—';
+            try {
+                return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+            } catch (e) {
+                return String(iso);
+            }
+        }
+
+        function renderImportLogItem(log) {
+            const thaiTime = formatImportLogDate(log.created_at);
+            const rows = log.new_qty != null ? Number(log.new_qty).toLocaleString() : '—';
+            return `
+                <div class="import-log-item">
+                    <div class="import-log-item-head">
+                        <span class="import-log-badge">IMPORT</span>
+                        <span class="import-log-time">${escHtml(thaiTime)}</span>
+                    </div>
+                    <div class="import-log-detail">
+                        นำเข้า <strong>${rows}</strong> แถว · ไฟล์ <strong>${escHtml(log.location || '—')}</strong>
+                    </div>
+                    <div class="import-log-meta">
+                        <span>คลัง: ${escHtml(log.warehouse || '—')}</span>
+                        <span>ผู้นับ: ${escHtml(log.counter_name || '—')}</span>
+                    </div>
+                    <div class="import-log-detail" style="margin-top:0.35rem;font-size:0.76rem;color:var(--text-muted);word-break:break-all;">
+                        ${escHtml(log.sku_id || '')}
+                    </div>
+                </div>`;
+        }
+
+        function dedupeImportLogsById(rows) {
+            const seen = new Set();
+            const unique = [];
+            (rows || []).forEach(function (row) {
+                const key = row?.id;
+                if (!key) {
+                    unique.push(row);
+                    return;
+                }
+                if (seen.has(key)) return;
+                seen.add(key);
+                unique.push(row);
+            });
+            return unique;
+        }
+
+        async function fetchAllImportLogs() {
+            if (!supabaseClient) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+            const all = [];
+            let from = 0;
+            while (true) {
+                const { data, error } = await supabaseClient
+                    .from('inventory_audit_logs')
+                    .select('id, action_type, record_id, sku_id, old_qty, new_qty, warehouse, location, counter_name, created_at')
+                    .eq('action_type', 'IMPORT')
+                    .order('created_at', { ascending: false })
+                    .order('id', { ascending: false })
+                    .range(from, from + IMPORT_LOG_PAGE - 1);
+                if (error) throw error;
+                const batch = data || [];
+                all.push.apply(all, batch);
+                if (batch.length < IMPORT_LOG_PAGE) break;
+                from += IMPORT_LOG_PAGE;
+            }
+            return dedupeImportLogsById(all);
+        }
+
         async function loadImportHistory() {
             const container = document.getElementById('importLogList');
             if (!container) return;
@@ -970,43 +1045,75 @@
             try {
                 const { data, error } = await supabaseClient
                     .from('inventory_audit_logs')
-                    .select('*')
+                    .select('id, action_type, record_id, sku_id, old_qty, new_qty, warehouse, location, counter_name, created_at')
                     .eq('action_type', 'IMPORT')
                     .order('created_at', { ascending: false })
+                    .order('id', { ascending: false })
                     .limit(50);
                 if (error) throw error;
                 if (!data || !data.length) {
                     container.innerHTML = '<p style="margin:0;font-size:0.82rem;color:var(--text-muted);">ยังไม่มีประวัติการนำเข้า</p>';
                     return;
                 }
-                container.innerHTML = data.map(log => {
-                    const thaiTime = new Date(log.created_at).toLocaleString('th-TH', {
-                        dateStyle: 'short',
-                        timeStyle: 'short'
-                    });
-                    const rows = log.new_qty != null ? Number(log.new_qty).toLocaleString() : '—';
-                    return `
-                        <div class="import-log-item">
-                            <div class="import-log-item-head">
-                                <span class="import-log-badge">IMPORT</span>
-                                <span class="import-log-time">${escHtml(thaiTime)}</span>
-                            </div>
-                            <div class="import-log-detail">
-                                นำเข้า <strong>${rows}</strong> แถว · ไฟล์ <strong>${escHtml(log.location || '—')}</strong>
-                            </div>
-                            <div class="import-log-meta">
-                                <span>คลัง: ${escHtml(log.warehouse || '—')}</span>
-                                <span>ผู้นับ: ${escHtml(log.counter_name || '—')}</span>
-                            </div>
-                            <div class="import-log-detail" style="margin-top:0.35rem;font-size:0.76rem;color:var(--text-muted);word-break:break-all;">
-                                ${escHtml(log.sku_id || '')}
-                            </div>
-                        </div>`;
-                }).join('');
+                container.innerHTML = data.map(renderImportLogItem).join('');
             } catch (err) {
                 container.innerHTML = `<p style="margin:0;font-size:0.82rem;color:#f87171;">โหลดประวัติไม่สำเร็จ: ${escHtml(err.message)}</p>`;
             }
             lucide.createIcons();
+        }
+
+        async function exportImportHistory() {
+            if (isExportingImportLog) return;
+            if (!supabaseClient) {
+                showToast('กรุณาเชื่อมต่อ Supabase ก่อน Export', 'error');
+                return;
+            }
+            const btn = document.getElementById('btnExportImportLog');
+            const prevHtml = btn ? btn.innerHTML : '';
+            isExportingImportLog = true;
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader-2"></i> กำลังดึง...';
+                lucide.createIcons();
+            }
+            try {
+                const logs = await fetchAllImportLogs();
+                if (!logs.length) {
+                    showToast('ไม่มีประวัติให้ Export', 'error');
+                    return;
+                }
+                const sheetRows = logs.map(function (log) {
+                    return {
+                        'วันที่บันทึก': formatImportLogDate(log.created_at),
+                        'ประเภท': log.action_type || 'IMPORT',
+                        'แถวสำเร็จ': log.new_qty != null ? Number(log.new_qty) : '',
+                        'แถวล้มเหลว': log.old_qty != null ? Number(log.old_qty) : '',
+                        'ชื่อไฟล์': log.location || '',
+                        'คลัง': log.warehouse || '',
+                        'ผู้นับ': log.counter_name || '',
+                        'รายละเอียด': log.sku_id || '',
+                        record_id: log.record_id || ''
+                    };
+                });
+                const ws = XLSX.utils.json_to_sheet(sheetRows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'ประวัตินำเข้า');
+                const stamp = new Date();
+                const pad = function (n) { return String(n).padStart(2, '0'); };
+                const fname = 'ImportHistory_' + stamp.getFullYear() + pad(stamp.getMonth() + 1) + pad(stamp.getDate()) +
+                    '_' + pad(stamp.getHours()) + pad(stamp.getMinutes()) + '.xlsx';
+                XLSX.writeFile(wb, fname);
+                showToast('Export ประวัติ ' + logs.length.toLocaleString() + ' รายการสำเร็จ');
+            } catch (err) {
+                showToast('Export ไม่สำเร็จ: ' + (err.message || String(err)), 'error');
+            } finally {
+                isExportingImportLog = false;
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = prevHtml;
+                    lucide.createIcons();
+                }
+            }
         }
 
         function downloadTemplate() {
@@ -1277,6 +1384,7 @@
         });
 
         document.getElementById('btnRefreshImportLog').addEventListener('click', loadImportHistory);
+        document.getElementById('btnExportImportLog').addEventListener('click', exportImportHistory);
 
         supabaseClient = window.apiService ? window.apiService.getClient() : null;
         if (!supabaseClient) {

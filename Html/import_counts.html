@@ -1050,28 +1050,85 @@
             XLSX.writeFile(wb, filename);
         }
 
-        async function fetchCountRowsPaged(buildQuery) {
-            const all = [];
-            let from = 0;
+        /** ดึง inventory_counts ทีละ 1,000 แถว (PostgREST จำกัดสูงสุด 1,000 ต่อ request) */
+        async function fetchCountRowsPaged(buildQuery, opts) {
             const PAGE = 1000;
+            const maxRows = opts?.maxRows != null ? Number(opts.maxRows) : null;
+            const onProgress = opts?.onProgress;
+            const all = [];
+            const seen = new Set();
+            let from = 0;
+            let batchNum = 0;
+
             while (true) {
+                batchNum += 1;
                 let q = buildQuery();
                 q = q.order('created_at', { ascending: true }).order('id', { ascending: true });
                 q = q.range(from, from + PAGE - 1);
                 const { data, error } = await q;
                 if (error) throw error;
                 const batch = data || [];
-                all.push.apply(all, batch);
+                batch.forEach(function (row) {
+                    const key = row?.id;
+                    if (key) {
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                    }
+                    all.push(row);
+                });
+                if (onProgress) onProgress(all.length, maxRows, batchNum);
                 if (batch.length < PAGE) break;
+                if (maxRows != null && all.length >= maxRows) break;
                 from += PAGE;
+                if (batchNum >= 500) {
+                    console.warn('[Import Export] ถึงขีดจำกัด 500 ชุด (500,000 แถว)');
+                    break;
+                }
             }
+            if (maxRows != null && all.length > maxRows) return all.slice(0, maxRows);
+            return all;
+        }
+
+        async function fetchCountRowsPagedDesc(buildQuery, opts) {
+            const PAGE = 1000;
+            const maxRows = opts?.maxRows != null ? Number(opts.maxRows) : null;
+            const onProgress = opts?.onProgress;
+            const all = [];
+            const seen = new Set();
+            let from = 0;
+            let batchNum = 0;
+
+            while (true) {
+                batchNum += 1;
+                let q = buildQuery();
+                q = q.order('created_at', { ascending: false }).order('id', { ascending: false });
+                q = q.range(from, from + PAGE - 1);
+                const { data, error } = await q;
+                if (error) throw error;
+                const batch = data || [];
+                batch.forEach(function (row) {
+                    const key = row?.id;
+                    if (key) {
+                        if (seen.has(key)) return;
+                        seen.add(key);
+                    }
+                    all.push(row);
+                });
+                if (onProgress) onProgress(all.length, maxRows, batchNum);
+                if (batch.length < PAGE) break;
+                if (maxRows != null && all.length >= maxRows) break;
+                from += PAGE;
+                if (batchNum >= 500) break;
+            }
+            if (maxRows != null && all.length > maxRows) return all.slice(0, maxRows);
             return all;
         }
 
         /** ดึงแถว inventory_counts ของครั้งนำเข้า — ใช้ import_batch_id หรือช่วงเวลา (log เก่า) */
-        async function fetchRowsForImportLog(log) {
+        async function fetchRowsForImportLog(log, onProgress) {
             const cols = 'id, sku_id, location, warehouse, counted_qty, counter_name, created_at, cycle_id';
             const expected = log.new_qty != null ? Number(log.new_qty) : 0;
+            const pageOpts = { onProgress: onProgress || null };
 
             if (isUuid(log.record_id)) {
                 try {
@@ -1080,7 +1137,7 @@
                             .from('inventory_counts')
                             .select(cols)
                             .eq('import_batch_id', log.record_id);
-                    });
+                    }, pageOpts);
                     if (rows.length) return { rows, mode: 'batch' };
                 } catch (err) {
                     if (!/import_batch_id|column/i.test(err.message || '')) throw err;
@@ -1093,21 +1150,18 @@
             const start = new Date(logTime - 30 * 60 * 1000).toISOString();
             const end = new Date(logTime + 60 * 1000).toISOString();
 
-            let q = supabaseClient
-                .from('inventory_counts')
-                .select(cols)
-                .lte('created_at', end)
-                .gte('created_at', start)
-                .order('created_at', { ascending: false })
-                .order('id', { ascending: false })
-                .limit(expected);
-            if (log.warehouse) q = q.eq('warehouse', log.warehouse);
-            if (log.counter_name) q = q.eq('counter_name', log.counter_name);
+            const rowsDesc = await fetchCountRowsPagedDesc(function () {
+                let q = supabaseClient
+                    .from('inventory_counts')
+                    .select(cols)
+                    .lte('created_at', end)
+                    .gte('created_at', start);
+                if (log.warehouse) q = q.eq('warehouse', log.warehouse);
+                if (log.counter_name) q = q.eq('counter_name', log.counter_name);
+                return q;
+            }, { maxRows: expected, onProgress: onProgress || null });
 
-            const { data, error } = await q;
-            if (error) throw error;
-            const rows = (data || []).slice().reverse();
-            return { rows, mode: 'heuristic' };
+            return { rows: rowsDesc.slice().reverse(), mode: 'heuristic' };
         }
 
         async function exportImportBatchDetail(log) {
@@ -1123,7 +1177,12 @@
 
             setLoading(true, 'กำลังดึงรายละเอียด...', `0 / ${expected.toLocaleString()}`);
             try {
-                const { rows, mode } = await fetchRowsForImportLog(log);
+                const { rows, mode } = await fetchRowsForImportLog(log, function (fetched, max, batchNum) {
+                    const label = max
+                        ? `ดึงชุดที่ ${batchNum} · ${fetched.toLocaleString()} / ${max.toLocaleString()} แถว`
+                        : `ดึงชุดที่ ${batchNum} · ${fetched.toLocaleString()} แถว`;
+                    setLoading(true, 'กำลังดึงรายละเอียด...', label);
+                });
                 if (!rows.length) {
                     const hint = isUuid(log.record_id)
                         ? 'ไม่พบแถวใน inventory_counts — อาจถูกลบแล้ว'

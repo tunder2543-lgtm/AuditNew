@@ -178,10 +178,27 @@
         .gs-table .col-sku { width: 140px; }
         .gs-table .col-loc { width: 110px; }
         .gs-table .col-qty { width: 80px; }
+        .gs-table .col-wh { width: 120px; }
+        .gs-table .col-dt { width: 132px; }
         .gs-table .col-status { width: 200px; }
         .gs-table .col-note { width: auto; min-width: 220px; }
 
-        .gs-table tbody tr:hover td:not(.col-check):not(.col-row-num):not(.col-status):not(.col-note) {
+        .gs-table .meta-cell {
+            padding: 2px 8px;
+            font-size: 12px;
+            color: #5f6368;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: middle;
+        }
+
+        .gs-table tbody tr:hover td:not(.col-check):not(.col-row-num):not(.col-status):not(.col-note):not(.col-wh):not(.col-dt) {
+            background: #f1f3f4;
+        }
+
+        .gs-table tbody tr:hover td.col-wh,
+        .gs-table tbody tr:hover td.col-dt {
             background: #f1f3f4;
         }
 
@@ -360,19 +377,25 @@
 
         tr.row-ok td.col-sku,
         tr.row-ok td.col-loc,
-        tr.row-ok td.col-qty {
+        tr.row-ok td.col-qty,
+        tr.row-ok td.col-wh,
+        tr.row-ok td.col-dt {
             background: #e6f4ea;
         }
 
         tr.row-error td.col-sku,
         tr.row-error td.col-loc,
-        tr.row-error td.col-qty {
+        tr.row-error td.col-qty,
+        tr.row-error td.col-wh,
+        tr.row-error td.col-dt {
             background: #fce8e6;
         }
 
         tr.row-warn td.col-sku,
         tr.row-warn td.col-loc,
-        tr.row-warn td.col-qty {
+        tr.row-warn td.col-qty,
+        tr.row-warn td.col-wh,
+        tr.row-warn td.col-dt {
             background: #fef7e0;
         }
 
@@ -1037,6 +1060,8 @@
                                     <th class="col-letter">C</th>
                                     <th class="col-letter">D</th>
                                     <th class="col-letter">E</th>
+                                    <th class="col-letter">F</th>
+                                    <th class="col-letter">G</th>
                                 </tr>
                                 <tr>
                                     <th class="col-check">
@@ -1046,6 +1071,8 @@
                                     <th class="col-sku">รหัสสินค้า (SKU)</th>
                                     <th class="col-loc">ตำแหน่ง</th>
                                     <th class="col-qty">จำนวน</th>
+                                    <th class="col-wh">คลัง</th>
+                                    <th class="col-dt">วันที่-เวลา</th>
                                     <th class="col-status">สถานะ</th>
                                     <th class="col-note">หมายเหตุ / อ้างอิง</th>
                                 </tr>
@@ -1270,6 +1297,26 @@
             return !!(sku || loc || qty);
         }
 
+        function formatRowDateTime(iso) {
+            if (!iso) return '—';
+            try {
+                return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' });
+            } catch (e) {
+                return String(iso);
+            }
+        }
+
+        function setRowMetaCells(tr, warehouse, createdAt) {
+            const whEl = tr.querySelector('[data-field="warehouse"]');
+            const dtEl = tr.querySelector('[data-field="created_at"]');
+            if (whEl) whEl.textContent = warehouse || '—';
+            if (dtEl) dtEl.textContent = formatRowDateTime(createdAt);
+            if (warehouse) tr.dataset.warehouse = warehouse;
+            else tr.removeAttribute('data-warehouse');
+            if (createdAt) tr.dataset.createdAt = createdAt;
+            else tr.removeAttribute('data-created-at');
+        }
+
         function escapeHtml(s) {
             const d = document.createElement('div');
             d.textContent = s == null ? '' : String(s);
@@ -1300,6 +1347,8 @@
                     sku: tr.querySelector('[data-field="sku"]').value.trim(),
                     loc: tr.querySelector('[data-field="loc"]').value.trim(),
                     qty: tr.querySelector('[data-field="qty"]').value.trim(),
+                    warehouse: tr.dataset.warehouse || tr.querySelector('[data-field="warehouse"]')?.textContent.trim() || '',
+                    created_at: tr.dataset.createdAt || '',
                     status: tr.querySelector('.col-status')?.textContent.trim() || '',
                     note: tr.querySelector('.col-note')?.textContent.trim() || ''
                 });
@@ -1319,6 +1368,8 @@
                 'รหัสสินค้า (SKU)': row.sku,
                 'ตำแหน่ง': row.loc,
                 'จำนวน': row.qty,
+                'คลัง': row.warehouse,
+                'วันที่-เวลา': row.created_at ? formatRowDateTime(row.created_at) : '',
                 'สถานะ': row.status,
                 'หมายเหตุ': row.note
             }));
@@ -1332,6 +1383,8 @@
                     { wch: 22 },
                     { wch: 16 },
                     { wch: 10 },
+                    { wch: 18 },
+                    { wch: 18 },
                     { wch: 22 },
                     { wch: 48 }
                 ];
@@ -1897,7 +1950,8 @@
                     const sku = tr.querySelector('[data-field="sku"]').value.trim();
                     const loc = tr.querySelector('[data-field="loc"]').value.trim();
                     const qty = tr.querySelector('[data-field="qty"]').value.trim();
-                    const result = verifyRow(sku, loc, qty);
+                    const whHint = tr.dataset.warehouse || '';
+                    const result = verifyRow(sku, loc, qty, whHint);
                     applyResult(tr, result);
                 });
                 setLoadingProgress(Math.min(i + VERIFY_BATCH_SIZE, rows.length), rows.length, 'กำลังตรวจสอบทั้งหมด...');
@@ -2192,7 +2246,7 @@
             }));
         }
 
-        function verifyRow(sku, loc, qtyStr) {
+        function verifyRow(sku, loc, qtyStr, warehouseHint) {
             const skuN = norm(sku);
             const locN = norm(loc);
             const qty = qtyStr === '' ? NaN : Number(qtyStr);
@@ -2211,9 +2265,10 @@
             }
 
             const filters = getAuditFilters();
+            const scopeWarehouse = filters.warehouse || (warehouseHint ? String(warehouseHint).trim() : '');
             let exact = null;
-            if (filters.warehouse) {
-                exact = refBySkuLoc.get(refEntryKey(skuN, locN, filters.warehouse, qty));
+            if (scopeWarehouse) {
+                exact = refBySkuLoc.get(refEntryKey(skuN, locN, scopeWarehouse, qty));
             } else {
                 const matches = findRefEntriesBySkuLocQty(skuN, locN, qty);
                 if (matches.length === 1) {
@@ -2317,7 +2372,8 @@
             const sku = tr.querySelector('[data-field="sku"]').value;
             const loc = tr.querySelector('[data-field="loc"]').value;
             const qty = tr.querySelector('[data-field="qty"]').value;
-            const result = verifyRow(sku, loc, qty);
+            const whHint = tr.dataset.warehouse || '';
+            const result = verifyRow(sku, loc, qty, whHint);
             applyResult(tr, result);
             if (activeStatusFilter) applyTableView();
             return result;
@@ -2939,6 +2995,8 @@
                 <td class="col-sku"><input type="text" class="gs-cell" data-field="sku" autocomplete="off" spellcheck="false"></td>
                 <td class="col-loc"><input type="text" class="gs-cell" data-field="loc" autocomplete="off" spellcheck="false"></td>
                 <td class="col-qty"><input type="number" class="gs-cell" data-field="qty" min="0" step="1" autocomplete="off"></td>
+                <td class="col-wh meta-cell" data-field="warehouse">—</td>
+                <td class="col-dt meta-cell" data-field="created_at">—</td>
                 <td class="col-status status-cell status-empty"></td>
                 <td class="col-note note-cell"></td>
             `;
@@ -3028,6 +3086,7 @@
                 tr.querySelector('[data-field="sku"]').value = item.sku || '';
                 tr.querySelector('[data-field="loc"]').value = item.loc || '';
                 tr.querySelector('[data-field="qty"]').value = item.qty ?? '';
+                setRowMetaCells(tr, item.warehouse || '', item.created_at || '');
                 syncRowEditLocState(tr);
                 syncRowSwapModeState(tr);
                 trList.push(tr);
@@ -3045,6 +3104,7 @@
                 if (skuIn) skuIn.value = '';
                 if (locIn) locIn.value = '';
                 if (qtyIn) qtyIn.value = '';
+                setRowMetaCells(tr, '', '');
                 clearRowAuditUI(tr);
                 syncRowEditLocState(tr);
                 syncRowSwapModeState(tr);
@@ -3927,7 +3987,9 @@
                     id: r.id,
                     sku: r.sku_id,
                     loc: r.location,
-                    qty: r.counted_qty
+                    qty: r.counted_qty,
+                    warehouse: r.warehouse || '',
+                    created_at: r.created_at || ''
                 }));
                 items.sort((a, b) => {
                     const za = getLocationZone(a.loc);

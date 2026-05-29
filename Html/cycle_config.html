@@ -130,29 +130,38 @@
         }
         .cc-wh-modes input { accent-color: #3b82f6; }
         .cc-wh-checks {
-            display: flex; flex-wrap: wrap; gap: 0.55rem 0.75rem;
-            align-items: center;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+            gap: 0.5rem;
+            align-items: stretch;
             padding: 0.75rem 0.9rem; border-radius: 10px;
             border: 1px solid rgba(59,130,246,0.25);
             background: rgba(59,130,246,0.05);
         }
         .cc-wh-checks.disabled { opacity: 0.45; pointer-events: none; }
-        .cc-wh-checks label {
-            display: inline-flex; align-items: center; gap: 0.4rem;
-            flex: 0 0 auto; min-width: max-content;
-            white-space: nowrap;
+        .cc-wh-checks .cc-wh-chk-label {
+            display: flex; align-items: center; gap: 0.45rem;
+            width: 100%; min-width: 0; box-sizing: border-box;
             font-size: 0.84rem; line-height: 1.35;
             color: var(--text); cursor: pointer;
-            margin: 0; padding: 0.35rem 0.65rem;
+            margin: 0; padding: 0.4rem 0.65rem;
             border-radius: 8px; border: 1px solid transparent;
         }
-        .cc-wh-checks label input[type="checkbox"] {
-            flex-shrink: 0; margin: 0;
+        .cc-wh-checks .cc-wh-chk-label input[type="checkbox"] {
+            flex: 0 0 auto; width: 1rem; height: 1rem;
+            margin: 0; cursor: pointer;
         }
-        .cc-wh-checks label:has(input:checked) {
+        .cc-wh-checks .cc-wh-chk-text {
+            flex: 1 1 auto; min-width: 0;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .cc-wh-checks .cc-wh-chk-label:has(input:checked) {
             border-color: rgba(59,130,246,0.45);
             background: rgba(59,130,246,0.12);
             color: #93c5fd;
+        }
+        @media (max-width: 520px) {
+            .cc-wh-checks { grid-template-columns: 1fr; }
         }
         .cc-wh-edit-card {
             margin: 0.75rem 0 1rem;
@@ -466,11 +475,7 @@
                                     <label><input type="radio" name="createWhMode" id="whModePick" value="pick" checked> เลือกคลัง (หลายคลังได้)</label>
                                     <label><input type="radio" name="createWhMode" id="whModeAll" value="all"> คลังทั้งหมด (รวมทุกคลัง)</label>
                                 </div>
-                                <div class="cc-wh-checks" id="whPickPanel">
-                                    <label><input type="checkbox" class="wh-chk-create" value="ตึกกันตนา" checked> ตึกกันตนา</label>
-                                    <label><input type="checkbox" class="wh-chk-create" value="หน้าไลฟ์(บางกรวย)"> หน้าไลฟ์(บางกรวย)</label>
-                                    <label><input type="checkbox" class="wh-chk-create" value="คลังอะไหล่"> คลังอะไหล่</label>
-                                </div>
+                                <div class="cc-wh-checks" id="whPickPanel" aria-live="polite"></div>
                                 <p class="cc-note" id="whPickHint">เลือกได้หลายคลัง เช่น ตึกกันตนา + หน้าไลฟ์ — ผูกผลนับเฉพาะคลังที่เลือก</p>
                             </div>
 
@@ -604,11 +609,7 @@
                             <label><input type="radio" name="editWhMode" id="editWhModePick" value="pick" checked> เลือกคลัง (หลายคลังได้)</label>
                             <label><input type="radio" name="editWhMode" id="editWhModeAll" value="all"> คลังทั้งหมด</label>
                         </div>
-                        <div class="cc-wh-checks" id="editWhPickPanel">
-                            <label><input type="checkbox" class="wh-chk-edit" value="ตึกกันตนา"> ตึกกันตนา</label>
-                            <label><input type="checkbox" class="wh-chk-edit" value="หน้าไลฟ์(บางกรวย)"> หน้าไลฟ์(บางกรวย)</label>
-                            <label><input type="checkbox" class="wh-chk-edit" value="คลังอะไหล่"> คลังอะไหล่</label>
-                        </div>
+                        <div class="cc-wh-checks" id="editWhPickPanel" aria-live="polite"></div>
                         <div class="cc-actions" style="margin-top:0.65rem;">
                             <button type="button" class="cc-btn cc-btn-primary cc-btn-sm" id="btnSaveCycleWarehouse">
                                 <i data-lucide="save"></i> บันทึกคลัง
@@ -938,10 +939,18 @@
             }
         }
         if (ws?.renderCheckboxGroup && createPanel) {
-            await ws.renderCheckboxGroup(createPanel, { nameClass: 'wh-chk-create' });
+            await ws.renderCheckboxGroup(createPanel, {
+                nameClass: 'wh-chk-create',
+                labelClass: 'cc-wh-chk-label',
+                textClass: 'cc-wh-chk-text'
+            });
         }
         if (ws?.renderCheckboxGroup && editPanel) {
-            await ws.renderCheckboxGroup(editPanel, { nameClass: 'wh-chk-edit' });
+            await ws.renderCheckboxGroup(editPanel, {
+                nameClass: 'wh-chk-edit',
+                labelClass: 'cc-wh-chk-label',
+                textClass: 'cc-wh-chk-text'
+            });
         }
     }
 

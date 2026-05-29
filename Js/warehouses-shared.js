@@ -150,11 +150,13 @@
     async function renderCheckboxGroup(containerEl, opts = {}) {
         if (!containerEl) return [];
         const className = opts.nameClass || 'wh-chk';
+        const labelClass = opts.labelClass ? ` class="${opts.labelClass}"` : '';
+        const textClass = opts.textClass ? ` class="${opts.textClass}"` : '';
         const checked = uniqueNames(opts.checked || []);
         const names = await getWarehouseList();
         containerEl.innerHTML = names.map((name, idx) => {
             const on = checked.includes(name) || (!checked.length && idx === 0);
-            return `<label><input type="checkbox" class="${className}" value="${escapeHtml(name)}"${on ? ' checked' : ''}> ${escapeHtml(name)}</label>`;
+            return `<label${labelClass}><input type="checkbox" class="${className}" value="${escapeHtml(name)}"${on ? ' checked' : ''}><span${textClass}>${escapeHtml(name)}</span></label>`;
         }).join('');
         return names;
     }

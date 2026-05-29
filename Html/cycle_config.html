@@ -54,8 +54,8 @@
         @media (max-width: 768px) { .cc-form-row { grid-template-columns: 1fr; } }
 
         .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; }
-        .cc-field label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.35rem; letter-spacing: 0.02em; }
-        .cc-field label .req { color: #f87171; margin-left: 0.15rem; }
+        .cc-field > label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.35rem; letter-spacing: 0.02em; }
+        .cc-field > label .req { color: #f87171; margin-left: 0.15rem; }
         .cc-field input, .cc-field select {
             width: 100%; padding: 0.55rem 0.75rem; border-radius: 8px;
             border: 1px solid var(--input-border); background: var(--input-bg);
@@ -124,20 +124,30 @@
         }
         .cc-wh-modes label {
             display: inline-flex; align-items: center; gap: 0.4rem;
+            flex: 0 0 auto; white-space: nowrap;
             cursor: pointer; color: var(--text);
+            margin: 0;
         }
         .cc-wh-modes input { accent-color: #3b82f6; }
         .cc-wh-checks {
-            display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem;
+            display: flex; flex-wrap: wrap; gap: 0.55rem 0.75rem;
+            align-items: center;
             padding: 0.75rem 0.9rem; border-radius: 10px;
             border: 1px solid rgba(59,130,246,0.25);
             background: rgba(59,130,246,0.05);
         }
         .cc-wh-checks.disabled { opacity: 0.45; pointer-events: none; }
         .cc-wh-checks label {
-            display: inline-flex; align-items: center; gap: 0.35rem;
-            font-size: 0.84rem; cursor: pointer; padding: 0.25rem 0.5rem;
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            flex: 0 0 auto; min-width: max-content;
+            white-space: nowrap;
+            font-size: 0.84rem; line-height: 1.35;
+            color: var(--text); cursor: pointer;
+            margin: 0; padding: 0.35rem 0.65rem;
             border-radius: 8px; border: 1px solid transparent;
+        }
+        .cc-wh-checks label input[type="checkbox"] {
+            flex-shrink: 0; margin: 0;
         }
         .cc-wh-checks label:has(input:checked) {
             border-color: rgba(59,130,246,0.45);

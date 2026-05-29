@@ -594,6 +594,27 @@
         }
     }
 
+    /** กันซ้ำจาก offset pagination เมื่อ created_at เท่ากันหลายแถว */
+    function dedupeRowsById(rows) {
+        const seen = new Set();
+        const unique = [];
+        let dedupedCount = 0;
+        (rows || []).forEach(function (row) {
+            const key = row?.id;
+            if (!key) {
+                unique.push(row);
+                return;
+            }
+            if (seen.has(key)) {
+                dedupedCount += 1;
+                return;
+            }
+            seen.add(key);
+            unique.push(row);
+        });
+        return { rows: unique, dedupedCount: dedupedCount };
+    }
+
     async function fetchAllRowsInRange(filters, onProgress) {
         const client = window.apiService.getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
@@ -636,15 +657,20 @@
 
             let q = client.from('inventory_counts').select('id, sku_id, location, warehouse, counted_qty, counter_name, created_at, cycle_id');
             q = applyDbFilters(q, filters);
-            q = q.order('created_at', { ascending: false }).range(from, from + PAGE_SIZE - 1);
+            q = q
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: false })
+                .range(from, from + PAGE_SIZE - 1);
             const res = await q;
             if (res.error) {
+                const partial = dedupeRowsById(all);
                 return {
-                    rows: all,
+                    rows: partial.rows,
                     expectedCount,
-                    fetchedCount: all.length,
+                    fetchedCount: partial.rows.length,
                     batches: batch,
                     complete: false,
+                    dedupedCount: partial.dedupedCount,
                     reason: 'ดึงข้อมูลไม่สำเร็จที่ชุดที่ ' + batch + ': ' + res.error.message
                 };
             }
@@ -661,37 +687,52 @@
 
             if (chunk.length < PAGE_SIZE) break;
             if (batch >= MAX_BATCHES) {
+                const capped = dedupeRowsById(all);
                 return {
-                    rows: all,
+                    rows: capped.rows,
                     expectedCount,
-                    fetchedCount: all.length,
+                    fetchedCount: capped.rows.length,
                     batches: batch,
                     complete: false,
+                    dedupedCount: capped.dedupedCount,
                     reason: 'ถึงขีดจำกัดสูงสุด ' + (MAX_BATCHES * PAGE_SIZE).toLocaleString() + ' แถว — กรุณาจำกัดช่วงเวลาให้แคบลง'
                 };
             }
             from += PAGE_SIZE;
         }
 
-        if (all.length !== expectedCount) {
+        const deduped = dedupeRowsById(all);
+        const uniqueRows = deduped.rows;
+        const dedupedCount = deduped.dedupedCount;
+
+        if (uniqueRows.length !== expectedCount) {
             return {
-                rows: all,
+                rows: uniqueRows,
                 expectedCount,
-                fetchedCount: all.length,
+                fetchedCount: uniqueRows.length,
                 batches: batch,
                 complete: false,
-                reason: 'ดึงข้อมูลไม่ครบ — ได้ ' + all.length.toLocaleString() + ' จาก ' + expectedCount.toLocaleString() + ' แถว (ข้อมูลอาจเปลี่ยนระหว่างดึง หรือเซิร์ฟเวอร์ตอบไม่ครบ)'
+                dedupedCount: dedupedCount,
+                reason: 'ดึงข้อมูลไม่ครบ — ได้ ' + uniqueRows.length.toLocaleString() + ' จาก ' + expectedCount.toLocaleString() + ' แถว (ข้อมูลอาจเปลี่ยนระหว่างดึง หรือเซิร์ฟเวอร์ตอบไม่ครบ)'
             };
         }
 
         onProgress?.({
             phase: 'done',
-            status: 'ดึงครบแล้ว ' + all.length.toLocaleString() + ' แถว',
-            fetched: all.length,
+            status: 'ดึงครบแล้ว ' + uniqueRows.length.toLocaleString() + ' แถว',
+            fetched: uniqueRows.length,
             expected: expectedCount,
             batch
         });
-        return { rows: all, expectedCount, fetchedCount: all.length, batches: batch, complete: true, reason: null };
+        return {
+            rows: uniqueRows,
+            expectedCount,
+            fetchedCount: uniqueRows.length,
+            batches: batch,
+            complete: true,
+            dedupedCount: dedupedCount,
+            reason: null
+        };
     }
 
     async function runSearch() {
@@ -713,11 +754,15 @@
                 complete: result.complete,
                 fetchedCount: result.fetchedCount,
                 expectedCount: result.expectedCount,
-                batches: result.batches
+                batches: result.batches,
+                dedupedCount: result.dedupedCount || 0
             };
             fetchOk = true;
 
             if (!result.complete && result.reason) showToast(result.reason, 'error');
+            if (result.dedupedCount > 0) {
+                showToast('พบแถวซ้ำจากการดึง ' + result.dedupedCount.toLocaleString() + ' แถว — แสดงเฉพาะรายการไม่ซ้ำแล้ว', 'error');
+            }
             if (result.complete && rowsRawCache.length) {
                 showToast('ดึงข้อมูลครบ ' + result.fetchedCount.toLocaleString() + ' แถว (' + result.batches + ' ชุด)');
             }

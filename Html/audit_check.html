@@ -1464,7 +1464,8 @@
                 let query = supabaseClient
                     .from('inventory_counts')
                     .select('created_at')
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .order('id', { ascending: false });
 
                 if (warehouse) query = query.eq('warehouse', warehouse);
 
@@ -1610,6 +1611,27 @@
             updateAuditScopeHint();
         }
 
+        /** กันซ้ำจาก offset pagination เมื่อ created_at เท่ากันหลายแถว */
+        function dedupeRowsById(rows) {
+            const seen = new Set();
+            const unique = [];
+            let dedupedCount = 0;
+            (rows || []).forEach(row => {
+                const key = row?.id;
+                if (!key) {
+                    unique.push(row);
+                    return;
+                }
+                if (seen.has(key)) {
+                    dedupedCount += 1;
+                    return;
+                }
+                seen.add(key);
+                unique.push(row);
+            });
+            return { rows: unique, dedupedCount };
+        }
+
         /** ดึง inventory_counts ตามตัวกรองคลัง/เดือน (หลายรอบ ละ 1000) */
         async function fetchAllInventoryCounts(selectCols, filters) {
             const f = filters || getAuditFilters();
@@ -1624,7 +1646,8 @@
                 let query = supabaseClient
                     .from('inventory_counts')
                     .select(selectCols)
-                    .order('created_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .order('id', { ascending: false });
 
                 if (f.warehouse) query = query.eq('warehouse', f.warehouse);
                 if (bounds.start && bounds.end) {
@@ -1639,7 +1662,8 @@
                 from += PAGE;
             }
 
-            return { rows: allRows, rounds, filters: f };
+            const deduped = dedupeRowsById(allRows);
+            return { rows: deduped.rows, rounds, filters: f, dedupedCount: deduped.dedupedCount };
         }
 
         function collectZonesFromTable() {
@@ -2038,10 +2062,17 @@
             refBySku.clear();
 
             try {
-                const { rows: allRows, rounds } = await fetchAllInventoryCounts(
+                const { rows: allRows, rounds, dedupedCount } = await fetchAllInventoryCounts(
                     'id, sku_id, location, counted_qty, warehouse, counter_name, created_at',
                     filters
                 );
+
+                if (dedupedCount > 0) {
+                    showToast(
+                        `พบแถวซ้ำจากการดึง ${dedupedCount.toLocaleString()} แถว — แสดงเฉพาะรายการไม่ซ้ำแล้ว`,
+                        'error'
+                    );
+                }
 
                 setLoadingMessage('กำลังประมวลผลข้อมูลอ้างอิง...', `${allRows.length.toLocaleString()} แถว (${rounds} รอบ)`);
 
@@ -3450,10 +3481,16 @@
                     showToast(`Excel มี SKU ซ้ำตำแหน่งต่างกัน ${excelConflicts.length} รายการ — แก้ไฟล์ก่อน`, 'error');
                     return;
                 }
-                const { rows } = await fetchAllInventoryCounts(
+                const { rows, dedupedCount } = await fetchAllInventoryCounts(
                     'id, sku_id, location, warehouse',
                     filters
                 );
+                if (dedupedCount > 0) {
+                    showToast(
+                        `พบแถวซ้ำจากการดึง ${dedupedCount.toLocaleString()} แถว — แสดงเฉพาะรายการไม่ซ้ำแล้ว`,
+                        'error'
+                    );
+                }
                 setLoadingMessage('กำลังวิเคราะห์ความต่าง...', `${rows.length.toLocaleString()} แถวในระบบ`);
                 await yieldToBrowser();
 
@@ -3735,10 +3772,17 @@
 
             try {
                 const filters = getAuditFilters();
-                const { rows } = await fetchAllInventoryCounts(
+                const { rows, dedupedCount } = await fetchAllInventoryCounts(
                     'id, sku_id, location, warehouse, counted_qty, created_at',
                     filters
                 );
+
+                if (dedupedCount > 0) {
+                    showToast(
+                        `พบแถวซ้ำจากการดึง ${dedupedCount.toLocaleString()} แถว — แสดงเฉพาะรายการไม่ซ้ำแล้ว`,
+                        'error'
+                    );
+                }
 
                 const groups = new Map();
                 rows.forEach(r => {
@@ -3834,11 +3878,17 @@
 
             try {
                 const filters = getAuditFilters();
-                const { rows } = await fetchAllInventoryCounts(
+                const { rows, dedupedCount } = await fetchAllInventoryCounts(
                     'id, sku_id, location, counted_qty, warehouse, created_at',
                     filters
                 );
                 const scope = formatAuditScopeLabel(filters);
+                if (!silent && dedupedCount > 0) {
+                    showToast(
+                        `พบแถวซ้ำจากการดึง ${dedupedCount.toLocaleString()} แถว — แสดงเฉพาะรายการไม่ซ้ำแล้ว`,
+                        'error'
+                    );
+                }
                 if (!silent) setLoadingMessage('กำลังใส่รายการลงตาราง...', `${rows.length.toLocaleString()} แถว · ${scope}`);
                 await yieldToBrowser();
 

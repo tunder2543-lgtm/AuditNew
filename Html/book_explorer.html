@@ -43,7 +43,7 @@
         .be-conn.offline { color: #fca5a5; background: rgba(239,68,68,0.13); border-color: rgba(248,113,113,0.35); }
 
         .be-filter-wrap { padding: 0.95rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.02); position: sticky; top: 0; z-index: 3; }
-        .be-filter-grid { display: grid; grid-template-columns: repeat(6, minmax(140px, 1fr)); gap: 0.7rem; }
+        .be-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 0.7rem; }
         .be-field { display: flex; flex-direction: column; gap: 0.28rem; }
         .be-field label { font-size: 0.73rem; color: var(--text-muted); }
         .be-field input, .be-field select {
@@ -56,7 +56,7 @@
             flex-wrap: nowrap;
             gap: 0.5rem;
             align-items: center;
-            grid-column: span 2;
+            grid-column: 1 / -1;
         }
         .be-btn {
             border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
@@ -101,12 +101,11 @@
         @media (max-width: 860px) {
             .be-filter-grid { grid-template-columns: 1fr 1fr; }
             .be-kpis { grid-template-columns: 1fr 1fr; }
-            .be-actions { grid-column: 1 / -1; flex-wrap: wrap; }
+            .be-actions { flex-wrap: wrap; }
         }
         @media (max-width: 560px) {
             .be-filter-grid { grid-template-columns: 1fr; }
             .be-kpis { grid-template-columns: 1fr; }
-            .be-actions { grid-column: auto; }
         }
     </style>
 </head>
@@ -120,7 +119,7 @@
                         <div class="be-head">
                             <div>
                                 <h1>Book Explorer</h1>
-                                <p>ดูรายการ BOOK แบบอ่านอย่างเดียว พร้อมฟิลเตอร์คลัง/วันที่/สถานะ</p>
+                                <p>ดูรายการ BOOK แบบอ่านอย่างเดียว พร้อมฟิลเตอร์คลัง/ปี-เดือน/รอบ/สถานะ</p>
                             </div>
                             <div id="connBadge" class="be-conn">เชื่อมต่อแล้ว</div>
                         </div>
@@ -146,19 +145,29 @@
                                     <input id="searchInput" type="text" placeholder="เช่น ABC123, A01, ชื่อสินค้า">
                                 </div>
                                 <div class="be-field">
-                                    <label for="dateStart">วันที่เริ่ม (created_at)</label>
-                                    <input id="dateStart" type="date">
+                                    <label for="filterYear">ปี (Book)</label>
+                                    <select id="filterYear">
+                                        <option value="">— กำลังโหลด —</option>
+                                    </select>
                                 </div>
                                 <div class="be-field">
-                                    <label for="dateEnd">วันที่สิ้นสุด (created_at)</label>
-                                    <input id="dateEnd" type="date">
+                                    <label for="filterMonth">เดือน</label>
+                                    <select id="filterMonth" disabled>
+                                        <option value="">เลือกปีก่อน</option>
+                                    </select>
+                                </div>
+                                <div class="be-field">
+                                    <label for="cycleFilter">รอบ</label>
+                                    <select id="cycleFilter" disabled>
+                                        <option value="">เลือกปี-เดือนก่อน</option>
+                                    </select>
                                 </div>
                                 <div class="be-field">
                                     <label for="pageSize">จำนวนต่อหน้า</label>
                                     <select id="pageSize">
-                                        <option value="50">50</option>
-                                        <option value="100" selected>100</option>
-                                        <option value="200">200</option>
+                                        <option value="500">500</option>
+                                        <option value="1000" selected>1000</option>
+                                        <option value="all">ทั้งหมด</option>
                                     </select>
                                 </div>
                                 <div class="be-actions">
@@ -214,6 +223,7 @@
     </div>
 
     <script src="../Js/api.js"></script>
+    <script src="../Js/reconcile-shared.js"></script>
     <script src="../Js/sidebar-shared.js"></script>
     <script>
         (function () {
@@ -222,11 +232,13 @@
                 rows: [],
                 total: 0,
                 page: 1,
-                pageSize: 100,
+                pageSize: 1000,
+                fetchAll: false,
                 sortBy: 'created_at',
                 sortAsc: false,
                 loading: false,
                 cycles: [],
+                cyclesWithBook: [],
                 cycleById: new Map(),
                 cycleIdsByWarehouse: new Map(),
                 debounceTimer: null
@@ -238,8 +250,9 @@
                 warehouseFilter: document.getElementById('warehouseFilter'),
                 statusFilter: document.getElementById('statusFilter'),
                 searchInput: document.getElementById('searchInput'),
-                dateStart: document.getElementById('dateStart'),
-                dateEnd: document.getElementById('dateEnd'),
+                filterYear: document.getElementById('filterYear'),
+                filterMonth: document.getElementById('filterMonth'),
+                cycleFilter: document.getElementById('cycleFilter'),
                 pageSize: document.getElementById('pageSize'),
                 btnApply: document.getElementById('btnApply'),
                 btnReset: document.getElementById('btnReset'),
@@ -282,31 +295,148 @@
                 });
             }
 
-            function formatCycleDate(iso) {
-                if (!iso) return '';
-                const d = new Date(iso);
-                if (Number.isNaN(d.getTime())) return '';
-                return d.toLocaleDateString('th-TH', {
-                    day: 'numeric',
-                    month: 'short'
+            function formatCycleName(cycle) {
+                if (!cycle) return '-';
+                const label = String(cycle.label || '').trim();
+                if (label) return label;
+                const RS = window.reconcileService;
+                if (RS?.formatWarehouseDisplay) {
+                    return RS.formatWarehouseDisplay(cycle);
+                }
+                return String(cycle.warehouse || cycle.year_month || cycle.id || '-').trim();
+            }
+
+            function formatCycleOptionLabel(cycle) {
+                const name = formatCycleName(cycle);
+                const RS = window.reconcileService;
+                const status = RS?.statusLabel
+                    ? RS.statusLabel(cycle.status)
+                    : String(cycle.status || '').trim();
+                return status ? `${name} [${status}]` : name;
+            }
+
+            const THAI_MONTHS = [
+                '', 'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+            ];
+
+            function parseYearMonth(ym) {
+                const m = String(ym || '').trim().match(/^(\d{4})-(\d{2})$/);
+                if (!m) return null;
+                return { year: m[1], month: m[2], yearMonth: `${m[1]}-${m[2]}` };
+            }
+
+            function getSelectedYearMonth() {
+                const year = el.filterYear.value.trim();
+                const month = el.filterMonth.value.trim();
+                if (!year || !month) return '';
+                return `${year}-${month}`;
+            }
+
+            function getCyclesForPeriod({ yearMonth, warehouse } = {}) {
+                return state.cyclesWithBook.filter(c => {
+                    if (yearMonth && c.year_month !== yearMonth) return false;
+                    if (warehouse && String(c.warehouse || '').trim() !== warehouse) return false;
+                    return true;
                 });
             }
 
-            function buildCycleOptionLabel(cycle) {
-                const wh = String(cycle?.warehouse || '').trim();
-                const ym = String(cycle?.year_month || '').trim();
-                const label = String(cycle?.label || '').trim();
-                const status = String(cycle?.status || '').trim();
-                const start = formatCycleDate(cycle?.count_start_at);
-                const end = formatCycleDate(cycle?.count_end_at);
+            function getAvailableYears() {
+                const years = new Set();
+                const wh = el.warehouseFilter.value.trim();
+                getCyclesForPeriod({ warehouse: wh || undefined }).forEach(c => {
+                    const parsed = parseYearMonth(c.year_month);
+                    if (parsed) years.add(parsed.year);
+                });
+                return [...years].sort((a, b) => b.localeCompare(a));
+            }
 
-                const namePart = label || wh || ym || String(cycle?.id || '');
-                const ymPart = ym ? ` ${ym}` : '';
-                const datePart = (start && end)
-                    ? ` ${start}–${end}`
-                    : (start ? ` ${start}` : '');
-                const statusPart = status ? ` [${status}]` : '';
-                return `${namePart}${ymPart}${datePart}${statusPart}`.trim();
+            function getAvailableMonthsForYear(year) {
+                if (!year) return [];
+                const wh = el.warehouseFilter.value.trim();
+                const months = new Set();
+                getCyclesForPeriod({ warehouse: wh || undefined }).forEach(c => {
+                    const parsed = parseYearMonth(c.year_month);
+                    if (parsed && parsed.year === year) months.add(parsed.month);
+                });
+                return [...months].sort((a, b) => b.localeCompare(a));
+            }
+
+            function refreshYearSelect(preferredYear) {
+                const years = getAvailableYears();
+                if (!years.length) {
+                    el.filterYear.innerHTML = '<option value="">ไม่มีข้อมูล Book</option>';
+                    el.filterYear.disabled = true;
+                    return;
+                }
+                el.filterYear.disabled = false;
+                const opts = ['<option value="">— เลือกปี —</option>'];
+                years.forEach(y => opts.push(`<option value="${escapeHtml(y)}">${escapeHtml(y)}</option>`));
+                el.filterYear.innerHTML = opts.join('');
+                if (preferredYear && years.includes(preferredYear)) {
+                    el.filterYear.value = preferredYear;
+                }
+            }
+
+            function refreshMonthSelect(preferredMonth) {
+                const year = el.filterYear.value.trim();
+                if (!year) {
+                    el.filterMonth.innerHTML = '<option value="">เลือกปีก่อน</option>';
+                    el.filterMonth.disabled = true;
+                    return;
+                }
+                const months = getAvailableMonthsForYear(year);
+                if (!months.length) {
+                    el.filterMonth.innerHTML = '<option value="">ไม่มีข้อมูลในปีนี้</option>';
+                    el.filterMonth.disabled = true;
+                    return;
+                }
+                el.filterMonth.disabled = false;
+                const opts = ['<option value="">— เลือกเดือน —</option>'];
+                months.forEach(m => {
+                    const n = Number(m);
+                    const label = THAI_MONTHS[n] ? `${THAI_MONTHS[n]} (${m})` : m;
+                    opts.push(`<option value="${escapeHtml(m)}">${escapeHtml(label)}</option>`);
+                });
+                el.filterMonth.innerHTML = opts.join('');
+                if (preferredMonth && months.includes(preferredMonth)) {
+                    el.filterMonth.value = preferredMonth;
+                }
+            }
+
+            function refreshCycleSelect(preferredCycleId) {
+                const yearMonth = getSelectedYearMonth();
+                if (!yearMonth) {
+                    el.cycleFilter.innerHTML = '<option value="">เลือกปี-เดือนก่อน</option>';
+                    el.cycleFilter.disabled = true;
+                    return;
+                }
+                const wh = el.warehouseFilter.value.trim();
+                const cycles = getCyclesForPeriod({ yearMonth, warehouse: wh || undefined })
+                    .slice()
+                    .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+                if (!cycles.length) {
+                    el.cycleFilter.innerHTML = '<option value="">ไม่มีรอบในช่วงนี้</option>';
+                    el.cycleFilter.disabled = true;
+                    return;
+                }
+
+                el.cycleFilter.disabled = false;
+                const opts = ['<option value="">ทุกรอบในช่วงนี้</option>'];
+                cycles.forEach(c => {
+                    opts.push(`<option value="${escapeHtml(c.id)}">${escapeHtml(formatCycleOptionLabel(c))}</option>`);
+                });
+                el.cycleFilter.innerHTML = opts.join('');
+                if (preferredCycleId && cycles.some(c => String(c.id) === String(preferredCycleId))) {
+                    el.cycleFilter.value = preferredCycleId;
+                }
+            }
+
+            function refreshPeriodFilters(preferred = {}) {
+                refreshYearSelect(preferred.year || el.filterYear.value);
+                refreshMonthSelect(preferred.month || el.filterMonth.value);
+                refreshCycleSelect(preferred.cycleId || el.cycleFilter.value);
             }
 
             function escapeHtml(s) {
@@ -315,38 +445,6 @@
                     .replace(/</g, '&lt;')
                     .replace(/>/g, '&gt;')
                     .replace(/"/g, '&quot;');
-            }
-
-            function toDateRange() {
-                const startDate = el.dateStart.value || '';
-                const endDate = el.dateEnd.value || '';
-                const nextDate = endDate ? new Date(`${endDate}T00:00:00`) : null;
-                if (nextDate) nextDate.setDate(nextDate.getDate() + 1);
-
-                const toOffsetIso = (dateText, useNextDay) => {
-                    if (!dateText) return '';
-                    const d = useNextDay
-                        ? nextDate
-                        : new Date(`${dateText}T00:00:00`);
-                    if (!d || Number.isNaN(d.getTime())) return '';
-                    const pad = (n) => String(Math.abs(n)).padStart(2, '0');
-                    const y = d.getFullYear();
-                    const m = String(d.getMonth() + 1).padStart(2, '0');
-                    const day = String(d.getDate()).padStart(2, '0');
-                    const hh = String(d.getHours()).padStart(2, '0');
-                    const mm = String(d.getMinutes()).padStart(2, '0');
-                    const ss = String(d.getSeconds()).padStart(2, '0');
-                    const offsetMin = -d.getTimezoneOffset();
-                    const sign = offsetMin >= 0 ? '+' : '-';
-                    const offH = pad(Math.floor(Math.abs(offsetMin) / 60));
-                    const offM = pad(Math.abs(offsetMin) % 60);
-                    return `${y}-${m}-${day}T${hh}:${mm}:${ss}${sign}${offH}:${offM}`;
-                };
-
-                return {
-                    start: toOffsetIso(startDate, false),
-                    endExclusive: toOffsetIso(endDate, true)
-                };
             }
 
             function escapedLike(value) {
@@ -358,7 +456,12 @@
                 if (el.warehouseFilter.value) items.push(`คลัง=${el.warehouseFilter.value}`);
                 if (el.statusFilter.value && el.statusFilter.value !== 'all') items.push(`สถานะ=${el.statusFilter.value}`);
                 if (el.searchInput.value.trim()) items.push(`ค้นหา="${el.searchInput.value.trim()}"`);
-                if (el.dateStart.value || el.dateEnd.value) items.push(`วันที่=${el.dateStart.value || '-'} ถึง ${el.dateEnd.value || '-'}`);
+                const ym = getSelectedYearMonth();
+                if (ym) items.push(`ช่วง=${ym}`);
+                if (el.cycleFilter.value) {
+                    const cycle = state.cycleById.get(el.cycleFilter.value);
+                    items.push(`รอบ=${formatCycleName(cycle)}`);
+                }
                 return items.length ? items.join(' | ') : 'ไม่มีเงื่อนไข';
             }
 
@@ -371,6 +474,7 @@
                 const { data, error } = await state.client
                     .from('count_cycles')
                     .select('id, warehouse, year_month, label, status, count_start_at, count_end_at, book_imported_at, created_at')
+                    .order('year_month', { ascending: false })
                     .order('created_at', { ascending: false })
                     .limit(500);
                 if (error) throw error;
@@ -386,28 +490,80 @@
                     state.cycleIdsByWarehouse.get(wh).push(c.id);
                 });
 
+                const withBookFlag = state.cycles.filter(c => c.book_imported_at);
+                if (withBookFlag.length) {
+                    state.cyclesWithBook = withBookFlag;
+                } else {
+                    const bookCycleIds = await fetchCycleIdsWithBookLines();
+                    state.cyclesWithBook = state.cycles.filter(c => bookCycleIds.has(String(c.id)));
+                }
+
                 const whList = [...state.cycleIdsByWarehouse.keys()].sort((a, b) => a.localeCompare(b, 'th'));
                 const whOpts = ['<option value="">ทุกคลัง</option>'];
                 whList.forEach(wh => whOpts.push(`<option value="${escapeHtml(wh)}">${escapeHtml(wh)}</option>`));
                 el.warehouseFilter.innerHTML = whOpts.join('');
+
+                const latestYm = state.cyclesWithBook
+                    .map(c => c.year_month)
+                    .filter(Boolean)
+                    .sort()
+                    .reverse()[0];
+                const parsed = parseYearMonth(latestYm);
+                refreshPeriodFilters({
+                    year: parsed?.year || '',
+                    month: parsed?.month || ''
+                });
+            }
+
+            async function fetchCycleIdsWithBookLines() {
+                const ids = new Set();
+                let from = 0;
+                const PAGE = 1000;
+                while (true) {
+                    const { data, error } = await state.client
+                        .from('book_stock_lines')
+                        .select('cycle_id')
+                        .order('cycle_id', { ascending: true })
+                        .range(from, from + PAGE - 1);
+                    if (error) throw error;
+                    const batch = data || [];
+                    batch.forEach(row => {
+                        if (row.cycle_id) ids.add(String(row.cycle_id));
+                    });
+                    if (batch.length < PAGE) break;
+                    from += PAGE;
+                }
+                return ids;
+            }
+
+            function getFilteredCycleIds() {
+                const cycleId = el.cycleFilter.value.trim();
+                if (cycleId) return [cycleId];
+
+                const yearMonth = getSelectedYearMonth();
+                if (yearMonth) {
+                    const wh = el.warehouseFilter.value.trim();
+                    const ids = getCyclesForPeriod({ yearMonth, warehouse: wh || undefined }).map(c => c.id);
+                    return ids;
+                }
+
+                const wh = el.warehouseFilter.value.trim();
+                if (wh) return state.cycleIdsByWarehouse.get(wh) || [];
+                return null;
             }
 
             function applyBaseFilters(query) {
-                const wh = el.warehouseFilter.value;
                 const status = el.statusFilter.value;
                 const search = el.searchInput.value.trim();
-                const { start, endExclusive } = toDateRange();
+                const cycleIds = getFilteredCycleIds();
 
-                if (wh) {
-                    const ids = state.cycleIdsByWarehouse.get(wh) || [];
-                    if (!ids.length) return { query, noResult: true };
-                    query = query.in('cycle_id', ids);
+                if (Array.isArray(cycleIds)) {
+                    if (!cycleIds.length) return { query, noResult: true };
+                    query = query.in('cycle_id', cycleIds);
                 }
 
                 if (status === 'positive') query = query.gt('book_qty', 0);
                 if (status === 'zero') query = query.eq('book_qty', 0);
-                if (start) query = query.gte('created_at', start);
-                if (endExclusive) query = query.lt('created_at', endExclusive);
                 if (search) {
                     const q = escapedLike(search);
                     query = query.or(`sku_id.ilike.%${q}%,location.ilike.%${q}%,name_pro.ilike.%${q}%`);
@@ -425,13 +581,16 @@
                 showError('');
                 showWarn(`ฟิลเตอร์ปัจจุบัน: ${buildFilterSummary()}`);
 
-                if (el.dateStart.value && el.dateEnd.value && el.dateStart.value > el.dateEnd.value) {
-                    showWarn('ช่วงวันที่ไม่ถูกต้อง: วันที่เริ่มมากกว่าวันที่สิ้นสุด');
+                if (!getSelectedYearMonth()) {
+                    showWarn('กรุณาเลือกปีและเดือนที่มีข้อมูล Book');
                     state.rows = [];
                     state.total = 0;
                     renderAll();
                     return;
                 }
+
+                state.fetchAll = el.pageSize.value === 'all';
+                state.pageSize = state.fetchAll ? 1000 : (Number(el.pageSize.value) || 1000);
 
                 setLoading(true);
                 try {
@@ -449,13 +608,30 @@
                     }
                     query = applySort(filtered.query);
 
-                    const from = (state.page - 1) * state.pageSize;
-                    const to = from + state.pageSize - 1;
-                    const { data, count, error } = await query.range(from, to);
-                    if (error) throw error;
-
-                    state.rows = data || [];
-                    state.total = Number(count) || 0;
+                    if (state.fetchAll) {
+                        const allRows = [];
+                        let from = 0;
+                        let total = 0;
+                        while (true) {
+                            const { data, count, error } = await query.range(from, from + state.pageSize - 1);
+                            if (error) throw error;
+                            const batch = data || [];
+                            total = Number(count) || 0;
+                            allRows.push(...batch);
+                            if (batch.length < state.pageSize) break;
+                            from += state.pageSize;
+                        }
+                        state.rows = allRows;
+                        state.total = total;
+                        state.page = 1;
+                    } else {
+                        const from = (state.page - 1) * state.pageSize;
+                        const to = from + state.pageSize - 1;
+                        const { data, count, error } = await query.range(from, to);
+                        if (error) throw error;
+                        state.rows = data || [];
+                        state.total = Number(count) || 0;
+                    }
                     renderAll();
                 } catch (err) {
                     state.rows = [];
@@ -492,11 +668,12 @@
                 const startNo = (state.page - 1) * state.pageSize;
                 el.tableBody.innerHTML = state.rows.map((r, idx) => {
                     const cycle = state.cycleById.get(r.cycle_id) || null;
-                    const cycleLabel = cycle ? (cycle.label || `${cycle.warehouse} · ${cycle.year_month}`) : r.cycle_id;
+                    const cycleLabel = cycle ? formatCycleName(cycle) : (r.cycle_id || '-');
                     const warehouse = cycle?.warehouse || '-';
+                    const rowNo = state.fetchAll ? idx + 1 : (startNo + idx + 1);
                     return `
                         <tr>
-                            <td>${(startNo + idx + 1).toLocaleString()}</td>
+                            <td>${rowNo.toLocaleString()}</td>
                             <td class="mono">${escapeHtml(r.sku_id || '-')}</td>
                             <td>${escapeHtml(r.name_pro || '-')}</td>
                             <td class="mono">${escapeHtml(r.location || '-')}</td>
@@ -510,6 +687,14 @@
             }
 
             function renderPager() {
+                if (state.fetchAll) {
+                    el.pagerInfo.textContent = `แสดงทั้งหมด ${state.total.toLocaleString()} รายการ`;
+                    el.pageNo.textContent = 'ทั้งหมด';
+                    el.btnPrev.disabled = true;
+                    el.btnNext.disabled = true;
+                    return;
+                }
+
                 const totalPages = Math.max(1, Math.ceil(state.total / state.pageSize));
                 if (state.page > totalPages) state.page = totalPages;
                 const from = state.total === 0 ? 0 : (state.page - 1) * state.pageSize + 1;
@@ -530,19 +715,52 @@
                 el.warehouseFilter.value = '';
                 el.statusFilter.value = 'all';
                 el.searchInput.value = '';
-                el.dateStart.value = '';
-                el.dateEnd.value = '';
-                el.pageSize.value = '100';
-                state.pageSize = 100;
+                el.pageSize.value = '1000';
+                state.pageSize = 1000;
+                state.fetchAll = false;
                 state.page = 1;
                 showWarn('');
                 showError('');
+
+                const latestYm = state.cyclesWithBook
+                    .map(c => c.year_month)
+                    .filter(Boolean)
+                    .sort()
+                    .reverse()[0];
+                const parsed = parseYearMonth(latestYm);
+                el.cycleFilter.value = '';
+                refreshPeriodFilters({
+                    year: parsed?.year || '',
+                    month: parsed?.month || '',
+                    cycleId: ''
+                });
             }
 
             function onFilterChanged() {
                 state.page = 1;
-                state.pageSize = Number(el.pageSize.value) || 100;
+                state.fetchAll = el.pageSize.value === 'all';
+                state.pageSize = state.fetchAll ? 1000 : (Number(el.pageSize.value) || 1000);
                 fetchRows();
+            }
+
+            function onWarehouseChanged() {
+                const year = el.filterYear.value;
+                const month = el.filterMonth.value;
+                const cycleId = el.cycleFilter.value;
+                refreshPeriodFilters({ year, month, cycleId });
+                onFilterChanged();
+            }
+
+            function onYearChanged() {
+                el.filterMonth.value = '';
+                el.cycleFilter.value = '';
+                refreshMonthSelect('');
+                refreshCycleSelect('');
+            }
+
+            function onMonthChanged() {
+                el.cycleFilter.value = '';
+                refreshCycleSelect('');
             }
 
             function wireEvents() {
@@ -554,29 +772,17 @@
                 });
 
                 el.pageSize.addEventListener('change', onFilterChanged);
-                el.warehouseFilter.addEventListener('change', onFilterChanged);
+                el.warehouseFilter.addEventListener('change', onWarehouseChanged);
                 el.statusFilter.addEventListener('change', onFilterChanged);
-                el.dateStart.addEventListener('change', onFilterChanged);
-                el.dateEnd.addEventListener('change', onFilterChanged);
-                el.dateStart.addEventListener('change', () => {
-                    el.dateEnd.min = el.dateStart.value || '';
+                el.filterYear.addEventListener('change', () => {
+                    onYearChanged();
+                    onFilterChanged();
                 });
-                el.dateEnd.addEventListener('change', () => {
-                    el.dateStart.max = el.dateEnd.value || '';
+                el.filterMonth.addEventListener('change', () => {
+                    onMonthChanged();
+                    onFilterChanged();
                 });
-                // Fallback บางเครื่องคลิกแล้วปฏิทินไม่เด้ง: บังคับเรียก native picker
-                [el.dateStart, el.dateEnd].forEach((dateEl) => {
-                    if (!dateEl) return;
-                    const openNativePicker = () => {
-                        try {
-                            if (typeof dateEl.showPicker === 'function') dateEl.showPicker();
-                        } catch (_) {
-                            // ignore: บาง browser ไม่รองรับหรือบล็อกตาม policy
-                        }
-                    };
-                    dateEl.addEventListener('click', openNativePicker);
-                    dateEl.addEventListener('focus', openNativePicker);
-                });
+                el.cycleFilter.addEventListener('change', onFilterChanged);
 
                 el.searchInput.addEventListener('input', () => {
                     if (state.debounceTimer) clearTimeout(state.debounceTimer);

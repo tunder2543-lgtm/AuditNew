@@ -1192,12 +1192,27 @@
             return (s || '').toString().trim().toUpperCase();
         }
 
-        function refEntryKey(sku, loc, warehouse) {
-            return norm(sku) + '|' + norm(loc) + '|' + norm(warehouse || '');
+        function refEntryKey(sku, loc, warehouse, qty) {
+            const q = qty === undefined || qty === null || qty === ''
+                ? ''
+                : String(Number(qty));
+            return norm(sku) + '|' + norm(loc) + '|' + norm(warehouse || '') + '|' + q;
         }
 
-        function skuLocKey(sku, loc) {
-            return refEntryKey(sku, loc, getAuditFilters().warehouse);
+        function findRefEntriesBySkuLocQty(skuN, locN, qty) {
+            const matches = [];
+            for (const entry of refBySkuLoc.values()) {
+                if (norm(entry.sku_id) === skuN
+                    && norm(entry.location) === locN
+                    && Number(entry.counted_qty) === qty) {
+                    matches.push(entry);
+                }
+            }
+            return matches;
+        }
+
+        function skuLocKey(sku, loc, qty) {
+            return refEntryKey(sku, loc, getAuditFilters().warehouse, qty);
         }
 
         function getScopedRefEntriesForSku(skuN) {
@@ -1891,8 +1906,8 @@
         }
 
         function mergeRefEntry(map, sku, loc, row) {
-            const key = refEntryKey(sku, loc, row.warehouse);
             const qty = Number(row.counted_qty) || 0;
+            const key = refEntryKey(sku, loc, row.warehouse, qty);
             const created = row.created_at || '';
             const rowId = row.id != null ? String(row.id) : null;
             const existing = map.get(key);
@@ -1942,14 +1957,18 @@
         }
 
         /**
-         * ตรวจว่าปลายทาง (sku + ตำแหน่ง + คลัง) มีแถวอื่นใน inventory_counts แล้วหรือไม่
+         * ตรวจว่าปลายทาง (sku + ตำแหน่ง + คลัง + จำนวน) มีแถวอื่นใน inventory_counts แล้วหรือไม่
          * @param {Iterable<string>} excludeRecordIds แถวที่ไม่นับเป็นชน (เช่น ทั้งชุดที่กำลังย้ายพร้อมกัน)
          */
-        function getDestinationCollision(sku, loc, warehouse, excludeRecordIds) {
+        function getDestinationCollision(sku, loc, warehouse, qty, excludeRecordIds) {
             const skuN = norm(sku);
             const locN = norm(loc);
+            const qtyN = qty === undefined || qty === null || qty === '' ? NaN : Number(qty);
             if (!skuN || !locN) {
                 return { blocked: true, message: 'SKU หรือตำแหน่งปลายทางว่าง' };
+            }
+            if (Number.isNaN(qtyN)) {
+                return { blocked: true, message: 'จำนวนปลายทางไม่ถูกต้อง' };
             }
 
             const exclude = new Set();
@@ -1961,13 +1980,9 @@
             let entry = null;
 
             if (wh) {
-                entry = refBySkuLoc.get(refEntryKey(skuN, locN, wh)) || null;
+                entry = refBySkuLoc.get(refEntryKey(skuN, locN, wh, qtyN)) || null;
             } else {
-                const matches = [];
-                const prefix = skuN + '|' + locN + '|';
-                for (const [k, e] of refBySkuLoc) {
-                    if (k.startsWith(prefix)) matches.push(e);
-                }
+                const matches = findRefEntriesBySkuLocQty(skuN, locN, qtyN);
                 if (matches.length === 0) {
                     entry = null;
                 } else if (matches.length === 1) {
@@ -1975,7 +1990,7 @@
                 } else {
                     return {
                         blocked: true,
-                        message: 'SKU+ตำแหน่งปลายทางมีในหลายคลัง — เลือกคลังในตัวกรองก่อนบันทึก'
+                        message: 'SKU+ตำแหน่ง+จำนวนปลายทางมีในหลายคลัง — เลือกคลังในตัวกรองก่อนบันทึก'
                     };
                 }
             }
@@ -1988,8 +2003,26 @@
             const n = entry.record_count || others.length;
             return {
                 blocked: true,
-                message: `ปลายทางซ้ำในระบบ (มี ${n} แถวที่ SKU+ตำแหน่ง+คลังเดียวกันอยู่แล้ว)`
+                message: `ปลายทางซ้ำในระบบ (มี ${n} แถวที่ SKU+ตำแหน่ง+คลัง+จำนวนเดียวกันอยู่แล้ว)`
             };
+        }
+
+        function resolveDestQty(update) {
+            if (update.destQty != null && update.destQty !== '' && !Number.isNaN(Number(update.destQty))) {
+                return Number(update.destQty);
+            }
+            if (update.tr) {
+                const el = update.tr.querySelector('[data-field="qty"]');
+                if (el) {
+                    const n = Number(el.value);
+                    if (!Number.isNaN(n)) return n;
+                }
+            }
+            if (update.item && update.item.counted_qty !== '' && update.item.counted_qty !== undefined) {
+                const n = Number(update.item.counted_qty);
+                if (!Number.isNaN(n)) return n;
+            }
+            return NaN;
         }
 
         /** แยกรายการที่อัปเดตได้ vs ชนปลายทาง (DB หรือภายในชุดเดียวกัน) */
@@ -2003,9 +2036,10 @@
                 const wh = u.warehouse != null && u.warehouse !== ''
                     ? u.warehouse
                     : getWarehouseForRecordId(u.recordId);
-                const key = refEntryKey(u.destSku, u.destLoc, wh);
+                const qty = resolveDestQty(u);
+                const key = refEntryKey(u.destSku, u.destLoc, wh, qty);
 
-                const coll = getDestinationCollision(u.destSku, u.destLoc, wh, batchIds);
+                const coll = getDestinationCollision(u.destSku, u.destLoc, wh, qty, batchIds);
                 if (coll) {
                     blocked.push({ ...u, message: coll.message });
                     continue;
@@ -2179,20 +2213,17 @@
             const filters = getAuditFilters();
             let exact = null;
             if (filters.warehouse) {
-                exact = refBySkuLoc.get(refEntryKey(skuN, locN, filters.warehouse));
+                exact = refBySkuLoc.get(refEntryKey(skuN, locN, filters.warehouse, qty));
             } else {
-                const matches = [];
-                const keyPrefix = skuN + '|' + locN + '|';
-                for (const [k, entry] of refBySkuLoc) {
-                    if (k.startsWith(keyPrefix)) matches.push(entry);
-                }
+                const matches = findRefEntriesBySkuLocQty(skuN, locN, qty);
                 if (matches.length === 1) {
                     exact = matches[0];
                 } else if (matches.length > 1) {
-                    exact = {
-                        ...matches[0],
-                        duplicate: true,
-                        record_count: matches.reduce((s, e) => s + (e.record_count || 1), 0)
+                    return {
+                        status: 'error',
+                        message: 'ข้อมูลคลุมเครือ',
+                        note: 'SKU+ตำแหน่ง+จำนวนนี้มีในหลายคลัง — เลือกคลังในตัวกรองก่อนตรวจ',
+                        rowClass: 'row-error'
                     };
                 }
             }
@@ -2202,7 +2233,7 @@
                     return {
                         status: 'error',
                         message: 'ข้อมูลซ้ำในระบบ',
-                        note: `มี ${exact.record_count} แถวใน inventory_counts สำหรับ SKU+ตำแหน่งนี้ — ต้องลบ/รวมใน DB ก่อนตรวจ · ${formatRefNote(exact)}`,
+                        note: `มี ${exact.record_count} แถวใน inventory_counts สำหรับ SKU+ตำแหน่ง+คลัง+จำนวนนี้ — ต้องลบ/รวมใน DB ก่อนตรวจ · ${formatRefNote(exact)}`,
                         rowClass: 'row-error'
                     };
                 }

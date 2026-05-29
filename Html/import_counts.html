@@ -357,6 +357,20 @@
             color: var(--text-muted);
         }
 
+        .import-log-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.55rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .import-log-export-btn {
+            font-size: 0.78rem !important;
+            padding: 0.32rem 0.65rem !important;
+        }
+
         .import-cycle-banner {
             margin-top: 0.85rem;
             padding: 0.65rem 0.85rem;
@@ -502,7 +516,7 @@
                         </div>
                     </div>
                     <p style="margin:0.35rem 0 0;font-size:0.78rem;color:var(--text-muted);">
-                        บันทึกทุกครั้งที่นำเข้า Excel สำเร็จ — แสดงใน <code>inventory_audit_logs</code> (เดียวกับประวัติในหน้านับสต็อก)
+                        บันทึกทุกครั้งที่นำเข้า Excel สำเร็จ — แสดงใน <code>inventory_audit_logs</code> · กด <strong>Export รายละเอียด</strong> ต่อรายการเพื่อดึงยอดนับจริงจาก <code>inventory_counts</code> (นำเข้าใหม่ต้องรัน SQL <code>015_import_batch_id.sql</code>)
                     </p>
                     <div class="import-log-list" id="importLogList">
                         <p style="margin:0;font-size:0.82rem;color:var(--text-muted);">กำลังโหลดประวัติ...</p>
@@ -545,6 +559,8 @@
         let lastImportFailedRows = [];
         const IMPORT_LOG_PAGE = 1000;
         let isExportingImportLog = false;
+        /** @type {Map<string, object>} */
+        const importLogCacheById = new Map();
 
         function genClientRequestId() {
             try {
@@ -639,6 +655,9 @@
                 counter_name,
                 client_request_id: row.client_request_id
             };
+            if (row.import_batch_id) {
+                base.import_batch_id = row.import_batch_id;
+            }
             const RS = window.reconcileService;
             if (RS?.attachCycleToPayload) {
                 return RS.attachCycleToPayload(base, warehouse);
@@ -939,7 +958,7 @@
             return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
-        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel, cycleId }) {
+        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel, cycleId, batchImportId }) {
             if (!supabaseClient || (rowCount <= 0 && failCount <= 0 && duplicateCount <= 0)) return;
             const preview = pendingValidRows.slice(0, 8).map(r => r.sku).join(', ');
             const skuNote = preview + (rowCount > 8 ? ` ... (+${rowCount - 8})` : '');
@@ -952,7 +971,7 @@
             try {
                 const { error } = await supabaseClient.from('inventory_audit_logs').insert([{
                     action_type: 'IMPORT',
-                    record_id: 'import-' + Date.now(),
+                    record_id: batchImportId || ('import-' + Date.now()),
                     sku_id: fileLabel ? `${fileLabel} · ${statusNote} · ${skuNote}` : `${statusNote} · ${skuNote}`,
                     old_qty: failCount > 0 ? failCount : null,
                     new_qty: rowCount,
@@ -975,11 +994,17 @@
             }
         }
 
+        function isUuid(value) {
+            return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ''));
+        }
+
         function renderImportLogItem(log) {
             const thaiTime = formatImportLogDate(log.created_at);
             const rows = log.new_qty != null ? Number(log.new_qty).toLocaleString() : '—';
+            const logKey = log.id != null ? String(log.id) : String(log.record_id || '');
+            const canExport = (log.new_qty != null && Number(log.new_qty) > 0);
             return `
-                <div class="import-log-item">
+                <div class="import-log-item" data-log-id="${escHtml(logKey)}">
                     <div class="import-log-item-head">
                         <span class="import-log-badge">IMPORT</span>
                         <span class="import-log-time">${escHtml(thaiTime)}</span>
@@ -994,7 +1019,138 @@
                     <div class="import-log-detail" style="margin-top:0.35rem;font-size:0.76rem;color:var(--text-muted);word-break:break-all;">
                         ${escHtml(log.sku_id || '')}
                     </div>
+                    ${canExport ? `
+                    <div class="import-log-actions">
+                        <button type="button" class="ic-btn ic-btn-ghost import-log-export-btn" data-log-id="${escHtml(logKey)}">
+                            <i data-lucide="download"></i> Export รายละเอียด (${rows} แถว)
+                        </button>
+                    </div>` : ''}
                 </div>`;
+        }
+
+        function rowsToCountSheet(rows) {
+            return (rows || []).map(function (r, i) {
+                return {
+                    '#': i + 1,
+                    SKU: r.sku_id || '',
+                    'ตำแหน่ง': r.location || '',
+                    'จำนวน': r.counted_qty != null ? Number(r.counted_qty) : '',
+                    'คลัง': r.warehouse || '',
+                    'ผู้นับ': r.counter_name || '',
+                    'วันที่บันทึก': formatImportLogDate(r.created_at),
+                    cycle_id: r.cycle_id || ''
+                };
+            });
+        }
+
+        function downloadCountRowsXlsx(rows, filename) {
+            const ws = XLSX.utils.json_to_sheet(rowsToCountSheet(rows));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'รายการนับ');
+            XLSX.writeFile(wb, filename);
+        }
+
+        async function fetchCountRowsPaged(buildQuery) {
+            const all = [];
+            let from = 0;
+            const PAGE = 1000;
+            while (true) {
+                let q = buildQuery();
+                q = q.order('created_at', { ascending: true }).order('id', { ascending: true });
+                q = q.range(from, from + PAGE - 1);
+                const { data, error } = await q;
+                if (error) throw error;
+                const batch = data || [];
+                all.push.apply(all, batch);
+                if (batch.length < PAGE) break;
+                from += PAGE;
+            }
+            return all;
+        }
+
+        /** ดึงแถว inventory_counts ของครั้งนำเข้า — ใช้ import_batch_id หรือช่วงเวลา (log เก่า) */
+        async function fetchRowsForImportLog(log) {
+            const cols = 'id, sku_id, location, warehouse, counted_qty, counter_name, created_at, cycle_id';
+            const expected = log.new_qty != null ? Number(log.new_qty) : 0;
+
+            if (isUuid(log.record_id)) {
+                try {
+                    const rows = await fetchCountRowsPaged(function () {
+                        return supabaseClient
+                            .from('inventory_counts')
+                            .select(cols)
+                            .eq('import_batch_id', log.record_id);
+                    });
+                    if (rows.length) return { rows, mode: 'batch' };
+                } catch (err) {
+                    if (!/import_batch_id|column/i.test(err.message || '')) throw err;
+                }
+            }
+
+            if (!log.created_at || !expected) return { rows: [], mode: 'none' };
+
+            const logTime = new Date(log.created_at).getTime();
+            const start = new Date(logTime - 30 * 60 * 1000).toISOString();
+            const end = new Date(logTime + 60 * 1000).toISOString();
+
+            let q = supabaseClient
+                .from('inventory_counts')
+                .select(cols)
+                .lte('created_at', end)
+                .gte('created_at', start)
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: false })
+                .limit(expected);
+            if (log.warehouse) q = q.eq('warehouse', log.warehouse);
+            if (log.counter_name) q = q.eq('counter_name', log.counter_name);
+
+            const { data, error } = await q;
+            if (error) throw error;
+            const rows = (data || []).slice().reverse();
+            return { rows, mode: 'heuristic' };
+        }
+
+        async function exportImportBatchDetail(log) {
+            if (!supabaseClient) {
+                showToast('กรุณาเชื่อมต่อ Supabase ก่อน Export', 'error');
+                return;
+            }
+            const expected = log.new_qty != null ? Number(log.new_qty) : 0;
+            if (!expected) {
+                showToast('ไม่มีแถวสำเร็จในรายการนี้', 'error');
+                return;
+            }
+
+            setLoading(true, 'กำลังดึงรายละเอียด...', `0 / ${expected.toLocaleString()}`);
+            try {
+                const { rows, mode } = await fetchRowsForImportLog(log);
+                if (!rows.length) {
+                    const hint = isUuid(log.record_id)
+                        ? 'ไม่พบแถวใน inventory_counts — อาจถูกลบแล้ว'
+                        : 'ไม่พบแถว (log เก่า) — ลองรัน SQL 015 แล้วนำเข้าใหม่ หรือใช้ค้นหาผลนับ';
+                    showToast(hint, 'error');
+                    return;
+                }
+
+                const fileLabel = (log.location || 'import').replace(/[<>:"/\\|?*]+/g, '_').slice(0, 40);
+                const stamp = new Date(log.created_at || Date.now());
+                const pad = function (n) { return String(n).padStart(2, '0'); };
+                const fname = 'ImportDetail_' + fileLabel + '_' + pad(stamp.getDate()) + pad(stamp.getMonth() + 1) + stamp.getFullYear() + '.xlsx';
+
+                downloadCountRowsXlsx(rows, fname);
+
+                let msg = 'Export รายละเอียด ' + rows.length.toLocaleString() + ' แถว';
+                if (mode === 'heuristic') {
+                    msg += ' (ประมาณจากเวลา/คลัง — log เก่า)';
+                } else if (rows.length < expected) {
+                    msg += ' (คาด ' + expected.toLocaleString() + ' — บางแถวอาจถูกลบ)';
+                }
+                showToast(msg);
+            } catch (err) {
+                showToast('Export รายละเอียดไม่สำเร็จ: ' + (err.message || String(err)), 'error');
+            } finally {
+                setLoading(false);
+            }
         }
 
         function dedupeImportLogsById(rows) {
@@ -1052,9 +1208,15 @@
                     .limit(50);
                 if (error) throw error;
                 if (!data || !data.length) {
+                    importLogCacheById.clear();
                     container.innerHTML = '<p style="margin:0;font-size:0.82rem;color:var(--text-muted);">ยังไม่มีประวัติการนำเข้า</p>';
                     return;
                 }
+                importLogCacheById.clear();
+                data.forEach(function (log) {
+                    const key = log.id != null ? String(log.id) : String(log.record_id || '');
+                    if (key) importLogCacheById.set(key, log);
+                });
                 container.innerHTML = data.map(renderImportLogItem).join('');
             } catch (err) {
                 container.innerHTML = `<p style="margin:0;font-size:0.82rem;color:#f87171;">โหลดประวัติไม่สำเร็จ: ${escHtml(err.message)}</p>`;
@@ -1224,10 +1386,12 @@
             hideImportResultPanel();
 
             try {
-                // UUID ใหม่ทุกครั้งที่กดนำเข้า — กัน retry หลังนำเข้าบางส่วนแล้วชน client_request_id เดิม
+                const batchImportId = genClientRequestId();
+                // client_request_id ต่อแถว (unique ใน DB) · import_batch_id ต่อครั้งกดนำเข้า (Export รายละเอียด)
                 const rowsWithReqId = rows.map(r => ({
                     ...r,
-                    client_request_id: genClientRequestId()
+                    client_request_id: genClientRequestId(),
+                    import_batch_id: batchImportId
                 }));
 
                 for (let i = 0; i < rowsWithReqId.length; i += CHUNK_SIZE) {
@@ -1298,7 +1462,8 @@
                         failCount: fail,
                         duplicateCount: duplicateSkipped,
                         fileLabel: fileName || 'Excel Import',
-                        cycleId: getImportCycleHint(warehouse).cycleId
+                        cycleId: getImportCycleHint(warehouse).cycleId,
+                        batchImportId
                     });
                     await loadImportHistory();
                 }
@@ -1385,6 +1550,18 @@
 
         document.getElementById('btnRefreshImportLog').addEventListener('click', loadImportHistory);
         document.getElementById('btnExportImportLog').addEventListener('click', exportImportHistory);
+
+        document.getElementById('importLogList').addEventListener('click', function (e) {
+            const btn = e.target.closest('.import-log-export-btn');
+            if (!btn) return;
+            const logKey = btn.getAttribute('data-log-id');
+            const log = importLogCacheById.get(logKey);
+            if (!log) {
+                showToast('ไม่พบข้อมูล log — กดรีเฟรช', 'error');
+                return;
+            }
+            exportImportBatchDetail(log);
+        });
 
         supabaseClient = window.apiService ? window.apiService.getClient() : null;
         if (!supabaseClient) {

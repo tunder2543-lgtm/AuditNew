@@ -19,6 +19,12 @@
     let STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
     const BOOK_CHUNK = 200;
+    const ADJ_APPLY_PARALLEL = 25;
+
+    /** แบ่ง skuIds เป็น chunk สำหรับ .in() — ลด URL/query ใหญ่เกิน */
+    function uniqueSkuIds(skuIds) {
+        return [...new Set((skuIds || []).map(normalizeSku).filter(Boolean))];
+    }
 
     const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
@@ -2615,24 +2621,23 @@
     async function fetchMatchAcceptanceMap(cycleId) {
         const client = getClient();
         if (!client || !cycleId) return new Map();
-        try {
-            const { data, error } = await client
-                .from('reconciliation_match_acceptances')
-                .select('sku_id, note, accepted_at, accepted_by')
-                .eq('cycle_id', cycleId);
-            if (error) {
-                if (/does not exist|relation|schema cache/i.test(error.message)) return new Map();
-                throw error;
+        const { data, error } = await client
+            .from('reconciliation_match_acceptances')
+            .select('sku_id, note, accepted_at, accepted_by')
+            .eq('cycle_id', cycleId);
+        if (error) {
+            if (/does not exist|relation|schema cache/i.test(error.message)) {
+                console.warn('[fetchMatchAcceptanceMap] ตารางยังไม่มี — รัน docs/sql/008_reconciliation_match_acceptances.sql');
+                return new Map();
             }
-            const map = new Map();
-            (data || []).forEach(row => {
-                const sku = normalizeSku(row.sku_id);
-                if (sku) map.set(sku, row);
-            });
-            return map;
-        } catch {
-            return new Map();
+            throw error;
         }
+        const map = new Map();
+        (data || []).forEach(row => {
+            const sku = normalizeSku(row.sku_id);
+            if (sku) map.set(sku, row);
+        });
+        return map;
     }
 
     /** ยืนยันเป็นถูกต้อง — ไม่แตะ book / adjustment / counted */
@@ -2653,51 +2658,107 @@
         return { skuId: sku };
     }
 
-    /** ล้าง adjustment + การยืนยันถูกต้องเดิม ของ SKU ในรอบ */
-    async function clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds) {
+    const ACCEPT_MATCH_CHUNK = 200;
+
+    /** ยืนยันถูกต้องหลาย SKU — ใช้หลัง Import Excel ให้แสดงสถานะ match ทันที */
+    async function acceptReconciliationAsMatchBatch({ cycleId, skuIds, note, onProgress } = {}) {
         const client = getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-        const ids = (skuIds || []).map(normalizeSku).filter(Boolean);
+        if (!cycleId) throw new Error('ไม่พบรอบ');
+
+        const ids = uniqueSkuIds(skuIds);
+        if (!ids.length) return { accepted: 0 };
+
+        const acceptedAt = new Date().toISOString();
+        const noteText = note || 'import_excel';
+        let accepted = 0;
+
+        for (let i = 0; i < ids.length; i += ACCEPT_MATCH_CHUNK) {
+            const chunk = ids.slice(i, i + ACCEPT_MATCH_CHUNK);
+            const rows = chunk.map(sku_id => ({
+                cycle_id: cycleId,
+                sku_id,
+                note: noteText,
+                accepted_at: acceptedAt
+            }));
+            const { error } = await client
+                .from('reconciliation_match_acceptances')
+                .upsert(rows, { onConflict: 'cycle_id,sku_id' });
+            if (error) {
+                if (/does not exist|relation|schema cache/i.test(error.message)) {
+                    throw new Error('รัน docs/sql/008_reconciliation_match_acceptances.sql ใน Supabase ก่อน');
+                }
+                throw error;
+            }
+            accepted += chunk.length;
+            if (typeof onProgress === 'function') {
+                onProgress({ done: accepted, total: ids.length, phase: 'accept' });
+            }
+        }
+
+        return { accepted };
+    }
+
+    /** ล้าง adjustment + การยืนยันถูกต้องเดิม ของ SKU ในรอบ */
+    async function clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds, { onProgress } = {}) {
+        const client = getClient();
+        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+        const ids = uniqueSkuIds(skuIds);
         if (!ids.length) return;
 
-        const { error: adjErr } = await client
-            .from('stock_adjustments')
-            .delete()
-            .eq('cycle_id', cycleId)
-            .in('sku_id', ids);
-        if (adjErr) throw adjErr;
-
-        try {
-            const { error: accErr } = await client
-                .from('reconciliation_match_acceptances')
+        let done = 0;
+        for (let i = 0; i < ids.length; i += BOOK_CHUNK) {
+            const chunk = ids.slice(i, i + BOOK_CHUNK);
+            const { error: adjErr } = await client
+                .from('stock_adjustments')
                 .delete()
                 .eq('cycle_id', cycleId)
-                .in('sku_id', ids);
-            if (accErr) throw accErr;
-        } catch {
-            // ตารางอาจยังไม่ถูกสร้าง
+                .in('sku_id', chunk);
+            if (adjErr) throw adjErr;
+
+            try {
+                const { error: accErr } = await client
+                    .from('reconciliation_match_acceptances')
+                    .delete()
+                    .eq('cycle_id', cycleId)
+                    .in('sku_id', chunk);
+                if (accErr) throw accErr;
+            } catch {
+                // ตารางอาจยังไม่ถูกสร้าง
+            }
+            done += chunk.length;
+            if (typeof onProgress === 'function') {
+                onProgress({ done, total: ids.length, phase: 'clear' });
+            }
         }
     }
 
-    async function fetchBookQtySums(cycleId, skuIds) {
+    async function fetchBookQtySums(cycleId, skuIds, { onProgress } = {}) {
         const client = getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-        const ids = (skuIds || []).map(normalizeSku).filter(Boolean);
+        const ids = uniqueSkuIds(skuIds);
         if (!ids.length) return new Map();
 
-        const { data, error } = await client
-            .from('book_stock_lines')
-            .select('sku_id, book_qty')
-            .eq('cycle_id', cycleId)
-            .in('sku_id', ids);
-        if (error) throw error;
-
         const map = new Map();
-        (data || []).forEach(r => {
-            const sku = normalizeSku(r.sku_id);
-            if (!sku) return;
-            map.set(sku, (map.get(sku) || 0) + Number(r.book_qty || 0));
-        });
+        let done = 0;
+        for (let i = 0; i < ids.length; i += BOOK_CHUNK) {
+            const chunk = ids.slice(i, i + BOOK_CHUNK);
+            const { data, error } = await client
+                .from('book_stock_lines')
+                .select('sku_id, book_qty')
+                .eq('cycle_id', cycleId)
+                .in('sku_id', chunk);
+            if (error) throw error;
+            (data || []).forEach(r => {
+                const sku = normalizeSku(r.sku_id);
+                if (!sku) return;
+                map.set(sku, (map.get(sku) || 0) + Number(r.book_qty || 0));
+            });
+            done += chunk.length;
+            if (typeof onProgress === 'function') {
+                onProgress({ done, total: ids.length, phase: 'book' });
+            }
+        }
         return map;
     }
 
@@ -2720,13 +2781,14 @@
     function targetsMapFromValidRows(validRows) {
         const map = {};
         aggregateBookRowsBySku(validRows || []).forEach(r => {
-            map[r.sku] = Number(r.qty);
+            const sku = normalizeSku(r.sku);
+            if (sku) map[sku] = Number(r.qty);
         });
         return map;
     }
 
     /** Preview ปรับตามเป้าหมาย effective จากไฟล์ (ก่อน apply) */
-    async function previewAdjustmentsToBookTargets(cycleId, targetsBySku) {
+    async function previewAdjustmentsToBookTargets(cycleId, targetsBySku, { onProgress } = {}) {
         const client = getClient();
         if (!client || !cycleId) return [];
 
@@ -2736,35 +2798,54 @@
         if (!entries.length) return [];
 
         const skuIds = [...new Set(entries.map(e => e.skuId))];
-
-        const { data: reconRows, error: reconErr } = await client
-            .from('reconciliation_lines')
-            .select('sku_id, book_qty, adjustment_applied, effective_book_qty, counted_qty')
-            .eq('cycle_id', cycleId)
-            .in('sku_id', skuIds);
-        if (reconErr) throw reconErr;
-
         const reconMap = new Map();
-        (reconRows || []).forEach(r => {
-            const sku = normalizeSku(r.sku_id);
-            if (sku) reconMap.set(sku, r);
-        });
-
-        const { data: draftRows, error: draftErr } = await client
-            .from('stock_adjustments')
-            .select('sku_id, adjustment_qty')
-            .eq('cycle_id', cycleId)
-            .eq('status', 'draft')
-            .in('sku_id', skuIds);
-        if (draftErr) throw draftErr;
-
         const draftMap = new Map();
-        (draftRows || []).forEach(r => {
-            const sku = normalizeSku(r.sku_id);
-            if (sku) draftMap.set(sku, (draftMap.get(sku) || 0) + Number(r.adjustment_qty || 0));
-        });
+        const bookQtyMap = new Map();
 
-        const bookQtyMap = await fetchBookQtySums(cycleId, skuIds);
+        let done = 0;
+        for (let i = 0; i < skuIds.length; i += BOOK_CHUNK) {
+            const chunk = skuIds.slice(i, i + BOOK_CHUNK);
+
+            const { data: reconRows, error: reconErr } = await client
+                .from('reconciliation_lines')
+                .select('sku_id, book_qty, adjustment_applied, effective_book_qty, counted_qty')
+                .eq('cycle_id', cycleId)
+                .in('sku_id', chunk);
+            if (reconErr) throw reconErr;
+            (reconRows || []).forEach(r => {
+                const sku = normalizeSku(r.sku_id);
+                if (sku) reconMap.set(sku, r);
+            });
+
+            const { data: draftRows, error: draftErr } = await client
+                .from('stock_adjustments')
+                .select('sku_id, adjustment_qty')
+                .eq('cycle_id', cycleId)
+                .eq('status', 'draft')
+                .in('sku_id', chunk);
+            if (draftErr) throw draftErr;
+            (draftRows || []).forEach(r => {
+                const sku = normalizeSku(r.sku_id);
+                if (sku) draftMap.set(sku, (draftMap.get(sku) || 0) + Number(r.adjustment_qty || 0));
+            });
+
+            const { data: bookRows, error: bookErr } = await client
+                .from('book_stock_lines')
+                .select('sku_id, book_qty')
+                .eq('cycle_id', cycleId)
+                .in('sku_id', chunk);
+            if (bookErr) throw bookErr;
+            (bookRows || []).forEach(r => {
+                const sku = normalizeSku(r.sku_id);
+                if (!sku) return;
+                bookQtyMap.set(sku, (bookQtyMap.get(sku) || 0) + Number(r.book_qty || 0));
+            });
+
+            done += chunk.length;
+            if (typeof onProgress === 'function') {
+                onProgress({ done, total: skuIds.length, phase: 'preview' });
+            }
+        }
 
         return entries.map(e => {
             const sku = e.skuId;
@@ -2792,19 +2873,29 @@
     }
 
     /** Apply: เคลียร์ adjustment ของ SKU ในไฟล์ แล้วสร้าง+apply ให้ effective ตรงเป้าหมาย */
-    async function applyAdjustmentsToBookTargets(cycleId, targetsBySku, { notePrefix = 'import_excel' } = {}) {
+    async function applyAdjustmentsToBookTargets(cycleId, targetsBySku, { notePrefix = 'import_excel', onProgress } = {}) {
         const client = getClient();
         if (!client || !cycleId) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
 
         const entries = Object.entries(targetsBySku || {})
             .map(([sku, qty]) => ({ skuId: normalizeSku(sku), targetEffective: Number(qty) }))
             .filter(e => e.skuId && Number.isFinite(e.targetEffective));
-        if (!entries.length) return { applied: 0, skippedZero: 0, results: [] };
+        if (!entries.length) return { applied: 0, skippedZero: 0, results: [], preview: [] };
 
         const skuIds = [...new Set(entries.map(e => e.skuId))];
-        await clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds);
+        const progress = (phase, done, total) => {
+            if (typeof onProgress === 'function') onProgress({ phase, done, total });
+        };
 
-        const preview = await previewAdjustmentsToBookTargets(cycleId, targetsBySku);
+        progress('clear', 0, skuIds.length);
+        await clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds, {
+            onProgress: ({ done, total }) => progress('clear', done, total)
+        });
+
+        progress('preview', 0, skuIds.length);
+        const preview = await previewAdjustmentsToBookTargets(cycleId, targetsBySku, {
+            onProgress: ({ done, total }) => progress('preview', done, total)
+        });
 
         const items = [];
         let skippedZero = 0;
@@ -2829,24 +2920,42 @@
         }
 
         let inserted = [];
-        if (items.length) inserted = await createStockAdjustmentsBatch(items);
+        if (items.length) {
+            progress('draft', 0, items.length);
+            for (let i = 0; i < items.length; i += BOOK_CHUNK) {
+                const chunk = items.slice(i, i + BOOK_CHUNK);
+                const batch = await createStockAdjustmentsBatch(chunk);
+                inserted = inserted.concat(batch || []);
+                progress('draft', Math.min(i + chunk.length, items.length), items.length);
+            }
+        }
 
         let applied = 0;
         const results = [];
-        for (let i = 0; i < inserted.length; i++) {
-            await applyStockAdjustment(inserted[i].id);
-            applied++;
-            const p = previewBySku.get(inserted[i].sku_id);
-            results.push({
-                skuId: inserted[i].sku_id,
-                targetEffective: entries.find(x => x.skuId === inserted[i].sku_id)?.targetEffective,
-                adjustmentQty: Number(inserted[i].adjustment_qty),
-                statusAfter: p?.statusAfter || 'match'
-            });
+        if (inserted.length) {
+            progress('apply', 0, inserted.length);
+            for (let i = 0; i < inserted.length; i += ADJ_APPLY_PARALLEL) {
+                const chunk = inserted.slice(i, i + ADJ_APPLY_PARALLEL);
+                await Promise.all(chunk.map(row => applyStockAdjustment(row.id)));
+                for (const row of chunk) {
+                    applied++;
+                    const p = previewBySku.get(row.sku_id);
+                    results.push({
+                        skuId: row.sku_id,
+                        targetEffective: entries.find(x => x.skuId === row.sku_id)?.targetEffective,
+                        adjustmentQty: Number(row.adjustment_qty),
+                        statusAfter: p?.statusAfter || 'match'
+                    });
+                }
+                progress('apply', applied, inserted.length);
+            }
         }
 
+        progress('refresh', 0, 1);
         await refreshReconciliation(cycleId);
-        return { applied, skippedZero, results };
+        progress('refresh', 1, 1);
+
+        return { applied, skippedZero, results, preview };
     }
 
     async function deleteDraftAdjustment(adjustmentId) {
@@ -3096,6 +3205,8 @@
         fetchMatchAcceptanceMap,
 
         acceptReconciliationAsMatch,
+
+        acceptReconciliationAsMatchBatch,
 
         clearAdjustmentsAndMatchAcceptancesForSkus,
 

@@ -15,3 +15,6 @@ CREATE INDEX IF NOT EXISTS idx_recon_match_accept_cycle
 
 COMMENT ON TABLE reconciliation_match_acceptances IS
     'ยืนยันถูกต้องโดยไม่แก้ book_qty / counted_qty / adjustment — ใช้แสดงสถานะ match ใน UI';
+
+-- สิทธิ์สำหรับ client (ถ้าโปรเจกต์เปิด RLS ให้เพิ่ม policy ตามนโยบายของคุณ)
+GRANT SELECT, INSERT, UPDATE, DELETE ON reconciliation_match_acceptances TO anon, authenticated, service_role;

@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let skuMasterLoadedFor = '';
     let skuMasterLoadGen = 0;
     let allRecords     = []; // Cache inventory_counts records for audit log context
+    let activeCycleForPage = null; // รอบนับปัจจุบันของคลังที่เลือก
     let supabaseDataLoaded = false;
     let warehouseReady = false;
 
@@ -72,7 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // =============================================
     function updateClock() {
         const clockEl = document.getElementById('liveClock');
-        const subtitleEl = document.getElementById('monthSubtitle');
         if (!clockEl) return;
         const now = new Date();
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
@@ -80,13 +80,62 @@ document.addEventListener('DOMContentLoaded', () => {
         const timeStr = now.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         clockEl.innerHTML = `<span style="font-size: 0.9em;">${dateStr}</span> <span style="color: var(--primary); margin-left: 0.5rem;">${timeStr}</span>`;
         
-        if (subtitleEl) {
-            const currentMonth = now.toLocaleDateString('th-TH', { month: 'long' });
-            subtitleEl.textContent = `นับสต็อกเดือน${currentMonth}`;
-        }
     }
     setInterval(updateClock, 1000);
     updateClock();
+
+    function updateCycleSubtitle() {
+        const subtitleEl = document.getElementById('monthSubtitle');
+        if (!subtitleEl) return;
+        const RS = window.reconcileService;
+        const cycle = activeCycleForPage;
+        if (cycle?.id && RS?.formatCycleLabel) {
+            subtitleEl.textContent = `รอบ: ${RS.formatCycleLabel(cycle)}`;
+            subtitleEl.title = RS.formatDateRangeLabel ? RS.formatDateRangeLabel(cycle) : '';
+            return;
+        }
+        const now = new Date();
+        const currentMonth = now.toLocaleDateString('th-TH', { month: 'long' });
+        subtitleEl.textContent = `นับสต็อกเดือน${currentMonth}`;
+        subtitleEl.title = '';
+    }
+
+    /** เลือกรอบ active ที่ตรงคลัง หรือรอบล่าสุดของคลังนั้น */
+    async function ensureActiveCycleForWarehouse(warehouse) {
+        const RS = window.reconcileService;
+        if (!RS || !warehouse) {
+            activeCycleForPage = null;
+            updateCycleSubtitle();
+            return null;
+        }
+
+        const active = RS.getActiveCycle();
+        if (active?.id && RS.warehouseMatchesCycle(active, warehouse)) {
+            activeCycleForPage = await RS.fetchCycleById(active.id).catch(() => active) || active;
+            updateCycleSubtitle();
+            return activeCycleForPage;
+        }
+
+        try {
+            const cycles = await RS.fetchCycles(warehouse);
+            if (!cycles.length) {
+                activeCycleForPage = null;
+                updateCycleSubtitle();
+                return null;
+            }
+            const latest = cycles[0];
+            RS.setActiveCycle(latest);
+            activeCycleForPage = latest;
+            console.log(`[Cycle] ใช้รอบล่าสุดของคลัง "${warehouse}": ${RS.formatCycleLabel(latest)}`);
+            updateCycleSubtitle();
+            return latest;
+        } catch (err) {
+            console.warn('[Cycle] โหลดรอบล่าสุดไม่สำเร็จ:', err.message);
+            activeCycleForPage = null;
+            updateCycleSubtitle();
+            return null;
+        }
+    }
 
     // =============================================
     //  INITIAL DATA LOADING (SKU Master + Existing Records)
@@ -143,8 +192,27 @@ document.addEventListener('DOMContentLoaded', () => {
         return (records || []).filter(r => String(r.warehouse || '').trim() === wh);
     }
 
+    function recordBelongsToActiveCycle(rec) {
+        const cycle = activeCycleForPage;
+        const RS = window.reconcileService;
+        if (!cycle?.id || !RS) return true;
+
+        if (rec.cycle_id && rec.cycle_id !== cycle.id) return false;
+
+        if (!rec.cycle_id) {
+            const range = RS.getCycleLinkRange(cycle);
+            if (!range?.start || !range?.end) return false;
+            const t = rec.created_at ? new Date(rec.created_at).getTime() : 0;
+            const s = new Date(range.start).getTime();
+            const e = new Date(range.end).getTime();
+            if (t < s || t >= e) return false;
+        }
+
+        return true;
+    }
+
     function getWarehouseScopedRecords() {
-        return filterRecordsByWarehouse(allRecords);
+        return filterRecordsByWarehouse(allRecords).filter(recordBelongsToActiveCycle);
     }
 
     async function loadSkuMaster() {
@@ -187,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
         skuMasterList = [];
         skuMasterLoadedFor = '';
         updateStats();
+        await ensureActiveCycleForWarehouse(getActiveWarehouse());
         await loadSkuMaster();
         await loadExistingRecords();
         if (skuMasterLoadedFor && skuMasterLoadedFor !== getActiveWarehouse()) return;
@@ -372,7 +441,31 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadExistingRecords() {
         if (!supabaseClient) return;
         try {
-            const data = await loadPagedInventoryCounts();
+            let data;
+            const RS = window.reconcileService;
+            const cycle = activeCycleForPage;
+            const wh = getActiveWarehouse();
+            if (RS?.loadInventoryCountsForDashboard && cycle?.id) {
+                data = await RS.loadInventoryCountsForDashboard({
+                    cycle,
+                    cycleId: cycle.id,
+                    warehouseValue: wh || null
+                }) || [];
+                const range = RS.getCycleLinkRange(cycle);
+                if (range?.start && range?.end) {
+                    const unlinked = await RS.loadInventoryCountsForDashboard({
+                        cycle,
+                        range,
+                        warehouseValue: wh || null
+                    });
+                    const linkedIds = new Set((data || []).map(r => r.id));
+                    (unlinked || []).forEach(row => {
+                        if (!row.cycle_id && !linkedIds.has(row.id)) data.push(row);
+                    });
+                }
+            } else {
+                data = await loadPagedInventoryCounts();
+            }
             allRecords = data;
             console.log(`[Inventory Counts] Loaded ${allRecords.length} records ✓`);
             renderRecentRecordsList(getWarehouseScopedRecords().slice(0, MAX_RECENT_RECORDS));

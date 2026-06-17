@@ -1241,7 +1241,7 @@
                                 <div class="kpi-value" id="kpiProgress">0%</div>
                             </div>
                         </div>
-                        <div class="kpi-desc">เปอร์เซ็นต์ SKU ที่ถูกนับเทียบกับ SKU Master</div>
+                        <div class="kpi-desc">เปอร์เซ็นต์ SKU ที่ถูกนับเทียบกับ Book ของรอบ</div>
                     </div>
 
                     <div class="kpi">
@@ -1610,8 +1610,8 @@
 
         let supabaseClient = window.apiService ? window.apiService.getClient() : null;
         let allRecords = [];
-        let skuMasterAll = [];
-        let skuMaster = [];
+        let bookSkuAll = [];
+        let bookSku = [];
         let filteredRows = [];
         let countPieChart = null;
         let submissionLineChart = null;
@@ -1728,10 +1728,8 @@
             return allRecords.filter(r => normalize(r.warehouse) === wh);
         }
 
-        function getScopedSkuMaster() {
-            if (!scopeWarehouse) return skuMasterAll;
-            const wh = normalize(scopeWarehouse);
-            return skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === wh);
+        function getScopedBookSku() {
+            return bookSkuAll;
         }
 
         function getWarehouseList() {
@@ -1745,11 +1743,11 @@
 
         function computeWarehouseStats(warehouseName) {
             const wh = normalize(warehouseName);
-            const masterList = skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === wh);
+            const bookList = bookSkuAll;
             const records = allRecords.filter(r => normalize(r.warehouse) === wh);
             const countedSet = new Set(records.map(r => normalize(r.sku_id)).filter(Boolean));
-            const countedSku = masterList.filter(s => countedSet.has(normalize(s.sku_name))).length;
-            const totalSku = masterList.length;
+            const countedSku = bookList.filter(s => countedSet.has(normalize(s.sku_name))).length;
+            const totalSku = bookList.length;
             const uncountedSku = Math.max(totalSku - countedSku, 0);
             const progress = totalSku ? Math.floor((countedSku / totalSku) * 100) : 0;
             const totalQty = records.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
@@ -1846,7 +1844,7 @@
                             <span class="status-chip ${st.progress >= 80 ? 'ok' : st.progress >= 40 ? 'warn' : ''}">${st.progress}%</span>
                         </div>
                         <div class="wh-metrics">
-                            <div>SKU Master<strong>${st.totalSku.toLocaleString()}</strong></div>
+                            <div>Book (รอบ)<strong>${st.totalSku.toLocaleString()}</strong></div>
                             <div>นับแล้ว<strong>${st.countedSku.toLocaleString()}</strong></div>
                             <div>ยังไม่นับ<strong>${st.uncountedSku.toLocaleString()}</strong></div>
                             <div>รายการ<strong>${st.totalRecords.toLocaleString()}</strong></div>
@@ -1867,7 +1865,7 @@
             const heroDesc = document.querySelector('.hero-title p');
             if (!heroDesc) return;
             heroDesc.textContent = scopeWarehouse
-                ? `มุมมองคลัง: ${scopeWarehouse} — ตัวเลขด้านล่างคำนวณจาก SKU Master และการนับของคลังนี้`
+                ? `มุมมองคลัง: ${scopeWarehouse} — ตัวเลขด้านล่างคำนวณจาก Book ของรอบและการนับของคลังนี้`
                 : 'ภาพรวมทุกคลัง — เลือกคลังด้านบนเพื่อดูความคืบหน้า SKU แยกตามคลัง หรือใช้ตัวกรองด้านล่างเจาะรายละเอียด';
         }
 
@@ -2091,22 +2089,38 @@
             };
         }
 
-        async function loadPagedSkuMaster() {
-            let rows = [];
+        async function loadPagedBookSku(cycleId) {
+            if (!cycleId || !supabaseClient) return [];
+            let nameMap = {};
+            if (RS?.fetchBookSkuNames) {
+                nameMap = await RS.fetchBookSkuNames(cycleId);
+            }
+            const skuMap = new Map();
             let from = 0;
             const pageSize = 1000;
             while (true) {
                 const { data, error } = await supabaseClient
-                    .from('sku_master')
-                    .select('sku_name, name_pro, warehouse')
-                    .order('sku_name', { ascending: false })
+                    .from('book_stock_lines')
+                    .select('sku_id, name_pro')
+                    .eq('cycle_id', cycleId)
+                    .order('sku_id', { ascending: true })
                     .range(from, from + pageSize - 1);
                 if (error) throw error;
-                rows = rows.concat(data || []);
+                (data || []).forEach(row => {
+                    const sku = String(row.sku_id || '').trim();
+                    const key = normalize(sku);
+                    if (!key || skuMap.has(key)) return;
+                    skuMap.set(key, {
+                        sku_name: sku,
+                        name_pro: row.name_pro || nameMap[key] || ''
+                    });
+                });
                 if (!data || data.length < pageSize) break;
                 from += pageSize;
             }
-            return rows;
+            return Array.from(skuMap.values()).sort((a, b) =>
+                String(a.sku_name || '').localeCompare(String(b.sku_name || ''), 'th')
+            );
         }
 
         function applySelectedCycleId(id) {
@@ -2292,8 +2306,9 @@
                 await populateCycleSelect();
                 updateCycleFilterHint();
 
-                const [skuRes, countRes] = await Promise.all([
-                    loadPagedSkuMaster(),
+                const cycle = getSelectedCycle();
+                const [bookRes, countRes] = await Promise.all([
+                    cycle?.id ? loadPagedBookSku(cycle.id) : Promise.resolve([]),
                     RS.loadInventoryCountsForDashboard({
                         ...getCountLoadOptions(),
                         onProgress: ({ loaded }) => {
@@ -2302,12 +2317,9 @@
                     })
                 ]);
 
-                skuMasterAll = skuRes.map(row => ({
-                    ...row,
-                    warehouse: getSkuWarehouse(row)
-                }));
+                bookSkuAll = bookRes;
                 allRecords = countRes;
-                skuMaster = getScopedSkuMaster();
+                bookSku = getScopedBookSku();
 
                 await loadMatchData();
                 render();
@@ -2325,13 +2337,9 @@
             }
         }
 
-        function getSKUName(skuId, warehouseHint) {
+        function getSKUName(skuId) {
             const key = normalize(skuId);
-            const wh = warehouseHint ? normalize(warehouseHint) : (scopeWarehouse ? normalize(scopeWarehouse) : '');
-            const pool = wh
-                ? skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === wh)
-                : skuMasterAll;
-            const found = pool.find(row => normalize(row.sku_name) === key);
+            const found = bookSkuAll.find(row => normalize(row.sku_name) === key);
             return found ? found.name_pro : '';
         }
 
@@ -2379,8 +2387,8 @@
 
         function renderKpis(scopeRows) {
             const rows = Array.isArray(scopeRows) ? scopeRows : getScopedRecords();
-            const masterList = getScopedSkuMaster();
-            skuMaster = masterList;
+            const bookList = getScopedBookSku();
+            bookSku = bookList;
 
             let countedSku = 0;
             let totalSku = 0;
@@ -2388,17 +2396,16 @@
             if (!scopeWarehouse) {
                 getWarehouseList().forEach(wh => {
                     const whNorm = normalize(wh);
-                    const masterWh = skuMasterAll.filter(s => normalize(s.warehouse || 'ตึกกันตนา') === whNorm);
                     const rowSkus = new Set(
                         rows.filter(r => normalize(r.warehouse) === whNorm).map(r => normalize(r.sku_id)).filter(Boolean)
                     );
-                    totalSku += masterWh.length;
-                    countedSku += masterWh.filter(s => rowSkus.has(normalize(s.sku_name))).length;
+                    totalSku += bookList.length;
+                    countedSku += bookList.filter(s => rowSkus.has(normalize(s.sku_name))).length;
                 });
             } else {
-                totalSku = masterList.length;
+                totalSku = bookList.length;
                 const countedSet = new Set(rows.map(row => normalize(row.sku_id)).filter(Boolean));
-                countedSku = masterList.filter(s => countedSet.has(normalize(s.sku_name))).length;
+                countedSku = bookList.filter(s => countedSet.has(normalize(s.sku_name))).length;
             }
 
             const uncountedSku = Math.max(totalSku - countedSku, 0);
@@ -2446,10 +2453,10 @@
         }
 
         function renderPieChart(rows) {
-            const masterList = getScopedSkuMaster();
+            const bookList = getScopedBookSku();
             const countedSet = new Set(rows.map(row => normalize(row.sku_id)).filter(Boolean));
-            const countedSku = masterList.filter(s => countedSet.has(normalize(s.sku_name))).length;
-            const totalSku = masterList.length;
+            const countedSku = bookList.filter(s => countedSet.has(normalize(s.sku_name))).length;
+            const totalSku = bookList.length;
             const uncountedSku = Math.max(totalSku - countedSku, 0);
 
             const data = [countedSku, uncountedSku];
@@ -2739,7 +2746,7 @@
         }
 
         async function render() {
-            skuMaster = getScopedSkuMaster();
+            bookSku = getScopedBookSku();
             renderWarehouseScopeBar();
             renderWarehouseOverview();
             updateScopeLabelInHero();
@@ -2761,11 +2768,11 @@
             renderTimelineList(filtered);
             updateExportButtons(filtered);
 
-            const masterList = getScopedSkuMaster();
+            const bookList = getScopedBookSku();
             const countedInFilter = new Set(filtered.map(row => normalize(row.sku_id)).filter(Boolean));
-            const countedSku = masterList.filter(s => countedInFilter.has(normalize(s.sku_name))).length;
-            const progress = masterList.length
-                ? Math.min(100, Math.floor((countedSku / masterList.length) * 100))
+            const countedSku = bookList.filter(s => countedInFilter.has(normalize(s.sku_name))).length;
+            const progress = bookList.length
+                ? Math.min(100, Math.floor((countedSku / bookList.length) * 100))
                 : 0;
             els.progressBar.style.width = `${progress}%`;
             lucide.createIcons();

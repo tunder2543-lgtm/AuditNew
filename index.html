@@ -35,11 +35,11 @@
                         <span class="stat-value" id="totalScanned">0 / 0</span>
                     </div>
                     <div class="stat-box" style="cursor: pointer; border-color: rgba(239, 68, 68, 0.3); transition: all 0.2s;" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ" onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='var(--card)'">
-                        <span class="stat-label">ยังไม่ได้นับ (SKU ใน Master)</span>
+                        <span class="stat-label">ยังไม่ได้นับ (SKU ใน Book)</span>
                         <span class="stat-value" id="totalUncounted" style="color: #fca5a5;">0</span>
                     </div>
                     <div class="stat-box">
-                        <span class="stat-label">SKU ที่มีการนับแล้ว</span>
+                        <span class="stat-label">SKU ใน Book ที่นับแล้ว</span>
                         <span class="stat-value" id="progressPercent" style="color: #34d399;">0%</span>
                     </div>
                 </div>
@@ -119,7 +119,7 @@
                         </div>
                         <div id="skuNotFound" class="sku-not-found" style="display:none;">
                             <i data-lucide="alert-triangle" style="width:13px;height:13px;"></i>
-                            <span>ไม่พบ SKU นี้ในระบบ — สามารถบันทึกได้</span>
+                            <span>ไม่พบ SKU นี้ใน Book ของรอบนี้ — สามารถบันทึกได้</span>
                         </div>
                     </div>
 

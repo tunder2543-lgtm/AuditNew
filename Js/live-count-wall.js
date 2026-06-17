@@ -8,8 +8,8 @@
     const POLL_MS_FAST = 15000;
     /** Polling เมื่อ Realtime ทำงาน — sync สำรองเป็นครั้งคราว (ไม่โหลดซ้ำกับ event ทุก 12 วินาที) */
     const POLL_MS_SLOW = 90000;
-    /** โหลด sku_master ใหม่ทุก N ครั้งของ poll ช้า (master เปลี่ยนไม่บ่อย) */
-    const SKU_MASTER_RELOAD_EVERY_SLOW_POLLS = 3;
+    /** โหลด BOOK ใหม่ทุก N ครั้งของ poll ช้า */
+    const BOOK_RELOAD_EVERY_SLOW_POLLS = 3;
     const MAX_SUBMITTED_DISPLAY = 300;
     let standardWarehouses = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
     const STORAGE_WH = 'live_wall_warehouse';
@@ -17,7 +17,7 @@
 
     let client = null;
     let realtimeChannel = null;
-    let skuMasterAll = [];
+    let bookSkuAll = [];
     let countRowsAll = [];
     let cyclesList = [];
     let selectedCycleId = '';
@@ -131,8 +131,8 @@
         return countRowsAll.filter(rowMatchesScope);
     }
 
-    function getScopedMaster() {
-        return skuMasterAll.filter(skuMatchesScope);
+    function getScopedBookSku() {
+        return bookSkuAll;
     }
 
     function getCountedSkuSet(rows) {
@@ -155,9 +155,9 @@
 
     function computePending() {
         const counts = getScopedCounts();
-        const master = getScopedMaster();
+        const bookSkus = getScopedBookSku();
         const counted = getCountedSkuSet(counts);
-        return master
+        return bookSkus
             .filter(function (s) {
                 return !counted.has(normalizeSku(s.sku_name));
             })
@@ -179,7 +179,7 @@
 
     function renderLists(opts) {
         opts = opts || {};
-        const nameMap = buildSkuNameMap(getScopedMaster());
+        const nameMap = buildSkuNameMap(getScopedBookSku());
         const pending = computePending();
         const submitted = computeSubmitted();
         const todayCount = submitted.filter(function (r) { return isTodayInThailand(r.created_at); }).length;
@@ -251,7 +251,7 @@
         if (!stack || !row) return;
 
         const meta = TOAST_META[eventType] || TOAST_META.INSERT;
-        const nameMap = buildSkuNameMap(getScopedMaster());
+        const nameMap = buildSkuNameMap(getScopedBookSku());
         const skuKey = normalizeSku(row.sku_id);
         const name = nameMap[skuKey] || '';
 
@@ -407,24 +407,38 @@
         }
     }
 
-    async function loadPagedSkuMaster() {
+    async function loadPagedBookSku(cycleId) {
         const c = client;
-        if (!c) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-        let rows = [];
+        if (!c || !cycleId) return [];
+        let nameMap = {};
+        if (RS?.fetchBookSkuNames) {
+            nameMap = await RS.fetchBookSkuNames(cycleId);
+        }
+        const skuMap = new Map();
         let from = 0;
         const pageSize = 1000;
         while (true) {
             const { data, error } = await c
-                .from('sku_master')
-                .select('sku_name, name_pro, warehouse')
-                .order('sku_name', { ascending: true })
+                .from('book_stock_lines')
+                .select('sku_id, name_pro')
+                .eq('cycle_id', cycleId)
+                .order('sku_id', { ascending: true })
                 .range(from, from + pageSize - 1);
             if (error) throw error;
-            rows = rows.concat(data || []);
+            (data || []).forEach(function (row) {
+                const sku = String(row.sku_id || '').trim();
+                const key = normalizeSku(sku);
+                if (!key || skuMap.has(key)) return;
+                skuMap.set(key, {
+                    sku_name: sku,
+                    name_pro: row.name_pro || nameMap[key] || '',
+                    warehouse: scopeWarehouse || ''
+                });
+            });
             if (!data || data.length < pageSize) break;
             from += pageSize;
         }
-        return rows;
+        return Array.from(skuMap.values());
     }
 
     async function loadCounts() {
@@ -461,16 +475,20 @@
         if (!silent && els.statusText) els.statusText.textContent = 'กำลังโหลด...';
 
         const prevRows = silent && countRowsAll.length ? countRowsAll.slice() : [];
-        const reloadMaster = opts.reloadMaster !== false;
+        const reloadBook = opts.reloadMaster !== false;
+        const cycle = getSelectedCycle();
 
         try {
-            let master = skuMasterAll;
+            let bookSkus = bookSkuAll;
             let counts;
-            if (reloadMaster) {
-                const pair = await Promise.all([loadPagedSkuMaster(), loadCounts()]);
-                master = pair[0];
+            if (reloadBook) {
+                const bookPromise = cycle?.id
+                    ? loadPagedBookSku(cycle.id)
+                    : Promise.resolve([]);
+                const pair = await Promise.all([bookPromise, loadCounts()]);
+                bookSkus = pair[0];
                 counts = pair[1];
-                skuMasterAll = master;
+                bookSkuAll = bookSkus;
             } else {
                 counts = await loadCounts();
             }
@@ -480,7 +498,7 @@
             countRowsAll = counts;
             knownIds = new Set(counts.map(function (r) { return normalizeId(r.id); }).filter(Boolean));
             renderLists();
-            if (reloadMaster) populateWarehouseSelect();
+            if (reloadBook) populateWarehouseSelect();
             const modeLabel = realtimeOk ? 'Realtime + sync สำรอง' : 'Polling';
             if (els.statusText) {
                 els.statusText.textContent =
@@ -556,7 +574,7 @@
             let reloadMaster = true;
             if (realtimeOk) {
                 slowPollTick += 1;
-                reloadMaster = slowPollTick % SKU_MASTER_RELOAD_EVERY_SLOW_POLLS === 0;
+                reloadMaster = slowPollTick % BOOK_RELOAD_EVERY_SLOW_POLLS === 0;
             }
             reloadAll(true, { reloadMaster: reloadMaster });
         }, ms);
@@ -570,8 +588,8 @@
     function populateWarehouseSelect() {
         if (!els.filterWarehouse) return;
         const merged = standardWarehouses.slice();
-        skuMasterAll.forEach(function (s) {
-            const w = String(s.warehouse || '').trim();
+        countRowsAll.forEach(function (r) {
+            const w = String(r.warehouse || '').trim();
             if (w && !merged.includes(w)) merged.push(w);
         });
         const opts = ['<option value="">ทุกคลัง</option>'];
@@ -600,6 +618,10 @@
                 if (active?.id && cyclesList.some(function (c) { return c.id === active.id; })) {
                     selectedCycleId = active.id;
                     els.filterCycle.value = selectedCycleId;
+                } else if (cyclesList.length) {
+                    selectedCycleId = cyclesList[0].id;
+                    els.filterCycle.value = selectedCycleId;
+                    localStorage.setItem(STORAGE_CYCLE, selectedCycleId);
                 } else {
                     selectedCycleId = '';
                 }

@@ -1,7 +1,7 @@
 // ==========================================
 //  Count_Stock — script.js
 //  Supabase URL/KEY อ่านจาก localStorage
-//  + SKU Autocomplete จาก Table sku_master
+//  + SKU Autocomplete จาก book_stock_lines ของรอบที่เลือก
 // ==========================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -11,9 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     //  SUPABASE INIT
     // =============================================
     let supabaseClient = null;
-    let skuMasterList  = []; // Cache SKU list { sku_name, name_pro, warehouse } ตามคลังที่เลือก
-    let skuMasterLoadedFor = '';
-    let skuMasterLoadGen = 0;
+    let bookSkuList  = []; // Cache SKU จาก BOOK ของรอบ { sku_name, name_pro }
+    let bookSkuLoadedForCycleId = '';
+    let bookSkuLoadGen = 0;
     let allRecords     = []; // Cache inventory_counts records for audit log context
     let activeCycleForPage = null; // รอบนับปัจจุบันของคลังที่เลือก
     let supabaseDataLoaded = false;
@@ -138,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =============================================
-    //  INITIAL DATA LOADING (SKU Master + Existing Records)
+    //  INITIAL DATA LOADING (Book SKU + Existing Records)
     // =============================================
     let lastDataLoadAt = 0;
     const VISIBILITY_RELOAD_MS = 30000;
@@ -215,35 +215,53 @@ document.addEventListener('DOMContentLoaded', () => {
         return filterRecordsByWarehouse(allRecords).filter(recordBelongsToActiveCycle);
     }
 
-    async function loadSkuMaster() {
-        if (!supabaseClient) return;
-        const wh = getActiveWarehouse();
-        const loadGen = ++skuMasterLoadGen;
+    async function loadBookSkuList() {
+        const cycle = activeCycleForPage;
+        if (!supabaseClient || !cycle?.id) {
+            bookSkuList = [];
+            bookSkuLoadedForCycleId = '';
+            return;
+        }
+        const cycleId = cycle.id;
+        const loadGen = ++bookSkuLoadGen;
         try {
-            let allRows = [];
+            const RS = window.reconcileService;
+            let nameMap = {};
+            if (RS?.fetchBookSkuNames) {
+                nameMap = await RS.fetchBookSkuNames(cycleId);
+            }
+            const skuMap = new Map();
             let from = 0;
             const PAGE = 1000;
             while (true) {
-                let query = supabaseClient
-                    .from('sku_master')
-                    .select('sku_name, name_pro, warehouse')
-                    .order('sku_name', { ascending: true });
-                if (wh) query = query.eq('warehouse', wh);
-                const { data, error } = await query.range(from, from + PAGE - 1);
+                const { data, error } = await supabaseClient
+                    .from('book_stock_lines')
+                    .select('sku_id, name_pro')
+                    .eq('cycle_id', cycleId)
+                    .order('sku_id', { ascending: true })
+                    .range(from, from + PAGE - 1);
                 if (error) throw error;
-                allRows = allRows.concat(data || []);
+                (data || []).forEach(row => {
+                    const sku = String(row.sku_id || '').trim();
+                    const key = normalizeSkuKey(sku);
+                    if (!key || skuMap.has(key)) return;
+                    const namePro = row.name_pro || nameMap[key] || '';
+                    skuMap.set(key, { sku_name: sku, name_pro: namePro });
+                });
                 if (!data || data.length < PAGE) break;
                 from += PAGE;
             }
-            if (loadGen !== skuMasterLoadGen) return;
-            skuMasterList = allRows;
-            skuMasterLoadedFor = wh;
-            console.log(`[SKU Master] Loaded ${skuMasterList.length} items (${wh || 'ทุกคลัง'}) ✓`);
+            if (loadGen !== bookSkuLoadGen) return;
+            bookSkuList = Array.from(skuMap.values()).sort((a, b) =>
+                String(a.sku_name || '').localeCompare(String(b.sku_name || ''), 'th')
+            );
+            bookSkuLoadedForCycleId = cycleId;
+            console.log(`[Book] Loaded ${bookSkuList.length} unique SKUs (รอบ ${cycleId}) ✓`);
         } catch (err) {
-            if (loadGen !== skuMasterLoadGen) return;
-            console.warn('[SKU Master] Load failed:', err.message);
-            skuMasterList = [];
-            skuMasterLoadedFor = wh;
+            if (loadGen !== bookSkuLoadGen) return;
+            console.warn('[Book] Load failed:', err.message);
+            bookSkuList = [];
+            bookSkuLoadedForCycleId = cycleId;
         }
     }
 
@@ -251,14 +269,15 @@ document.addEventListener('DOMContentLoaded', () => {
         hideSkuInfo();
         if (skuDropdown) skuDropdown.style.display = 'none';
         activeDropIdx = -1;
-        skuMasterLoadGen += 1;
-        skuMasterList = [];
-        skuMasterLoadedFor = '';
+        bookSkuLoadGen += 1;
+        bookSkuList = [];
+        bookSkuLoadedForCycleId = '';
         updateStats();
         await ensureActiveCycleForWarehouse(getActiveWarehouse());
-        await loadSkuMaster();
+        await loadBookSkuList();
         await loadExistingRecords();
-        if (skuMasterLoadedFor && skuMasterLoadedFor !== getActiveWarehouse()) return;
+        const cycleId = activeCycleForPage?.id || '';
+        if (bookSkuLoadedForCycleId && bookSkuLoadedForCycleId !== cycleId) return;
         updateStats();
         supabaseDataLoaded = true;
         lastDataLoadAt = Date.now();
@@ -345,19 +364,28 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    function getMasterSkuKeySet() {
+    function findBookSku(skuId) {
+        const key = normalizeSkuKey(skuId);
+        return bookSkuList.find(s => normalizeSkuKey(s.sku_name) === key);
+    }
+
+    function getBookSkuName(skuId) {
+        return findBookSku(skuId)?.name_pro || '';
+    }
+
+    function getBookSkuKeySet() {
         return new Set(
-            skuMasterList.map(s => normalizeSkuKey(s.sku_name)).filter(Boolean)
+            bookSkuList.map(s => normalizeSkuKey(s.sku_name)).filter(Boolean)
         );
     }
 
     function buildExtraCountedItems(records) {
-        const masterSet = getMasterSkuKeySet();
+        const bookSet = getBookSkuKeySet();
         const map = new Map();
 
         (records || []).forEach(row => {
             const key = normalizeSkuKey(row.sku_id);
-            if (!key || masterSet.has(key)) return;
+            if (!key || bookSet.has(key)) return;
 
             if (!map.has(key)) {
                 map.set(key, {
@@ -412,8 +440,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         listEl.innerHTML = records.map(row => {
-            const found = skuMasterList.find(s => normalizeSkuKey(s.sku_name) === normalizeSkuKey(row.sku_id));
-            const proName = found ? found.name_pro : '';
+            const proName = getBookSkuName(row.sku_id);
             return `
                 <li class="record-item" id="record-${row.id}">
                     <div class="record-main">
@@ -479,7 +506,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function searchSku(query) {
         if (!query || query.length < 1) return [];
         const q = query.toLowerCase();
-        return skuMasterList
+        return bookSkuList
             .filter(item =>
                 (item.sku_name || '').toLowerCase().includes(q) ||
                 (item.name_pro || '').toLowerCase().includes(q)
@@ -703,13 +730,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!val) return;
         // ถ้า name tag ยังไม่แสดง ให้ตรวจสอบว่า SKU ตรงกับ list ไหม
         if (skuNameTag.style.display === 'none') {
-            const found = skuMasterList.find(
-                item => (item.sku_name || '').toLowerCase() === val.toLowerCase()
-            );
+            const found = findBookSku(val);
             if (found) {
                 showSkuName(found.name_pro);
-            } else if (skuMasterList.length > 0) {
-                // มี list แล้วแต่ไม่เจอ → แสดง warning (ยังบันทึกได้)
+            } else if (bookSkuList.length > 0) {
+                // มี BOOK แล้วแต่ไม่เจอ → แสดง warning (ยังบันทึกได้)
                 skuNotFound.style.display = 'flex';
                 skuNameTag.style.display  = 'none';
                 lucide.createIcons();
@@ -1204,9 +1229,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function updateStats() {
         const scopedRecords = getWarehouseScopedRecords();
         const allCountedSkus = new Set(scopedRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
-        const activeWarehouse = getActiveWarehouse();
-        const isMasterReadyForWarehouse = !activeWarehouse || skuMasterLoadedFor === activeWarehouse;
-        const masterKeys = isMasterReadyForWarehouse ? getMasterSkuKeySet() : new Set();
+        const isBookReady = !activeCycleForPage?.id || bookSkuLoadedForCycleId === activeCycleForPage.id;
+        const bookKeys = isBookReady ? getBookSkuKeySet() : new Set();
 
         const todayRecords = scopedRecords.filter(r => isTodayInThailand(r.created_at));
         const todaySkus = new Set(todayRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
@@ -1223,11 +1247,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const extraBoxEl = document.getElementById('extraSkuStatBox');
         const extraEl = document.getElementById('totalExtraSku');
         const kpiPanelEl = document.getElementById('headerKpiPanel');
-        const totalItems = isMasterReadyForWarehouse ? skuMasterList.length : 0;
+        const totalItems = isBookReady ? bookSkuList.length : 0;
 
-        let countedInMaster = 0;
+        let countedInBook = 0;
         allCountedSkus.forEach(key => {
-            if (masterKeys.has(key)) countedInMaster += 1;
+            if (bookKeys.has(key)) countedInBook += 1;
         });
 
         const extraItems = buildExtraCountedItems(scopedRecords);
@@ -1235,7 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const extraCount = extraItems.length;
 
         const uncountedCount = totalItems > 0
-            ? skuMasterList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name))).length
+            ? bookSkuList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name))).length
             : 0;
 
         if (uncountedEl) {
@@ -1257,14 +1281,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (totalItems === 0) {
                 progressEl.textContent = '0%';
             } else {
-                percent = Math.min(100, Math.floor((countedInMaster / totalItems) * 100));
+                percent = Math.min(100, Math.floor((countedInBook / totalItems) * 100));
                 progressEl.textContent = `${percent}%`;
             }
         }
 
         if (progressSubEl) {
             progressSubEl.textContent = totalItems > 0
-                ? `${countedInMaster.toLocaleString()} / ${totalItems.toLocaleString()} SKU`
+                ? `${countedInBook.toLocaleString()} / ${totalItems.toLocaleString()} SKU`
                 : '—';
         }
 
@@ -1827,7 +1851,7 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = `
                 <div class="empty-state">
                     <i data-lucide="check-circle" style="color: var(--success); width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
-                    <p>ไม่พบ SKU ที่นับแล้วแต่อยู่นอก Master ของคลังนี้</p>
+                    <p>ไม่พบ SKU ที่นับแล้วแต่อยู่นอก Book ของรอบนี้</p>
                 </div>`;
             lucide.createIcons();
             return;
@@ -1873,7 +1897,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const scopedRecords = getWarehouseScopedRecords();
         const allCountedSkus = new Set(scopedRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
-        uncountedItemsCache = skuMasterList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name)));
+        uncountedItemsCache = bookSkuList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name)));
         
         // Update badge
         const uncountedEl = document.getElementById('totalUncounted');
@@ -1903,10 +1927,11 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!container) return;
 
         if (items.length === 0) {
+            const noBook = activeCycleForPage?.id && bookSkuList.length === 0;
             container.innerHTML = `
                 <div class="empty-state">
-                    <i data-lucide="check-circle" style="color: var(--success); width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
-                    <p>เยี่ยมมาก! นับสินค้าครบทุกรายการแล้ว</p>
+                    <i data-lucide="${noBook ? 'book-x' : 'check-circle'}" style="color: ${noBook ? '#fbbf24' : 'var(--success)'}; width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
+                    <p>${noBook ? 'ยังไม่มี Book ในรอบนี้ — อัปโหลดที่เมนูตั้งค่ารอบ' : 'เยี่ยมมาก! นับสินค้าครบทุกรายการใน Book แล้ว'}</p>
                 </div>`;
             lucide.createIcons();
             return;
@@ -1979,8 +2004,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function getUncountedCountFromRows(rows) {
-        const countedSet = getCountedSkuSet(rows);
-        return skuMasterList.filter(s => !countedSet.has(String(s.sku_name || '').toLowerCase().trim())).length;
+        const countedSet = new Set(rows.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
+        return bookSkuList.filter(s => !countedSet.has(normalizeSkuKey(s.sku_name))).length;
     }
 
     function getCounterOptions() {
@@ -2109,7 +2134,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         container.innerHTML = ordered.slice(0, 12).map(row => {
-            const skuName = skuMasterList.find(s => String(s.sku_name || '').toLowerCase().trim() === String(row.sku_id || '').toLowerCase().trim())?.name_pro || '';
+            const skuName = getBookSkuName(row.sku_id);
             return `
                 <div class="dashboard-submission-item">
                     <strong>${row.counter_name || 'Unknown'} • ${row.sku_id || '-'}</strong>
@@ -2138,14 +2163,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const countedSkus = getCountedSkuSet(rows);
         const countedQty = sumQuantity(rows);
-        const totalSkus = skuMasterList.length;
-        const masterKeys = getMasterSkuKeySet();
-        let countedInMaster = 0;
+        const totalSkus = bookSkuList.length;
+        const bookKeys = getBookSkuKeySet();
+        let countedInBook = 0;
         countedSkus.forEach(key => {
-            if (masterKeys.has(normalizeSkuKey(key))) countedInMaster += 1;
+            if (bookKeys.has(normalizeSkuKey(key))) countedInBook += 1;
         });
         const uncountedCount = getUncountedCountFromRows(rows);
-        const progressPercent = totalSkus > 0 ? Math.min(100, Math.floor((countedInMaster / totalSkus) * 100)) : 0;
+        const progressPercent = totalSkus > 0 ? Math.min(100, Math.floor((countedInBook / totalSkus) * 100)) : 0;
         const remainingPercent = totalSkus > 0 ? Math.max(0, 100 - progressPercent) : 0;
         const totalRecords = getWarehouseScopedRecords().length;
         const sendRate = totalRecords > 0 ? Math.floor((rows.length / totalRecords) * 100) : 0;
@@ -2164,7 +2189,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (uncountedSkuEl) uncountedSkuEl.textContent = uncountedCount.toLocaleString();
         if (remainingPctEl) remainingPctEl.textContent = `${remainingPercent}%`;
         if (progressEl) progressEl.textContent = `${progressPercent}%`;
-        if (progressQtyEl) progressQtyEl.textContent = `${countedInMaster.toLocaleString()} / ${totalSkus.toLocaleString()} SKU`;
+        if (progressQtyEl) progressQtyEl.textContent = `${countedInBook.toLocaleString()} / ${totalSkus.toLocaleString()} SKU`;
         if (rateEl) rateEl.textContent = `${sendRate}%`;
         if (rateHintEl) rateHintEl.textContent = `${rows.length.toLocaleString()} / ${totalRecords.toLocaleString()} รายการ`;
 
@@ -2191,7 +2216,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const exportRows = scopedExport.map((row, index) => {
-            const skuName = skuMasterList.find(s => String(s.sku_name || '').toLowerCase().trim() === String(row.sku_id || '').toLowerCase().trim())?.name_pro || '';
+            const skuName = getBookSkuName(row.sku_id);
             return {
                 '#': index + 1,
                 sku_id: row.sku_id || '-',
@@ -2318,7 +2343,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.exportExtraSkuExcel = function() {
         if (!extraSkuItemsCache || extraSkuItemsCache.length === 0) {
-            showToast('ไม่มีรายการสินค้าใหม่นอก Master ให้ส่งออก', 'error');
+            showToast('ไม่มีรายการสินค้าใหม่นอก Book ให้ส่งออก', 'error');
             return;
         }
 
@@ -2334,7 +2359,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 'จำนวนแถวนับ': item.recordCount,
                 'ตำแหน่ง': Array.from(item.locations || []).join(', ') || '-',
                 'นับล่าสุด': item.lastAt ? formatThaiDateTime(item.lastAt) : '-',
-                'หมายเหตุ': 'ไม่มีใน SKU Master ของคลังนี้'
+                'หมายเหตุ': 'ไม่มีใน Book ของรอบนี้'
             }));
 
             const ws = XLSX.utils.json_to_sheet(exportData);
@@ -2354,7 +2379,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const whSuffix = escapeFileName(getActiveWarehouse()) || 'all';
             const dateStr = new Date().toISOString().split('T')[0];
-            XLSX.writeFile(wb, `Extra_SKU_Outside_Master_${whSuffix}_${dateStr}.xlsx`);
+            XLSX.writeFile(wb, `Extra_SKU_Outside_Book_${whSuffix}_${dateStr}.xlsx`);
             showToast(`ดาวน์โหลดไฟล์ Excel สำเร็จ (${extraSkuItemsCache.length} รายการ)`);
         } catch (err) {
             console.error('[Export Extra SKU Error]', err);

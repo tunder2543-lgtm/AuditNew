@@ -23,34 +23,54 @@
         <main class="main-area">
     <div class="dashboard-container">
         <!-- Header -->
-        <header class="dashboard-header">
-            <div class="header-content" style="display: flex; flex-direction: column; align-items: center;">
-                <h1 id="liveClock" style="font-family: 'Kanit', sans-serif;">กำลังโหลดวันเวลา...</h1>
-                <p id="monthSubtitle" style="font-family: 'Kanit', sans-serif; font-size: 1.5rem; font-weight: 600; color: #93c5fd; text-align: center; margin-top: 0.25rem; letter-spacing: 0.02em;">นับสต็อกเดือน...</p>
-                <div class="cycle-picker-row" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
-                    <label for="countCycle" style="font-size: 0.85rem; color: var(--text-muted); display: flex; align-items: center; gap: 0.35rem;">
-                        <i data-lucide="calendar-range" style="width: 15px; height: 15px;"></i>
-                        รอบอ้างอิง (Book):
-                    </label>
-                    <select id="countCycle" title="เลือกรอบนับของเดือนปัจจุบัน — ใช้เทียบ KPI กับ Book" style="min-width: 220px; max-width: 100%; padding: 0.45rem 0.75rem; border-radius: 8px; border: 1px solid var(--card-border); background: var(--input-bg); color: var(--text); font-size: 0.88rem;">
+        <header class="dashboard-header count-page-header">
+            <div class="header-content count-header-main">
+                <div class="count-header-top">
+                    <h1 id="liveClock">กำลังโหลดวันเวลา...</h1>
+                    <p id="monthSubtitle" class="count-header-subtitle">นับสต็อกเดือน...</p>
+                </div>
+
+                <div class="count-cycle-panel">
+                    <div class="count-cycle-panel-head">
+                        <span class="count-section-icon" aria-hidden="true">
+                            <i data-lucide="calendar-range"></i>
+                        </span>
+                        <div class="count-cycle-panel-titles">
+                            <span class="count-section-title">รอบอ้างอิง (Book)</span>
+                            <span id="cycleMonthHint" class="count-cycle-month-badge"></span>
+                        </div>
+                    </div>
+                    <select id="countCycle" class="count-cycle-select" title="เลือกรอบนับของเดือนปัจจุบัน — ใช้เทียบ KPI กับ Book">
                         <option value="">กำลังโหลดรอบ...</option>
                     </select>
-                    <span id="cycleMonthHint" style="font-size: 0.78rem; color: var(--text-muted);"></span>
+                    <div class="count-cycle-alert" role="alert">
+                        <i data-lucide="alert-triangle"></i>
+                        <span>อย่าลืมเปลี่ยนรอบการนับก่อนส่ง</span>
+                    </div>
                 </div>
             </div>
             <div class="header-stats">
                 <div class="header-stats-kpis">
-                    <div class="stat-box">
-                        <span class="stat-label">บันทึกแล้ววันนี้ (SKU / ชิ้น)</span>
+                    <div class="stat-box stat-box-icon">
+                        <span class="stat-label stat-label-icon">
+                            <i data-lucide="clipboard-list"></i>
+                            บันทึกแล้ววันนี้ (SKU / ชิ้น)
+                        </span>
                         <span class="stat-value" id="totalScanned">0 / 0</span>
                     </div>
-                    <div class="stat-box" style="cursor: pointer; border-color: rgba(239, 68, 68, 0.3); transition: all 0.2s;" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ" onmouseover="this.style.background='rgba(239, 68, 68, 0.1)'" onmouseout="this.style.background='var(--card)'">
-                        <span class="stat-label">ยังไม่ได้นับ (SKU ใน Book)</span>
-                        <span class="stat-value" id="totalUncounted" style="color: #fca5a5;">0</span>
+                    <div class="stat-box stat-box-icon stat-box-uncounted" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ">
+                        <span class="stat-label stat-label-icon">
+                            <i data-lucide="book-open"></i>
+                            ยังไม่ได้นับ (SKU ใน Book)
+                        </span>
+                        <span class="stat-value stat-value-warn" id="totalUncounted">0</span>
                     </div>
-                    <div class="stat-box">
-                        <span class="stat-label">SKU ใน Book ที่นับแล้ว</span>
-                        <span class="stat-value" id="progressPercent" style="color: #34d399;">0%</span>
+                    <div class="stat-box stat-box-icon">
+                        <span class="stat-label stat-label-icon">
+                            <i data-lucide="pie-chart"></i>
+                            SKU ใน Book ที่นับแล้ว
+                        </span>
+                        <span class="stat-value stat-value-ok" id="progressPercent">0%</span>
                     </div>
                 </div>
                 <div class="header-stats-actions">

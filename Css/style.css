@@ -289,6 +289,185 @@ body.has-sidebar {
     line-height: 1.2;
 }
 
+/* ── Count page header (index) ── */
+.count-page-header {
+    align-items: flex-start;
+    gap: 1.25rem;
+}
+
+.count-header-main {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.count-header-top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.count-page-header .header-content h1 {
+    font-family: 'Kanit', sans-serif;
+    font-size: clamp(1.35rem, 2.5vw, 2rem);
+    margin-bottom: 0;
+    line-height: 1.25;
+}
+
+.count-header-subtitle {
+    font-family: 'Kanit', sans-serif;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #93c5fd;
+    margin: 0;
+    letter-spacing: 0.02em;
+}
+
+.count-cycle-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    max-width: 520px;
+    padding: 0.85rem 1rem;
+    border-radius: 12px;
+    border: 1px solid rgba(59, 130, 246, 0.22);
+    background: linear-gradient(145deg, rgba(59, 130, 246, 0.07) 0%, rgba(15, 15, 18, 0.5) 100%);
+}
+
+.count-cycle-panel-head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.count-section-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    border-radius: 8px;
+    background: rgba(59, 130, 246, 0.15);
+    color: #93c5fd;
+    flex-shrink: 0;
+}
+
+.count-section-icon i,
+.count-section-icon svg {
+    width: 1.05rem;
+    height: 1.05rem;
+}
+
+.count-cycle-panel-titles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+}
+
+.count-section-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    letter-spacing: 0.02em;
+}
+
+.count-cycle-month-badge {
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: #93c5fd;
+    padding: 0.15rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid rgba(147, 197, 253, 0.35);
+    background: rgba(59, 130, 246, 0.1);
+    white-space: nowrap;
+}
+
+.count-cycle-select {
+    width: 100%;
+    padding: 0.55rem 0.75rem;
+    border-radius: 8px;
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    background: rgba(10, 12, 18, 0.85);
+    color: var(--text);
+    font-size: 0.88rem;
+    font-family: 'Kanit', sans-serif;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.count-cycle-select:hover {
+    border-color: rgba(96, 165, 250, 0.55);
+}
+
+.count-cycle-select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+.count-cycle-alert {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.7rem;
+    border-radius: 8px;
+    border: 1px solid rgba(239, 68, 68, 0.45);
+    background: rgba(239, 68, 68, 0.12);
+    color: #fecaca;
+    font-size: 0.84rem;
+    font-weight: 600;
+    font-family: 'Kanit', sans-serif;
+    line-height: 1.35;
+}
+
+.count-cycle-alert i,
+.count-cycle-alert svg {
+    width: 1.1rem;
+    height: 1.1rem;
+    color: #f87171;
+    flex-shrink: 0;
+}
+
+.stat-label-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.stat-label-icon i,
+.stat-label-icon svg {
+    width: 0.9rem;
+    height: 0.9rem;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+.stat-box-icon {
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.stat-box-uncounted {
+    cursor: pointer;
+    border-color: rgba(239, 68, 68, 0.28);
+}
+
+.stat-box-uncounted:hover {
+    background: rgba(239, 68, 68, 0.08);
+    border-color: rgba(239, 68, 68, 0.45);
+}
+
+.stat-value-warn {
+    color: #fca5a5 !important;
+}
+
+.stat-value-ok {
+    color: #34d399 !important;
+}
+
 /* Mode tabs (Single / Group) */
 .form-header-tabs {
     display: flex;
@@ -656,8 +835,14 @@ input:focus + .input-icon, select:focus + .input-icon,
         align-items: stretch;
         gap: 1rem;
     }
-    .header-content h1 {
-        font-size: 1.75rem;
+    .count-cycle-panel {
+        max-width: none;
+    }
+    .count-page-header .header-content h1 {
+        font-size: 1.35rem;
+    }
+    .count-header-subtitle {
+        font-size: 1rem;
     }
     .header-stats {
         width: 100%;

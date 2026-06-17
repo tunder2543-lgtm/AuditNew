@@ -163,7 +163,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const ym = getCurrentYearMonthBangkok();
 
         if (hintEl) {
-            hintEl.textContent = `(รอบเดือน ${ym})`;
+            hintEl.textContent = `เดือน ${ym}`;
         }
 
         if (!RS || !warehouse) {

@@ -24,66 +24,62 @@
     <div class="dashboard-container">
         <!-- Header -->
         <header class="dashboard-header count-page-header">
-            <div class="header-content count-header-main">
-                <div class="count-header-top">
+            <div class="count-header-row">
+                <div class="header-content count-header-title">
                     <h1 id="liveClock">กำลังโหลดวันเวลา...</h1>
                     <p id="monthSubtitle" class="count-header-subtitle">นับสต็อกเดือน...</p>
                 </div>
-
-                <div class="count-cycle-panel">
-                    <div class="count-cycle-panel-head">
-                        <span class="count-section-icon" aria-hidden="true">
-                            <i data-lucide="calendar-range"></i>
-                        </span>
-                        <div class="count-cycle-panel-titles">
-                            <span class="count-section-title">รอบอ้างอิง (Book)</span>
-                            <span id="cycleMonthHint" class="count-cycle-month-badge"></span>
+                <div class="header-stats">
+                    <div class="header-stats-kpis">
+                        <div class="stat-box stat-box-icon">
+                            <span class="stat-label stat-label-icon">
+                                <i data-lucide="clipboard-list"></i>
+                                บันทึกแล้ววันนี้ (SKU / ชิ้น)
+                            </span>
+                            <span class="stat-value" id="totalScanned">0 / 0</span>
+                        </div>
+                        <div class="stat-box stat-box-icon stat-box-uncounted" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ">
+                            <span class="stat-label stat-label-icon">
+                                <i data-lucide="book-open"></i>
+                                ยังไม่ได้นับ (SKU ใน Book)
+                            </span>
+                            <span class="stat-value stat-value-warn" id="totalUncounted">0</span>
+                        </div>
+                        <div class="stat-box stat-box-icon">
+                            <span class="stat-label stat-label-icon">
+                                <i data-lucide="pie-chart"></i>
+                                SKU ใน Book ที่นับแล้ว
+                            </span>
+                            <span class="stat-value stat-value-ok" id="progressPercent">0%</span>
                         </div>
                     </div>
-                    <select id="countCycle" class="count-cycle-select" title="เลือกรอบนับของเดือนปัจจุบัน — ใช้เทียบ KPI กับ Book">
-                        <option value="">กำลังโหลดรอบ...</option>
-                    </select>
-                    <div class="count-cycle-alert" role="alert">
-                        <i data-lucide="alert-triangle"></i>
-                        <span>อย่าลืมเปลี่ยนรอบการนับก่อนส่ง</span>
+                    <div class="header-stats-actions">
+                        <div id="connectionBadge" class="connection-badge badge-disconnected connection-badge-status" title="สถานะการเชื่อมต่อ Supabase">
+                            <i data-lucide="wifi-off" id="badgeIcon" data-badge-icon></i>
+                            <span id="badgeText" data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                        </div>
+                        <button class="settings-btn-cs" onclick="openLogDrawer()" title="ดูประวัติ Audit Log">
+                            <i data-lucide="history"></i>
+                        </button>
+                        <button class="settings-btn-cs" onclick="openExportMenu(event)" title="ส่งออกข้อมูล inventory_counts">
+                            <i data-lucide="download"></i>
+                        </button>
                     </div>
                 </div>
             </div>
-            <div class="header-stats">
-                <div class="header-stats-kpis">
-                    <div class="stat-box stat-box-icon">
-                        <span class="stat-label stat-label-icon">
-                            <i data-lucide="clipboard-list"></i>
-                            บันทึกแล้ววันนี้ (SKU / ชิ้น)
-                        </span>
-                        <span class="stat-value" id="totalScanned">0 / 0</span>
-                    </div>
-                    <div class="stat-box stat-box-icon stat-box-uncounted" onclick="openUncountedDrawer()" title="คลิกเพื่อดูรายการที่ยังไม่ได้นับ">
-                        <span class="stat-label stat-label-icon">
-                            <i data-lucide="book-open"></i>
-                            ยังไม่ได้นับ (SKU ใน Book)
-                        </span>
-                        <span class="stat-value stat-value-warn" id="totalUncounted">0</span>
-                    </div>
-                    <div class="stat-box stat-box-icon">
-                        <span class="stat-label stat-label-icon">
-                            <i data-lucide="pie-chart"></i>
-                            SKU ใน Book ที่นับแล้ว
-                        </span>
-                        <span class="stat-value stat-value-ok" id="progressPercent">0%</span>
-                    </div>
-                </div>
-                <div class="header-stats-actions">
-                    <div id="connectionBadge" class="connection-badge badge-disconnected connection-badge-status" title="สถานะการเชื่อมต่อ Supabase">
-                        <i data-lucide="wifi-off" id="badgeIcon" data-badge-icon></i>
-                        <span id="badgeText" data-badge-text>ไม่ได้เชื่อมต่อ</span>
-                    </div>
-                    <button class="settings-btn-cs" onclick="openLogDrawer()" title="ดูประวัติ Audit Log">
-                        <i data-lucide="history"></i>
-                    </button>
-                    <button class="settings-btn-cs" onclick="openExportMenu(event)" title="ส่งออกข้อมูล inventory_counts">
-                        <i data-lucide="download"></i>
-                    </button>
+
+            <div class="count-cycle-bar">
+                <label class="count-cycle-label" for="countCycle">
+                    <i data-lucide="calendar-range"></i>
+                    <span>รอบอ้างอิง (Book)</span>
+                    <span id="cycleMonthHint" class="count-cycle-month-badge"></span>
+                </label>
+                <select id="countCycle" class="count-cycle-select" title="เลือกรอบนับของเดือนปัจจุบัน — ใช้เทียบ KPI กับ Book">
+                    <option value="">กำลังโหลดรอบ...</option>
+                </select>
+                <div class="count-cycle-alert" role="alert">
+                    <i data-lucide="alert-triangle"></i>
+                    <span>อย่าลืมเปลี่ยนรอบการนับก่อนส่ง</span>
                 </div>
             </div>
         </header>

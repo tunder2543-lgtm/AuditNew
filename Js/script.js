@@ -15,7 +15,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let bookSkuLoadedForCycleId = '';
     let bookSkuLoadGen = 0;
     let allRecords     = []; // Cache inventory_counts records for audit log context
-    let activeCycleForPage = null; // รอบนับปัจจุบันของคลังที่เลือก
+    let activeCycleForPage = null; // รอบนับที่เลือกสำหรับ KPI / Book
+    let cyclesForPage = []; // รอบของเดือนปัจจุบันตามคลังที่เลือก
+    let isApplyingCycleSelect = false;
+    const CYCLE_SELECT_STORAGE = 'count_page_selected_cycle_v1';
     let supabaseDataLoaded = false;
     let warehouseReady = false;
 
@@ -84,57 +87,160 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(updateClock, 1000);
     updateClock();
 
+    function getCurrentYearMonthBangkok() {
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' }).slice(0, 7);
+    }
+
+    function getCycleStorageKey(warehouse) {
+        return `${String(warehouse || '').trim()}|${getCurrentYearMonthBangkok()}`;
+    }
+
+    function loadSavedCycleId(warehouse) {
+        try {
+            const raw = localStorage.getItem(CYCLE_SELECT_STORAGE);
+            if (!raw) return '';
+            const obj = JSON.parse(raw);
+            return obj[getCycleStorageKey(warehouse)] || '';
+        } catch {
+            return '';
+        }
+    }
+
+    function saveSelectedCycleId(warehouse, cycleId) {
+        try {
+            const raw = localStorage.getItem(CYCLE_SELECT_STORAGE);
+            const obj = raw ? JSON.parse(raw) : {};
+            const key = getCycleStorageKey(warehouse);
+            if (cycleId) obj[key] = cycleId;
+            else delete obj[key];
+            localStorage.setItem(CYCLE_SELECT_STORAGE, JSON.stringify(obj));
+        } catch { /* ignore */ }
+    }
+
+    function filterCyclesCurrentMonth(cycles) {
+        const ym = getCurrentYearMonthBangkok();
+        return (cycles || []).filter(c => c.year_month === ym);
+    }
+
     function updateCycleSubtitle() {
         const subtitleEl = document.getElementById('monthSubtitle');
         if (!subtitleEl) return;
+        const monthLabel = new Date().toLocaleDateString('th-TH', {
+            timeZone: 'Asia/Bangkok',
+            month: 'long',
+            year: 'numeric'
+        });
+        subtitleEl.textContent = `นับสต็อก — ${monthLabel}`;
         const RS = window.reconcileService;
         const cycle = activeCycleForPage;
-        if (cycle?.id && RS?.formatCycleLabel) {
-            subtitleEl.textContent = `รอบ: ${RS.formatCycleLabel(cycle)}`;
-            subtitleEl.title = RS.formatDateRangeLabel ? RS.formatDateRangeLabel(cycle) : '';
-            return;
-        }
-        const now = new Date();
-        const currentMonth = now.toLocaleDateString('th-TH', { month: 'long' });
-        subtitleEl.textContent = `นับสต็อกเดือน${currentMonth}`;
-        subtitleEl.title = '';
+        subtitleEl.title = cycle?.id && RS?.formatCycleLabel
+            ? `${RS.formatCycleLabel(cycle)}${RS.formatDateRangeLabel ? ' · ' + RS.formatDateRangeLabel(cycle) : ''}`
+            : '';
     }
 
-    /** เลือกรอบ active ที่ตรงคลัง หรือรอบล่าสุดของคลังนั้น */
-    async function ensureActiveCycleForWarehouse(warehouse) {
+    async function applySelectedCycle(cycleId, opts = {}) {
         const RS = window.reconcileService;
+        const cycle = cyclesForPage.find(c => c.id === cycleId)
+            || (cycleId && RS ? await RS.fetchCycleById(cycleId).catch(() => null) : null);
+        activeCycleForPage = cycle;
+        const wh = getActiveWarehouse();
+        if (!opts.skipSave && wh && cycleId) saveSelectedCycleId(wh, cycleId);
+        if (cycle && RS) RS.setActiveCycle(cycle);
+        updateCycleSubtitle();
+        const select = countCycleSelect || document.getElementById('countCycle');
+        if (select && cycleId && select.value !== cycleId) {
+            isApplyingCycleSelect = true;
+            select.value = cycleId;
+            isApplyingCycleSelect = false;
+        }
+        return cycle;
+    }
+
+    async function populateAndResolveCycle(warehouse) {
+        const RS = window.reconcileService;
+        const select = countCycleSelect || document.getElementById('countCycle');
+        const hintEl = document.getElementById('cycleMonthHint');
+        const ym = getCurrentYearMonthBangkok();
+
+        if (hintEl) {
+            hintEl.textContent = `(รอบเดือน ${ym})`;
+        }
+
         if (!RS || !warehouse) {
+            cyclesForPage = [];
             activeCycleForPage = null;
+            if (select) select.innerHTML = '<option value="">— เลือกคลังก่อน —</option>';
             updateCycleSubtitle();
             return null;
         }
 
-        const active = RS.getActiveCycle();
-        if (active?.id && RS.warehouseMatchesCycle(active, warehouse)) {
-            activeCycleForPage = await RS.fetchCycleById(active.id).catch(() => active) || active;
-            updateCycleSubtitle();
-            return activeCycleForPage;
-        }
-
         try {
-            const cycles = await RS.fetchCycles(warehouse);
-            if (!cycles.length) {
+            const all = await RS.fetchCycles(warehouse);
+            cyclesForPage = filterCyclesCurrentMonth(all);
+
+            if (!select) return null;
+
+            if (!cyclesForPage.length) {
+                select.innerHTML = `<option value="">ไม่มีรอบในเดือน ${ym}</option>`;
                 activeCycleForPage = null;
                 updateCycleSubtitle();
                 return null;
             }
-            const latest = cycles[0];
-            RS.setActiveCycle(latest);
-            activeCycleForPage = latest;
-            console.log(`[Cycle] ใช้รอบล่าสุดของคลัง "${warehouse}": ${RS.formatCycleLabel(latest)}`);
-            updateCycleSubtitle();
-            return latest;
+
+            select.innerHTML = cyclesForPage.map(c => {
+                const range = RS.formatDateRangeLabel ? RS.formatDateRangeLabel(c) : '';
+                const label = c.label ? String(c.label).trim() : '';
+                const text = [range !== 'ทั้งเดือน' ? range : '', label].filter(Boolean).join(' · ')
+                    || RS.formatCycleLabel(c);
+                return `<option value="${escapeHtml(c.id)}">${escapeHtml(text)}</option>`;
+            }).join('');
+
+            const saved = loadSavedCycleId(warehouse);
+            const active = RS.getActiveCycle();
+            let pickId = '';
+            if (saved && cyclesForPage.some(c => c.id === saved)) {
+                pickId = saved;
+            } else if (active?.id && cyclesForPage.some(c => c.id === active.id) && RS.warehouseMatchesCycle(active, warehouse)) {
+                pickId = active.id;
+            } else {
+                pickId = cyclesForPage[0].id;
+            }
+
+            isApplyingCycleSelect = true;
+            select.value = pickId;
+            isApplyingCycleSelect = false;
+
+            await applySelectedCycle(pickId);
+            lucide.createIcons();
+            return activeCycleForPage;
         } catch (err) {
-            console.warn('[Cycle] โหลดรอบล่าสุดไม่สำเร็จ:', err.message);
+            console.warn('[Cycle] โหลดรายการรอบไม่สำเร็จ:', err.message);
+            if (select) select.innerHTML = '<option value="">โหลดรอบไม่สำเร็จ</option>';
             activeCycleForPage = null;
             updateCycleSubtitle();
             return null;
         }
+    }
+
+    async function onCycleSelectChanged() {
+        if (isApplyingCycleSelect) return;
+        const select = countCycleSelect || document.getElementById('countCycle');
+        const cycleId = select?.value || '';
+        if (!cycleId) return;
+
+        hideSkuInfo();
+        if (skuDropdown) skuDropdown.style.display = 'none';
+        activeDropIdx = -1;
+        bookSkuLoadGen += 1;
+        bookSkuList = [];
+        bookSkuLoadedForCycleId = '';
+        updateStats();
+
+        await applySelectedCycle(cycleId);
+        await loadBookSkuList();
+        await loadExistingRecords();
+        updateStats();
+        lucide.createIcons();
     }
 
     // =============================================
@@ -273,7 +379,7 @@ document.addEventListener('DOMContentLoaded', () => {
         bookSkuList = [];
         bookSkuLoadedForCycleId = '';
         updateStats();
-        await ensureActiveCycleForWarehouse(getActiveWarehouse());
+        await populateAndResolveCycle(getActiveWarehouse());
         await loadBookSkuList();
         await loadExistingRecords();
         const cycleId = activeCycleForPage?.id || '';
@@ -520,6 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const form             = document.getElementById('stockForm');
     const counterNameInput = document.getElementById('counter_name');
     const warehouseInput   = document.getElementById('warehouse');
+    const countCycleSelect = document.getElementById('countCycle');
     const locationInput    = document.getElementById('location');
     const skuInput         = document.getElementById('sku');
     const quantityInput    = document.getElementById('quantity');
@@ -590,6 +697,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 localStorage.setItem('saved_warehouse', wh);
             }
             await onWarehouseContextChanged();
+        });
+    }
+
+    if (countCycleSelect) {
+        countCycleSelect.addEventListener('change', () => {
+            onCycleSelectChanged();
         });
     }
 

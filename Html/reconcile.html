@@ -739,6 +739,9 @@
         if ((s === 'short' || s === 'over') && skuId) {
             return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อใส่ยอดที่ต้องการและยอมรับผลนับ"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
         }
+        if (s === 'book_only' && skuId) {
+            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อยืนยันเป็นถูกต้อง (คงยอดปรับเดิม)"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
+        }
         return `<span class="rc-badge ${d.cls}"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
     }
 
@@ -851,7 +854,7 @@
     function canMarkAsMatchAccepted(line) {
         if (!line || isLineAcceptedMatch(line.sku_id)) return false;
         const s = resolveComputedStatus(line);
-        return s === 'short' || s === 'over';
+        return s === 'short' || s === 'over' || s === 'book_only';
     }
 
     function computeDisplayVariance(line) {
@@ -1212,7 +1215,12 @@
             if (!validation.ok && (computed === 'short' || computed === 'over')) {
                 html += `<div class="rc-adj-sum-warn">ยังไม่ตรงผลนับ — ปรับยอดให้ตรงใส่ <strong>${counted.toLocaleString()}</strong> หรือกด「ยืนยันเป็นถูกต้อง」</div>`;
             } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6 && canMark) {
-                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ยืนยันเป็นถูกต้อง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book</div>`;
+                const bookOnlyHint = computed === 'book_only'
+                    ? ' (ยังไม่ได้นับ — ไม่เปลี่ยนยอดปรับที่มีอยู่)'
+                    : '';
+                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ยืนยันเป็นถูกต้อง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book${bookOnlyHint}</div>`;
+            } else if (canMark && computed === 'book_only' && target == null) {
+                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอด Excel ใช้เทียบที่ต้องการ แล้วกด「ยืนยันเป็นถูกต้อง」 (คงยอดปรับเดิม)</div>`;
             }
         }
         html += `<div class="rc-adj-sum-note">ใส่ยอด Excel ใช้เทียบหลังปรับ · ยอมรับผลนับ = ปรับให้ตรงผลนับ · ยืนยันถูกต้อง = ไม่เปลี่ยนยอด</div>`;
@@ -1234,12 +1242,18 @@
     function openVarianceAcceptPanel(line) {
         if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
         const st = line ? resolveComputedStatus(line) : null;
-        if (!line || (st !== 'short' && st !== 'over')) {
-            return showToast('รายการนี้ไม่ใช่สถานะขาด/เกิน หรือถูกต้องแล้ว', 'error');
+        if (!line || (st !== 'short' && st !== 'over' && st !== 'book_only')) {
+            return showToast('รายการนี้ไม่สามารถยืนยันเป็นถูกต้องได้', 'error');
         }
-        selectAdjLine(line, { targetDefault: Number(line.counted_qty) });
+        const targetDefault = st === 'book_only'
+            ? getLineEffectiveBook(line)
+            : Number(line.counted_qty);
+        selectAdjLine(line, { targetDefault });
         document.getElementById('adjQty').focus();
         document.querySelector('.rc-side')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (st === 'book_only') {
+            showToast('คงยอดปรับเดิม — กด「ยืนยันเป็นถูกต้อง」เพื่อตั้งสถานะถูกต้อง');
+        }
     }
 
     function statusTh(code) {

@@ -15,6 +15,7 @@ Static HTML + vanilla JS + Supabase (UI ภาษาไทย) — ไม่ม�
 8. ระวังลำดับ `<script>`: `Js/live-count-wall.js` ต้องมาหลัง `reconcile-shared.js`
 9. **แก้ shared JS แล้วต้อง bump cache-buster ทุกที่** — shared JS ทุกตัวมี `?v=YYYYMMDDx` ในทุก HTML **และ** ต้อง bump `ASSET_VER` ใน `Js/sidebar-shared.js` ด้วย (ใช้กับไฟล์ที่ inject แบบ dynamic: chat-notify-shared.js, chat-notify.css) ถ้าไม่ bump เบราว์เซอร์จะใช้ไฟล์เก่าและการแก้จะไม่ถึงผู้ใช้ (เคยเกิดจริงตอนแก้ H1)
 11. **`apiService.getClient()` cache client ไว้แล้ว** — เรียกได้บ่อยตามสบาย ห้ามเรียก `createClient()` เองตรง ๆ (จะเกิด GoTrueClient ซ้อนกัน)
+12. **RPC ที่เขียนตารางซึ่ง anon ไม่มี policy เขียน ต้องเป็น `SECURITY DEFINER` + `SET search_path`** — Postgres function เป็น `SECURITY INVOKER` โดยดีฟอลต์ จึงโดน RLS ของผู้เรียก (สมัย service_role key ไม่เห็นปัญหาเพราะข้าม RLS หมด) · ปัจจุบันมีตัวเดียวคือ `refresh_reconciliation_for_cycle` ([018](docs/sql/018_refresh_reconciliation_security_definer.sql)) · อาการเวลาพลาด: PostgREST คืน **HTTP 401** พร้อมข้อความ `new row violates row-level security policy` (sqlstate 42501) และ `DELETE` ในฟังก์ชันจะลบ 0 แถวแบบไม่ error
 10. `cycle_id` ต้องมาจาก `attachCycleToPayload()` เท่านั้น — มี guard `isCycleRelevantNow()` กันรอบเดือนเก่าค้าง ห้าม set `cycle_id` ตรง ๆ ตอน insert
 
 ## เอกสารระบบ (จัดทำ 2026-08-09 จากการวิเคราะห์โค้ดจริงทั้งระบบ)
@@ -69,4 +70,6 @@ node tests/run.mjs
 - ✅ **H1 เสร็จ** (2026-08-09): guard `isCycleRelevantNow()` กัน cycle เดือนเก่าค้าง + เตือนเมื่อเปิดหน้าค้างข้ามเดือน + cache-buster ทุกหน้า
 - ✅ **C2 + M25 เสร็จ** (2026-08-09): ปิด Stored XSS ทุกจุด (escape ครบ + เลิกต่อค่าใน onclick) และ cache Supabase client
 - ✅ **H2 เสร็จ** (2026-08-09): นิยาม "แถวซ้ำ" ใหม่ใน `Js/audit-dedupe.js` — เดิมจะลบข้อมูลนับที่ถูกต้อง 470 แถว ตอนนี้ลบ 0 · **เทส 92 PASS / 0 FAIL**
+- ✅ **H3 เสร็จ** (2026-08-09): `Js/audit-log.js` เขียน `inventory_audit_logs` ครบทุก mutation ในหน้า audit_check (เดิม 0 จุด) — ลบต้อง log ก่อน · แก้ flush ทุก 100 แถว · **เทส 113 PASS** · ส่วน atomic แยกเป็น M27
+- ✅ **แก้ 401 "คำนวณ Match"** (2026-08-09): `refresh_reconciliation_for_cycle` เป็น SECURITY DEFINER ([018](docs/sql/018_refresh_reconciliation_security_definer.sql)) — RPC ไม่ข้าม RLS เองถ้าไม่ประกาศ definer
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

@@ -898,6 +898,22 @@ document.addEventListener('DOMContentLoaded', () => {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
+    /** ป้าย/คำอธิบายของ log ที่มาจากหน้า audit_check (ดู Js/audit-log.js) */
+    const AUDIT_ACTION_LABELS = {
+        AUDIT_EDIT_LOC: 'แก้ตำแหน่งจากหน้าตรวจสอบ',
+        AUDIT_SWAP: 'สลับ SKU ↔ ตำแหน่ง จากหน้าตรวจสอบ',
+        AUDIT_LOC_COMPARE: 'แก้ตำแหน่งจากการเทียบไฟล์ Excel',
+        AUDIT_DELETE: 'ลบรายการจากหน้าตรวจสอบ',
+        AUDIT_DEDUPE: 'ลบแถวที่กดบันทึกซ้ำ'
+    };
+    const AUDIT_ACTION_BADGES = {
+        AUDIT_EDIT_LOC: 'แก้ตำแหน่ง',
+        AUDIT_SWAP: 'สลับ SKU/LOC',
+        AUDIT_LOC_COMPARE: 'Excel LOC',
+        AUDIT_DELETE: 'ลบ (ตรวจสอบ)',
+        AUDIT_DEDUPE: 'ลบซ้ำ'
+    };
+
     async function logAudit(actionType, recordId, sku, oldQty, newQty, warehouse, location, counterName) {
         if (!supabaseClient) return;
         try {
@@ -1803,6 +1819,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     detailHtml = `ลบรายการ (จำนวนเดิม <strong>${log.old_qty}</strong> ชิ้น)`;
                 } else if (log.action_type === 'GROUP_INSERT') {
                     detailHtml = `เพิ่มสินค้าแบบกลุ่มรวม <strong>+${log.new_qty}</strong> ชิ้น`;
+                } else if (log.action_type === 'IMPORT') {
+                    detailHtml = `นำเข้าจากไฟล์ <strong>${Number(log.new_qty) || 0}</strong> แถว` +
+                        (Number(log.old_qty) ? ` (ไม่สำเร็จ ${Number(log.old_qty)})` : '');
+                } else if (String(log.action_type || '').startsWith('AUDIT_')) {
+                    // มาจากหน้า audit_check — รายละเอียด "ค่าเดิม → ค่าใหม่" เก็บในคอลัมน์ location
+                    detailHtml = AUDIT_ACTION_LABELS[log.action_type] || 'แก้ไขจากหน้าตรวจสอบ';
                 }
 
                 let badgeType = log.action_type;
@@ -1810,6 +1832,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (log.action_type === 'GROUP_INSERT') {
                     badgeType = 'INSERT';
                     badgeText = 'GROUP';
+                } else if (String(log.action_type || '').startsWith('AUDIT_')) {
+                    // ใช้สีเดียวกับ UPDATE/DELETE ที่มี CSS อยู่แล้ว
+                    badgeType = (log.action_type === 'AUDIT_DELETE' || log.action_type === 'AUDIT_DEDUPE')
+                        ? 'DELETE' : 'UPDATE';
+                    badgeText = AUDIT_ACTION_BADGES[log.action_type] || 'AUDIT';
                 }
 
                 let skuHtml = `<div class="log-sku" style="word-break: break-all; white-space: normal; line-height: 1.4;">${escapeHtml(log.sku_id)}</div>`;

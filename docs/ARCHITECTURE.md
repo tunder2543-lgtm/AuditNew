@@ -61,6 +61,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `reconcile-shared.js` | `window.reconcileService` | service ใหญ่สุด (~3,231 บรรทัด ~95 exports): cycle CRUD, Book import, active cycle, เวลา Bangkok, reconciliation, adjustments — ดูรายละเอียดใน [pages/reconcile.md](pages/reconcile.md) |
 | `dashboard-shared.js` | `window.dashboardShared` | helper คำนวณ bucket/สถิติ + สร้าง Chart.js (ไม่มี I/O) |
 | `audit-dedupe.js` | `window.AuditDedupe` | นิยาม "แถวซ้ำ" ของ `inventory_counts` ตามนโยบาย migration 011 (ใช้โดย audit_check — แยกออกมาให้เทสได้) |
+| `audit-log.js` | `window.AuditLog` | สร้าง/เขียน `inventory_audit_logs` ให้ทุก mutation ในหน้า audit_check (invariant ข้อ 1) |
 | `chat-notify-shared.js` | — | แจ้งเตือนแชทข้ามหน้า (realtime + polling) — ถูก inject โดย sidebar ทุกหน้า |
 | `script.js` | (IIFE) | logic ทั้งหมดของ index.html |
 | `live-count-wall.js` | (IIFE) | logic ของ live_count_wall — ⚠️ capture `RS` ตอน parse ลำดับ script สำคัญ |

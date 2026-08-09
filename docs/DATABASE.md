@@ -73,7 +73,12 @@ Partial unique: `uq_stock_adj_draft_per_sku (cycle_id, sku_id) WHERE status='dra
 PK `(cycle_id, sku_id)`, `note`, `accepted_at`, `accepted_by` — เป็นกลไกหลักที่ทำให้ KPI "ถูกต้อง" ขึ้นหลัง Excel import (⚠️ design doc ไม่พูดถึงตารางนี้เลย)
 
 ### อื่น ๆ
-`chat_messages`, `chat_attachments` (Storage bucket `chat-attachments`), `inventory_audit_logs` (action: INSERT/GROUP_INSERT/UPDATE/DELETE/IMPORT — เขียนโดย index + import_counts เท่านั้น)
+`chat_messages`, `chat_attachments` (Storage bucket `chat-attachments`), `inventory_audit_logs` — action_type ที่ใช้จริง:
+| action_type | เขียนโดย | หมายเหตุ |
+|---|---|---|
+| `INSERT` / `GROUP_INSERT` / `UPDATE` / `DELETE` | `index.html` | นับ/แก้/ลบรายแถว |
+| `IMPORT` | `import_counts.html` | `old_qty`=จำนวนที่พลาด · `new_qty`=จำนวนที่สำเร็จ · `record_id`=batch uuid |
+| `AUDIT_EDIT_LOC` / `AUDIT_SWAP` / `AUDIT_LOC_COMPARE` / `AUDIT_DELETE` / `AUDIT_DEDUPE` | `audit_check.html` (ผ่าน `Js/audit-log.js`, เพิ่มตอนแก้ H3) | คอลัมน์ `location` เก็บข้อความ "ค่าเดิม → ค่าใหม่" เพราะ schema ไม่มีช่อง note · `counter_name` ต่อท้าย `(audit_check)` |
 
 ## Views / Functions (RPC)
 
@@ -123,6 +128,7 @@ sku_master.sku_name ~(soft)~ inventory_counts.sku_id ~(soft)~ book_stock_lines.s
 | `015_import_batch_id.sql` | คอลัมน์ import_batch_id | ใช้งาน (import_counts พึ่งพา) |
 | `016_rls_policies.sql` | RLS policy สำหรับ anon/publishable key | ✅ รันแล้ว 2026-08-09 |
 | `017_drop_skunorm_backup_tables.sql` | ลบตารางสำรอง `_bk_*` จาก 010 | ✅ รันแล้ว 2026-08-09 |
+| `018_refresh_reconciliation_security_definer.sql` | `refresh_reconciliation_for_cycle` → SECURITY DEFINER (แก้ 401 ตอนกด "คำนวณ Match") | ✅ รันแล้ว 2026-08-09 |
 
 ## ตารางในโปรเจกต์ที่ AuditNew ไม่ได้ใช้
 

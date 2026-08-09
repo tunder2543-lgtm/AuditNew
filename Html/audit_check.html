@@ -1187,14 +1187,15 @@
         </div>
     </div>
 
-    <script src="../Js/sidebar-shared.js?v=20260809c"></script>
-<script src="../Js/api.js?v=20260809c"></script>
-    <script src="../Js/sku-utils.js?v=20260809c"></script>
-    <script src="../Js/warehouses-shared.js?v=20260809c"></script>
-    <script src="../Js/db-errors.js?v=20260809c"></script>
-    <script src="../Js/settings-shared.js?v=20260809c"></script>
-    <script src="../Js/ui-confirm-modal.js?v=20260809c"></script>
-    <script src="../Js/audit-dedupe.js?v=20260809c"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809e"></script>
+<script src="../Js/api.js?v=20260809e"></script>
+    <script src="../Js/sku-utils.js?v=20260809e"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809e"></script>
+    <script src="../Js/db-errors.js?v=20260809e"></script>
+    <script src="../Js/settings-shared.js?v=20260809e"></script>
+    <script src="../Js/ui-confirm-modal.js?v=20260809e"></script>
+    <script src="../Js/audit-dedupe.js?v=20260809e"></script>
+    <script src="../Js/audit-log.js?v=20260809e"></script>
     <script>
         lucide.createIcons();
 
@@ -2501,7 +2502,96 @@
             }
         }
 
-        async function deleteRecordsFromSupabase(ids) {
+        // =====================================================================
+        //  Audit log — ทุกการแก้/ลบในหน้านี้ต้องทิ้งร่องรอย (docs/ISSUES.md H3)
+        //  logic การสร้าง payload อยู่ที่ Js/audit-log.js (มีเทสคุ้มกัน)
+        // =====================================================================
+
+        /**
+         * ค่าของแถว "ตามที่อยู่ใน DB" สำหรับใช้เป็น before ของ audit log
+         * ใช้ dataset.original* (ตั้งตอน fillRows จากข้อมูล DB) ไม่ใช่ค่าใน input
+         * เพราะผู้ใช้พิมพ์แก้ช่องค้างไว้ได้ — ถ้าอ่านจาก input จะบันทึกค่าที่ไม่เคยมีจริง
+         */
+        function rowSnapshotFromTr(tr) {
+            const val = f => tr.querySelector(`[data-field="${f}"]`)?.value?.trim() ?? '';
+            const id = tr.dataset.recordId || '';
+            const ds = tr.dataset;
+            return {
+                id,
+                sku_id: ds.originalSku ?? val('sku'),
+                location: ds.originalLoc ?? val('loc'),
+                counted_qty: ds.originalQty ?? val('qty'),
+                warehouse: getWarehouseForRecordId(id) || ds.warehouse || getAuditFilters().warehouse || ''
+            };
+        }
+
+        /**
+         * เขียน log ก่อนทำ operation ที่ย้อนกลับไม่ได้ (ลบ)
+         * @returns {Promise<boolean>} false = เขียนไม่สำเร็จ ผู้เรียกต้องยกเลิก
+         */
+        async function writeAuditLogsOrAbort(rows, action) {
+            if (!window.AuditLog) {
+                showToast('โมดูลบันทึกประวัติไม่พร้อม — ยกเลิกการลบเพื่อรักษาหลักฐาน', 'error');
+                return false;
+            }
+            const entries = (rows || []).map(r => window.AuditLog.buildEntry({ action, row: r }));
+            const res = await window.AuditLog.writeEntries(supabaseClient, entries);
+            if (res.failed > 0) {
+                // ย้อน log ที่เขียนไปแล้วออก ไม่งั้นจะเหลือ log ที่บอกว่า "ลบแล้ว" ทั้งที่ยังไม่ได้ลบ
+                const rolled = await window.AuditLog.rollbackEntries(supabaseClient, res.writtenIds);
+                showToast(
+                    `บันทึกประวัติไม่สำเร็จ (${res.failed} รายการ) — ยกเลิกการลบเพื่อรักษาหลักฐาน` +
+                    (rolled ? '' : ' · ⚠️ มี log ค้างที่ย้อนไม่ได้') +
+                    (res.error?.message ? ` · ${res.error.message}` : ''),
+                    'error'
+                );
+                return false;
+            }
+            return true;
+        }
+
+        /**
+         * เขียน log หลังแก้สำเร็จ — ถ้าพังเตือนผู้ใช้ แต่ย้อนข้อมูลกลับไม่ได้แล้ว
+         * เรียกเป็นระยะระหว่าง loop (ไม่รอจบทั้งก้อน) — ถ้าปิดแท็บกลางทาง
+         * แถวที่แก้ไปแล้วจะยังมีร่องรอย
+         */
+        async function writeAuditLogsAfterUpdate(items, action) {
+            if (!window.AuditLog) {
+                showToast('⚠️ แก้ข้อมูลสำเร็จแล้วแต่บันทึกประวัติไม่ได้ (โมดูลไม่พร้อม)', 'error');
+                return { ok: 0, failed: (items || []).length };
+            }
+            const entries = (items || []).map(it => window.AuditLog.buildEntry({
+                action, row: it.before, after: it.after
+            }));
+            const res = await window.AuditLog.writeEntries(supabaseClient, entries);
+            if (res.failed > 0) {
+                showToast(`⚠️ แก้ข้อมูลสำเร็จแล้วแต่บันทึกประวัติไม่ครบ (${res.failed} รายการ)`, 'error');
+            }
+            return res;
+        }
+
+        /** flush log ระหว่าง loop ทุก ๆ N แถว — กันกรณีปิดแท็บ/เน็ตหลุดกลางทางแล้วไม่มี log เลย */
+        const AUDIT_LOG_FLUSH_EVERY = 100;
+        async function flushAuditLogsIfNeeded(buffer, action, force) {
+            if (!buffer.length) return;
+            if (!force && buffer.length < AUDIT_LOG_FLUSH_EVERY) return;
+            await writeAuditLogsAfterUpdate(buffer.splice(0, buffer.length), action);
+        }
+
+        /**
+         * ลบแถวออกจาก inventory_counts พร้อมเขียน audit log ให้ในตัว
+         * เขียน log ก่อนเสมอ — ถ้า log ไม่สำเร็จจะไม่ลบ (Invariant 1)
+         * @param {Array} rows แถวที่จะลบ (ต้องมี id, sku_id, location, warehouse, counted_qty)
+         * @returns {Promise<boolean>} false = ยกเลิกเพราะเขียน log ไม่ได้
+         */
+        async function deleteRecordsFromSupabase(rows, action) {
+            const list = rows || [];
+            if (!list.length) return true;
+
+            const logged = await writeAuditLogsOrAbort(list, action || window.AuditLog?.ACTIONS?.DELETE);
+            if (!logged) return false;
+
+            const ids = list.map(r => r.id);
             const CHUNK = 100;
             for (let i = 0; i < ids.length; i += CHUNK) {
                 const chunk = ids.slice(i, i + CHUNK);
@@ -2511,6 +2601,7 @@
                     .in('id', chunk);
                 if (error) throw error;
             }
+            return true;
         }
 
         async function deleteSelectedRows() {
@@ -2564,8 +2655,12 @@
 
             try {
                 if (withDb.length) {
-                    const ids = withDb.map(tr => tr.dataset.recordId);
-                    await deleteRecordsFromSupabase(ids);
+                    // deleteRecordsFromSupabase เขียน audit log ให้ในตัวแล้ว (Invariant 1)
+                    const done = await deleteRecordsFromSupabase(
+                        withDb.map(tr => rowSnapshotFromTr(tr)),
+                        window.AuditLog.ACTIONS.DELETE
+                    );
+                    if (!done) return;
                     await loadReferenceData();
                 }
 
@@ -2791,6 +2886,7 @@
             let fail = 0;
             let skipped = blocked.length;
             let lastUpdateError = null;
+            const changed = [];   // เก็บ before/after ของแถวที่แก้สำเร็จ ไว้เขียน audit log
 
             try {
                 for (let i = 0; i < toApply.length; i++) {
@@ -2799,6 +2895,7 @@
                     const skuInput = tr.querySelector('[data-field="sku"]');
                     const locInput = tr.querySelector('[data-field="loc"]');
                     const id = item.recordId;
+                    const before = rowSnapshotFromTr(tr);
 
                     const { error } = await supabaseClient
                         .from('inventory_counts')
@@ -2813,14 +2910,18 @@
                         skuInput.value = item.newSkuId;
                         locInput.value = item.destLoc;
                         tr.dataset.originalLoc = item.destLoc;
+                        tr.dataset.originalSku = item.newSkuId;   // ค่าใน DB เปลี่ยนแล้ว
                         tr.classList.remove('loc-dirty');
+                        changed.push({ before, after: { sku_id: item.newSkuId, location: item.destLoc } });
                         ok += 1;
                     }
 
+                    await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.SWAP);
                     setLoadingProgress(i + 1, toApply.length, 'กำลังสลับ SKU ↔ ตำแหน่ง...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
+                await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.SWAP, true);
                 await loadReferenceData();
 
                 const trList = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
@@ -2960,12 +3061,14 @@
             let fail = 0;
             let skipped = blocked.length;
             let lastUpdateError = null;
+            const changed = [];   // before/after ของแถวที่แก้สำเร็จ ไว้เขียน audit log
 
             try {
                 for (let i = 0; i < toApply.length; i++) {
                     const item = toApply[i];
                     const tr = item.tr;
                     const id = item.recordId;
+                    const before = rowSnapshotFromTr(tr);   // ใช้ค่าจาก DB (dataset.original*)
 
                     const { error } = await supabaseClient
                         .from('inventory_counts')
@@ -2979,13 +3082,16 @@
                     } else {
                         tr.dataset.originalLoc = item.newLoc;
                         tr.classList.remove('loc-dirty');
+                        changed.push({ before, after: { location: item.newLoc } });
                         ok += 1;
                     }
 
+                    await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.EDIT_LOC);
                     setLoadingProgress(i + 1, toApply.length, 'กำลังบันทึกตำแหน่ง...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
+                await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.EDIT_LOC, true);
                 await loadReferenceData();
 
                 const skipPart = skipped > 0 ? ` · ข้ามปลายทางซ้ำ ${skipped}` : '';
@@ -3106,9 +3212,15 @@
                 if (item.id) {
                     tr.dataset.recordId = String(item.id);
                     tr.dataset.originalLoc = item.loc || '';
+                    // เก็บค่าจาก DB ไว้ด้วย — audit log ต้องบันทึกค่าจริงใน DB
+                    // ไม่ใช่ค่าที่ผู้ใช้พิมพ์ค้างไว้ในช่อง (ช่องเหล่านี้แก้ได้อิสระเพื่อใช้ verify)
+                    tr.dataset.originalSku = item.sku || '';
+                    tr.dataset.originalQty = item.qty == null ? '' : String(item.qty);
                 } else {
                     tr.removeAttribute('data-record-id');
                     tr.removeAttribute('data-original-loc');
+                    tr.removeAttribute('data-original-sku');
+                    tr.removeAttribute('data-original-qty');
                 }
                 tr.querySelector('[data-field="sku"]').value = item.sku || '';
                 tr.querySelector('[data-field="loc"]').value = item.loc || '';
@@ -3739,6 +3851,7 @@
             let skipped = blocked.length;
             let lastUpdateError = null;
             const successIds = new Set();
+            const changed = [];   // before/after ของแถวที่แก้สำเร็จ ไว้เขียน audit log
 
             try {
                 for (let i = 0; i < toApply.length; i++) {
@@ -3755,13 +3868,22 @@
                         fail += 1;
                     } else {
                         successIds.add(String(item.id));
+                        changed.push({
+                            before: {
+                                id: item.id, sku_id: item.sku, location: item.dbLocation,
+                                warehouse: item.warehouse, counted_qty: item.counted_qty
+                            },
+                            after: { location: item.newLocation }
+                        });
                         ok += 1;
                     }
 
+                    await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.LOC_COMPARE);
                     setLoadingProgress(i + 1, toApply.length, 'กำลังปรับเปลี่ยนตำแหน่งจาก Excel...');
                     if ((i + 1) % 20 === 0) await yieldToBrowser();
                 }
 
+                await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.LOC_COMPARE, true);
                 syncTableRowsAfterLocCompare(
                     toApply.filter(e => successIds.has(String(e.item.id))).map(e => e.item)
                 );
@@ -3981,6 +4103,11 @@
                     showToast('สำรองไฟล์ CSV ไม่สำเร็จ — ยกเลิกการลบเพื่อความปลอดภัย', 'error');
                     return;
                 }
+
+                setLoading(true, 'กำลังบันทึกประวัติ...', `${toDelete.length.toLocaleString()} รายการ`);
+                // Invariant 1: เขียน log ก่อนลบเสมอ — ถ้าไม่สำเร็จ ยกเลิกการลบ
+                const logged = await writeAuditLogsOrAbort(toDelete, window.AuditLog.ACTIONS.DEDUPE);
+                if (!logged) return;
 
                 setLoading(true, 'กำลังลบ duplicate...', `0 / ${toDelete.length}`);
                 const ids = toDelete.map(r => r.id);

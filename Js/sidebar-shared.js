@@ -9,7 +9,7 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260809c';
+    const ASSET_VER = '20260809e';
 
     /** หน้าเหล่านี้: เปิดทุกกลุ่มเป็นค่าเริ่มต้น (ยังพับได้) — ไม่ซ่อนรายการย่อยแบบพับปิดตลอด */
     const FLAT_PAGES = new Set(['index', 'import_counts', 'sku_master', 'settings']);

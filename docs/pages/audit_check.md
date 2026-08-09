@@ -46,7 +46,8 @@
 | `warehouses` | SELECT | `warehouseService.populateSelect` (`:1666`) |
 | Supabase Storage | GET | `TemplateMATH.xlsx` URL สาธารณะ hardcode (`:3155`) |
 
-⚠️ **ไม่เขียน `inventory_audit_logs` เลยแม้แต่จุดเดียว** — ทุก bulk แก้/ลบในหน้านี้ไม่มีร่องรอยในประวัติ
+✅ **เขียน `inventory_audit_logs` ครบทุก mutation แล้ว** (H3, 2026-08-09) ผ่าน [`Js/audit-log.js`](../../Js/audit-log.js) — action: `AUDIT_EDIT_LOC` / `AUDIT_SWAP` / `AUDIT_LOC_COMPARE` / `AUDIT_DELETE` / `AUDIT_DEDUPE`
+> ลบ = เขียน log ก่อน (ไม่สำเร็จ = ไม่ลบ) · แก้ = flush log ทุก 100 แถวระหว่าง loop · ดูประวัติได้ที่ drawer ในหน้า index
 
 ## ฟังก์ชันหลัก
 

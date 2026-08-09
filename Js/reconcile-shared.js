@@ -3121,6 +3121,8 @@
 
         yearMonthToRangeISO,
 
+        isoToBangkokYmd,
+
         isAllWarehousesCycle,
 
         WAREHOUSE_MULTI_SEP,

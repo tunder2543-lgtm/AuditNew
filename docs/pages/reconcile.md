@@ -72,7 +72,7 @@
 
 ## ข้อสังเกต / จุดเปราะบาง (ดู [ISSUES.md](../ISSUES.md))
 
-- **`#cycleSelect` ไม่มี change listener** — เปลี่ยนรอบใน dropdown แล้ว cache ทั้งหมดยังชี้รอบเก่า action ใด ๆ ก่อนกด "คำนวณ Match" เขียนลง**รอบเก่า** (`:418, 1649, 2409`)
+- ~~`#cycleSelect` ไม่มี change listener~~ **แก้แล้ว (H5, 2026-08-09)** — เปลี่ยนรอบ = ล้างสถานะ + ซ่อน panel ทันที แล้วโหลดรอบใหม่ให้ · ทุก action ล็อก cycle id ตอน guard และเช็คซ้ำหลัง confirm modal · dropdown ถูกล็อกระหว่างโหลด
 - **Import Excel ทำให้ทุก SKU "ถูกต้อง" โดยไม่สนผลนับ**: import Book ก่อนแล้วค่อยคำนวณ adjustment → delta=0 เสมอ สถานะเปลี่ยนเพราะ force-accept ทุก SKU ในไฟล์ (`:1479-1498`, `reconcile-shared.js:2858`)
 - **Import ลบ adjustment ที่ applied แล้ว** — `clearAdjustmentsAndMatchAcceptancesForSkus` delete โดยไม่กรอง status ทำลายประวัติ (`reconcile-shared.js:2712-2717`)
 - แถว "ขาด" แสดงเครื่องหมาย `+` (เช่น ขาด 5 แสดง `+5` สีแดง) (`:867, 974`); แถวรวมใน export บวก variance คนละเครื่องหมายรวมกัน (`:2447`)

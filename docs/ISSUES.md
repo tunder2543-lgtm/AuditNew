@@ -115,7 +115,15 @@
 **ผลกระทบ:** KPI หน้า dashboard เชื่อถือไม่ได้ในโหมดทุกคลัง — และแค่มีชื่อคลังสะกดผิด 1 แถวในข้อมูล ตัวเลขก็กระโดดทั้ง Book
 **แนวทางแก้:** นับ Book ครั้งเดียวไม่ loop ต่อคลัง (Book ปัจจุบันไม่มีมิติคลัง) หรือถ้าต้องการต่อคลังจริงให้เพิ่มมิติคลังในข้อมูล Book ก่อน
 
-### - [ ] H5. reconcile: เปลี่ยนรอบใน dropdown แล้ว action เขียนลง**รอบเก่า**
+### - [x] H5. reconcile: เปลี่ยนรอบใน dropdown แล้ว action เขียนลง**รอบเก่า**
+> **✅ แก้แล้ว 2026-08-09** — ป้องกัน 3 ชั้น:
+> 1. **เปลี่ยนรอบ = ล้างสถานะทันที** — `change` listener เรียก `invalidateCycleView()` (ล้าง `currentCycle` + cache ทุกตัว + state ของ Import + ซ่อน `#resultsPanel` ซึ่งครอบปุ่มที่เขียน DB ทั้ง 11 ตัว) แล้วโหลดรอบใหม่อัตโนมัติแบบไม่สั่งคำนวณใหม่
+> 2. **ล็อก id ตอน guard ไม่ใช่ตอนเขียน** — `lockCycleId()` เก็บ id ไว้ตั้งแต่ต้น action แล้วส่งค่านั้นเข้า `RS.*` · หลัง confirm modal ปิดเช็คซ้ำด้วย `stillOnCycle(id)` — **นี่คือรากของบั๊ก**: เดิมอ่าน `currentCycle.id` ตอนจะเขียน ซึ่งระหว่าง `await` (modal/network) ผู้ใช้สลับรอบได้
+> 3. **ล็อก dropdown + กันรันซ้อน** — `sel.disabled` + ธง `isRefreshing` ระหว่าง `runRefresh` (overlay บล็อกเมาส์ได้ แต่คีย์บอร์ดยังเปลี่ยน `<select>` ได้)
+>
+> เพิ่มเติม: แสดง `⚠️ ผลคำนวณเดิม (วันที่)` เมื่อโหลดรอบโดยไม่คำนวณใหม่ — กันไม่ให้ "ยอมรับผลนับ" บนตัวเลขที่ล้าสมัย · แก้ `addEventListener('click', runRefresh)` ที่ส่ง MouseEvent เป็น options
+>
+> **เทสคุ้มกัน 10 ข้อ** — สแกน call site ของ `RS.*` ที่เขียน DB ทุกจุด (ไม่ใช้รายชื่อ hardcode) จึงจับได้แม้ mutation ที่เพิ่มใหม่ · พบระหว่าง review ว่าปุ่มลบ draft หลุด guard ทั้งหมด (handler แบบ inline) แก้แล้ว
 **ตำแหน่ง:** `Html/reconcile.html` — `#cycleSelect` ไม่มี change listener (grep พบแค่ 4 จุด ไม่มี addEventListener)
 **ยืนยันแล้ว:** `currentCycle` อัปเดตเฉพาะใน `runRefresh` (`:1659`) แต่ปุ่ม mutation กว่า 25 จุดใช้ `currentCycle.id` — เปลี่ยน dropdown โดยไม่กด "คำนวณ Match" แล้วกดปุ่มใด ๆ (เพิ่ม/ลบ Book, draft, accept) = เขียนลงรอบที่แล้ว
 **แนวทางแก้:** เพิ่ม change listener ที่ disable ปุ่ม action ทั้งหมดจนกว่าจะกดคำนวณ หรือ auto-refresh เมื่อเปลี่ยนรอบ
@@ -276,7 +284,7 @@ count_search `cycle_id` โหลดมาแต่ไม่ใช้; precedenc
 | ระดับ | จำนวน | สถานะ verify |
 |---|---|---|
 | 🔴 Critical | 2 | ✅ **แก้ครบแล้วทั้ง C1 และ C2** |
-| 🟠 High | 9 | ✅ H1, H2, H3, H4, H9 แก้แล้ว · อีก 4 ข้อรอ (H5–H8) |
+| 🟠 High | 9 | ✅ H1–H5, H9 แก้แล้ว · อีก 3 ข้อรอ (H6, H7, H8) |
 | 🟡 Medium | 27 | ✅ M25 แก้แล้ว · M24, M26, M27 รอ · ที่เหลือจากการสำรวจละเอียด |
 | 🟢 Low | 11 กลุ่ม | L3 (cache-buster + escapeHtml ซ้ำ) แก้ไปเกือบหมดตอนทำ H1/C2 |
 

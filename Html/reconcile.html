@@ -629,13 +629,13 @@
 </div>
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="../Js/sidebar-shared.js?v=20260809h"></script>
-<script src="../Js/api.js?v=20260809h"></script>
-<script src="../Js/sku-utils.js?v=20260809h"></script>
-<script src="../Js/db-errors.js?v=20260809h"></script>
-<script src="../Js/settings-shared.js?v=20260809h"></script>
-<script src="../Js/reconcile-shared.js?v=20260809h"></script>
-<script src="../Js/ui-confirm-modal.js?v=20260809h"></script>
+<script src="../Js/sidebar-shared.js?v=20260809j"></script>
+<script src="../Js/api.js?v=20260809j"></script>
+<script src="../Js/sku-utils.js?v=20260809j"></script>
+<script src="../Js/db-errors.js?v=20260809j"></script>
+<script src="../Js/settings-shared.js?v=20260809j"></script>
+<script src="../Js/reconcile-shared.js?v=20260809j"></script>
+<script src="../Js/ui-confirm-modal.js?v=20260809j"></script>
 <script>
     lucide.createIcons();
     const RS = window.reconcileService;
@@ -645,6 +645,8 @@
     let adjustmentsCache = [];
     let skuCountPresence = new Map();
     let currentCycle = null;
+    /** กัน runRefresh รันซ้อนกัน 2 รอบ (ปุ่มคำนวณ + การสลับรอบ) จนสถานะปนกัน */
+    let isRefreshing = false;
     let activeStatusFilter = '';
     let adjustViewMode = 'all';
     let selectedAdjLine = null;
@@ -726,6 +728,9 @@
             showToast('กำลังดำเนินการอยู่ — กรุณารอจนเสร็จ', 'error');
             return;
         }
+        // กันเขียนลงรอบเก่า: ทุก action ต้องทำกับรอบที่ตรงกับ dropdown เท่านั้น
+        // (ยกเว้นการสลับรอบเอง ซึ่งเป็นตัวที่ทำให้ sync)
+        if (key !== 'switchCycle' && !assertCycleInSync()) return;
         inFlightActions.add(key);
         try {
             return await fn();
@@ -1426,6 +1431,8 @@
     }
 
     async function runImportApply(opts = {}) {
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         if (!currentCycle?.id || !importPending?.validRows?.length) {
             return showToast('กรุณาเลือกไฟล์ Import ก่อน', 'error');
         }
@@ -1476,10 +1483,10 @@
         }
         try {
             report({ phase: 'import', done: 0, total: 1 });
-            await RS.importBookStockLines(currentCycle.id, validRows, fileName, { mode: 'merge' });
+            await RS.importBookStockLines(cycleId, validRows, fileName, { mode: 'merge' });
             report({ phase: 'import', done: 1, total: 1 });
 
-            const applyRes = await RS.applyAdjustmentsToBookTargets(currentCycle.id, targets, {
+            const applyRes = await RS.applyAdjustmentsToBookTargets(cycleId, targets, {
                 notePrefix: 'import_excel',
                 onProgress: ({ phase, done, total: t }) => report({ phase, done, total: t || total })
             });
@@ -1514,8 +1521,8 @@
 
             report({ phase: 'reload', done: 0, total: 1 });
             await reloadMatchData();
-            adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
-            matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(currentCycle.id);
+            adjustmentsCache = await RS.fetchAdjustments(cycleId);
+            matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(cycleId);
             mergeCachedImportAcceptances(currentCycle.id);
             report({ phase: 'reload', done: 1, total: 1 });
 
@@ -1615,9 +1622,12 @@
         }).join('');
         list.querySelectorAll('[data-del-adj]').forEach(btn => {
             btn.addEventListener('click', async () => {
+                const cycleId = lockCycleId();
+                if (!cycleId) return;
                 try {
                     await RS.deleteDraftAdjustment(btn.dataset.delAdj);
-                    adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
+                    if (!stillOnCycle(cycleId)) return;
+                    adjustmentsCache = await RS.fetchAdjustments(cycleId);
                     renderDraftList();
                     renderKpis(linesCache);
                     renderTable();
@@ -1626,6 +1636,76 @@
             });
         });
         lucide.createIcons();
+    }
+
+    /**
+     * ล้างสถานะของรอบที่โหลดไว้ทั้งหมด แล้วซ่อน panel ผลลัพธ์
+     * ใช้ทันทีที่ผู้ใช้เปลี่ยนรอบใน dropdown — กันไม่ให้ปุ่มใด ๆ ทำงานกับข้อมูลของรอบเก่า
+     * (ปุ่ม action ทุกตัวอยู่ใน #resultsPanel การซ่อนจึงทำให้กดไม่ได้)
+     */
+    function invalidateCycleView(message) {
+        currentCycle = null;
+        linesCache = [];
+        adjustmentsCache = [];
+        skuCountPresence = new Map();
+        skuNameMap = {};
+        bookSkuSet = new Set();
+        matchAcceptanceMap = new Map();
+        selectedAdjLine = null;
+        // ผลลัพธ์ Import เป็นของรอบเดิม — ถ้าไม่ล้าง ปุ่ม "Export ปรับล่าสุด" (อยู่นอก resultsPanel
+        // จึงไม่ถูกซ่อน) จะยังกดได้ และได้ไฟล์ข้อมูลรอบเก่าแต่ตั้งชื่อด้วยรอบใหม่
+        importPending = null;
+        importPreviewRows = [];
+        lastImportAdjustResults = [];
+        renderImportPreview([]);
+        renderImportResultsPanel();
+        document.getElementById('importFileMeta').textContent = '';
+        document.getElementById('importDropLabel').textContent = 'คลิกหรือลากไฟล์ Excel';
+        document.getElementById('resultsPanel').style.display = 'none';
+        document.getElementById('cycleHintBar').classList.remove('show');
+        document.getElementById('emptyPanel').style.display = '';
+        setEmptyPanelMessage(message);
+    }
+
+    const EMPTY_PANEL_DEFAULT_MSG = 'เลือกรอบและกด คำนวณ Match';
+
+    /** ข้อความบรรทัดแรกของ emptyPanel — ว่าง = กลับไปใช้ข้อความมาตรฐาน */
+    function setEmptyPanelMessage(text) {
+        const p = document.getElementById('emptyPanel')?.querySelector('.rc-empty p');
+        if (p) p.textContent = text || EMPTY_PANEL_DEFAULT_MSG;
+    }
+
+    /**
+     * รอบที่โหลดไว้ยังตรงกับที่เลือกใน dropdown หรือไม่
+     * กันเคสที่สถานะไม่ sync แล้วเผลอเขียนลงรอบเก่า (docs/ISSUES.md H5)
+     */
+    function isCycleViewInSync() {
+        const selected = document.getElementById('cycleSelect')?.value || '';
+        return !!currentCycle && String(currentCycle.id) === selected;
+    }
+
+    function assertCycleInSync() {
+        if (isCycleViewInSync()) return true;
+        showToast('รอบที่เลือกเปลี่ยนไปแล้ว — กด "คำนวณ Match" เพื่อโหลดรอบใหม่ก่อนทำรายการ', 'error');
+        return false;
+    }
+
+    /**
+     * ล็อก cycle id ไว้ตั้งแต่ต้น action แล้วใช้ค่านี้ตลอด — **ห้ามอ่าน `currentCycle.id`
+     * ตอนจะเขียน DB** เพราะระหว่าง await (confirm modal / network) ผู้ใช้อาจสลับรอบไปแล้ว
+     * นี่คือรากของ H5: ตัวแปร global ถูกอ่านที่จุดเขียน ไม่ใช่จุดที่ตรวจสิทธิ์
+     * @returns {string|null} null = ไม่ผ่าน guard (แจ้งเตือนให้แล้ว)
+     */
+    function lockCycleId() {
+        if (!assertCycleInSync()) return null;
+        return currentCycle.id;
+    }
+
+    /** ยังอยู่รอบเดิมที่ล็อกไว้ไหม — เรียกหลังทุก await ที่ผู้ใช้แทรกได้ (เช่น confirm modal) */
+    function stillOnCycle(lockedId) {
+        if (isCycleViewInSync() && String(currentCycle.id) === String(lockedId)) return true;
+        showToast('ยกเลิก — รอบถูกเปลี่ยนระหว่างดำเนินการ', 'error');
+        return false;
     }
 
     async function loadCycles() {
@@ -1646,8 +1726,14 @@
     }
 
     async function runRefresh({ skipReconciliationRefresh = false } = {}) {
-        const id = document.getElementById('cycleSelect').value;
+        const sel = document.getElementById('cycleSelect');
+        const id = sel.value;
         if (!id) return showToast('กรุณาเลือกรอบ', 'error');
+        if (isRefreshing) return showToast('กำลังโหลดรอบอยู่ — กรุณารอจนเสร็จ', 'error');
+        isRefreshing = true;
+        // ล็อก dropdown ระหว่างโหลด — overlay บล็อกเมาส์ได้ แต่คีย์บอร์ดยังเปลี่ยนรอบได้
+        // ถ้าเปลี่ยนกลางคัน จะเกิดสภาพ currentCycle กับ cache มาจากคนละรอบ
+        sel.disabled = true;
         const loadingEl = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
         loadingEl.classList.add('active');
@@ -1674,8 +1760,16 @@
             document.getElementById('resultsPanel').style.display = '';
             document.getElementById('cycleHintBar').classList.add('show');
             const whNote = RS.isAllWarehousesCycle(currentCycle) ? 'รวมทุกคลัง · ' : '';
+            // โหลดแบบไม่คำนวณใหม่ = กำลังดูผลเก่า ต้องบอกให้ชัด ไม่งั้นผู้ใช้จะ "ยอมรับผลนับ"
+            // บนตัวเลขที่ล้าสมัย (มีคนนับเพิ่มหลังคำนวณครั้งก่อน) แล้วได้ยอดปรับผิด
+            let staleNote = '';
+            if (skipReconciliationRefresh && linesCache.length) {
+                const computedAt = linesCache[0]?.computed_at;
+                const when = computedAt ? RS.isoToBangkokYmd?.(computedAt) : '';
+                staleNote = `⚠️ ผลคำนวณเดิม${when ? ` (${when})` : ''} — กด "คำนวณ Match" เพื่ออัปเดต · `;
+            }
             document.getElementById('cycleHint').textContent =
-                `${RS.formatCycleLabel(currentCycle)} · ${linesCache.length.toLocaleString()} SKU · ${whNote}ผลนับจาก inventory_counts (อ่านอย่างเดียว)`;
+                `${staleNote}${RS.formatCycleLabel(currentCycle)} · ${linesCache.length.toLocaleString()} SKU · ${whNote}ผลนับจาก inventory_counts (อ่านอย่างเดียว)`;
 
             activeStatusFilter = '';
             adjustViewMode = 'all';
@@ -1699,9 +1793,13 @@
             showToast(`Match สำเร็จ ${linesCache.length.toLocaleString()} SKU`);
         } catch (err) {
             showToast(err.message, 'error');
+            // โหลดไม่สำเร็จ — ต้องไม่ทิ้งข้อความ "กำลังโหลดรอบที่เลือก..." ค้างไว้ถาวร
             document.getElementById('emptyPanel').style.display = '';
+            setEmptyPanelMessage('');
         } finally {
             loadingEl.classList.remove('active');
+            sel.disabled = false;
+            isRefreshing = false;
         }
     }
 
@@ -1848,7 +1946,8 @@
     }
 
     async function markLineAsMatchAccepted(line, opts = {}) {
-        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         if (!line) return showToast('กรุณาเลือก SKU', 'error');
         if (isLineAcceptedMatch(line.sku_id)) return showToast('SKU นี้ยืนยันถูกต้องแล้ว', 'error');
         if (inFlightActions.has(`markMatch:${line.sku_id}`)) {
@@ -1926,7 +2025,8 @@
     }
 
     async function addBookLine(line) {
-        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         if (!line || !canAddToBookLine(line)) {
             return showToast('SKU นี้ไม่สามารถสร้างลง Book ได้', 'error');
         }
@@ -1958,13 +2058,14 @@
             }
         });
         if (!ok) return;
+        if (!stillOnCycle(cycleId)) return;   // ผู้ใช้อาจสลับรอบระหว่างที่ modal เปิดอยู่
 
         const loadingEl = document.getElementById('loading');
         loadingEl.classList.add('active');
         document.getElementById('loadingText').textContent = `กำลังสร้าง Book: ${sku}...`;
         try {
             const masterNames = await RS.fetchSkuMasterNamesBySkus([sku]);
-            await RS.addBookFromCountOnly(currentCycle.id, {
+            await RS.addBookFromCountOnly(cycleId, {
                 skuId: sku,
                 namePro: masterNames[sku] || skuNameMap[sku] || null
             });
@@ -1981,7 +2082,8 @@
     }
 
     async function bulkAddBookLines() {
-        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         const targets = getAddableBookLines(getVisibleLines());
         if (!targets.length) return showToast('ไม่มีรายการให้สร้างลง Book', 'error');
 
@@ -2012,6 +2114,7 @@
             }
         });
         if (!ok) return;
+        if (!stillOnCycle(cycleId)) return;   // ผู้ใช้อาจสลับรอบระหว่างที่ modal เปิดอยู่
 
         const loadingEl = document.getElementById('loading');
         loadingEl.classList.add('active');
@@ -2023,7 +2126,7 @@
                 skuId: l.sku_id,
                 namePro: masterNames[l.sku_id] || skuNameMap[l.sku_id] || null
             }));
-            const res = await RS.addBookFromCountOnlyBatch(currentCycle.id, items);
+            const res = await RS.addBookFromCountOnlyBatch(cycleId, items);
             await reloadMatchData();
             renderDraftList();
             renderKpis(linesCache);
@@ -2038,6 +2141,7 @@
     }
 
     async function applyDraftsForSku(skuId) {
+        if (!assertCycleInSync()) return;
         const drafts = adjustmentsCache.filter(a => a.status === 'draft' && a.sku_id === skuId);
         for (const d of drafts) {
             await RS.applyStockAdjustment(d.id);
@@ -2063,7 +2167,8 @@
     }
 
     async function acceptCountedForLine(line, opts = {}) {
-        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบและคำนวณ Match ก่อน', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         if (!line) return showToast('ไม่พบรายการ', 'error');
         if (inFlightActions.has(`acceptCount:${line.sku_id}`)) {
             return showToast('กำลังดำเนินการอยู่ — กรุณารอจนเสร็จ', 'error');
@@ -2244,7 +2349,8 @@
     }
 
     async function deleteBookLine(line) {
-        if (!currentCycle?.id) return showToast('ยังไม่มีรอบ', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         if (!line || !canDeleteBookLine(line)) {
             return showToast('SKU นี้ไม่มียอด Book ให้ลบ', 'error');
         }
@@ -2280,12 +2386,13 @@
             }
         });
         if (!ok) return;
+        if (!stillOnCycle(cycleId)) return;   // ผู้ใช้อาจสลับรอบระหว่างที่ modal เปิดอยู่
 
         const loadingEl = document.getElementById('loading');
         loadingEl.classList.add('active');
         document.getElementById('loadingText').textContent = `กำลังลบ Book: ${sku}...`;
         try {
-            await RS.deleteBookStockBySku(currentCycle.id, sku);
+            await RS.deleteBookStockBySku(cycleId, sku);
             if (selectedAdjLine?.sku_id === sku) {
                 selectedAdjLine = null;
                 document.getElementById('adjSkuSearch').value = '';
@@ -2309,14 +2416,15 @@
     }
 
     async function applyAllDrafts() {
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
         const drafts = adjustmentsCache.filter(a => a.status === 'draft');
         if (!drafts.length) return showToast('ไม่มี draft', 'error');
-        if (!currentCycle?.id) return showToast('กรุณาเลือกรอบ', 'error');
         const loadingEl = document.getElementById('loading');
         loadingEl.classList.add('active');
         document.getElementById('loadingText').textContent = 'กำลัง Apply...';
         try {
-            const applied = await RS.applyAllDraftsForCycle(currentCycle.id);
+            const applied = await RS.applyAllDraftsForCycle(cycleId);
             await runRefresh({ skipReconciliationRefresh: true });
             showToast(`Apply สำเร็จ ${applied} รายการ`);
         } catch (err) {
@@ -2406,7 +2514,28 @@
         if (line) selectAdjLine(line);
     });
 
-    document.getElementById('btnRefresh').addEventListener('click', runRefresh);
+    // ห่อด้วย arrow — ถ้าผูก runRefresh ตรง ๆ MouseEvent จะถูกส่งเข้าไปเป็น options
+    document.getElementById('btnRefresh').addEventListener('click', () => runRefresh());
+
+    /**
+     * เปลี่ยนรอบใน dropdown = ทิ้งสถานะของรอบเดิมทันที แล้วโหลดรอบใหม่ให้
+     * (โหลดแบบไม่สั่งคำนวณใหม่ — เร็วกว่าและไม่ไปแตะ reconciliation_lines ของรอบนั้น)
+     * เดิมไม่มี listener นี้ → ตัวเลือกบอกรอบ B แต่ข้อมูลและปุ่มยังเป็นของรอบ A (ISSUES.md H5)
+     */
+    document.getElementById('cycleSelect').addEventListener('change', async () => {
+        const id = document.getElementById('cycleSelect').value;
+        invalidateCycleView(id
+            ? 'กำลังโหลดรอบที่เลือก...'
+            : 'เลือกรอบและกด คำนวณ Match');
+        if (!id) return;
+        await runOnce('switchCycle', async () => {
+            await runRefresh({ skipReconciliationRefresh: true });
+            if (!isCycleViewInSync()) return;
+            if (!linesCache.length) {
+                showToast('รอบนี้ยังไม่มีผลคำนวณ — กด "คำนวณ Match" เพื่อสร้าง', 'error');
+            }
+        });
+    });
 
     (function setupImportUi() {
         const drop = document.getElementById('importDropZone');

@@ -71,6 +71,7 @@ node tests/run.mjs
 - ✅ **H1 เสร็จ** (2026-08-09): guard `isCycleRelevantNow()` กัน cycle เดือนเก่าค้าง + เตือนเมื่อเปิดหน้าค้างข้ามเดือน + cache-buster ทุกหน้า
 - ✅ **C2 + M25 เสร็จ** (2026-08-09): ปิด Stored XSS ทุกจุด (escape ครบ + เลิกต่อค่าใน onclick) และ cache Supabase client
 - ✅ **H2 เสร็จ** (2026-08-09): นิยาม "แถวซ้ำ" ใหม่ใน `Js/audit-dedupe.js` — เดิมจะลบข้อมูลนับที่ถูกต้อง 470 แถว ตอนนี้ลบ 0 · **เทส 92 PASS / 0 FAIL**
+- ✅ **H5 เสร็จ** (2026-08-09): reconcile กันเขียนลงรอบเก่า — ล็อก cycle id ตอน guard (ไม่อ่าน global ตอนเขียน) + ล้างสถานะเมื่อสลับรอบ + ล็อก dropdown ระหว่างโหลด · **เทส 133 PASS**
 - ✅ **H4 + H9 เสร็จ** (2026-08-09): dashboard เลิกคูณ Book ต่อคลัง (`computeBookCoverage`) และแก้ `.range()` ที่เรียงไม่เสถียร 10 จุด (ต้องมี `.order('id')` เสมอ — เพราะ bulk insert ทำให้ `created_at` ซ้ำ) · **เทส 123 PASS**
 - ✅ **H3 เสร็จ** (2026-08-09): `Js/audit-log.js` เขียน `inventory_audit_logs` ครบทุก mutation ในหน้า audit_check (เดิม 0 จุด) — ลบต้อง log ก่อน · แก้ flush ทุก 100 แถว · **เทส 113 PASS** · ส่วน atomic แยกเป็น M27
 - ✅ **แก้ 401 "คำนวณ Match"** (2026-08-09): `refresh_reconciliation_for_cycle` เป็น SECURITY DEFINER ([018](docs/sql/018_refresh_reconciliation_security_definer.sql)) — RPC ไม่ข้าม RLS เองถ้าไม่ประกาศ definer

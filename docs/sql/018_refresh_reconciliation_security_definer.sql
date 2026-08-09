@@ -1,0 +1,56 @@
+-- =============================================================================
+-- 018 — refresh_reconciliation_for_cycle เป็น SECURITY DEFINER
+-- =============================================================================
+-- อาการ (พบ 2026-08-09 หน้า reconcile.html กด "คำนวณ Match"):
+--   POST /rest/v1/rpc/refresh_reconciliation_for_cycle → 401 (Unauthorized)
+--   ข้อความ: new row violates row-level security policy for table "reconciliation_lines"
+--
+-- สาเหตุราก (ยืนยันกับ DB จริงแล้ว):
+--   1) pg_proc.prosecdef ของ refresh_reconciliation_for_cycle = false
+--      → ฟังก์ชันรันด้วยสิทธิ์ "ผู้เรียก" (anon) ไม่ใช่เจ้าของ (postgres)
+--   2) migration 016 ให้ reconciliation_lines แค่ policy SELECT สำหรับ anon
+--      (ตั้งใจ เพราะตารางนี้เป็น cache ที่ "สร้างโดย RPC เป็นหลัก")
+--   → สมัย service_role key ไม่มีปัญหาเพราะ service_role ข้าม RLS ทุกตาราง
+--     พอเปลี่ยนเป็น publishable key (C1) ตัว RPC ก็โดน RLS ด้วย
+--   → DELETE ในฟังก์ชันลบได้ 0 แถวเงียบ ๆ แล้ว INSERT โดน 42501
+--     PostgREST map 42501 → HTTP 401
+--
+--   reproduce (rollback ทิ้ง):
+--     do $$ begin set local role anon;
+--       perform refresh_reconciliation_for_cycle('<cycle_uuid>'::uuid);
+--     end $$;
+--     → ERROR 42501 new row violates row-level security policy
+--
+-- ทางเลือกที่ตัดทิ้ง:
+--   เพิ่ม policy INSERT/DELETE ให้ anon บน reconciliation_lines — ทำได้แต่แย่กว่า
+--   เพราะเปิดให้ client ปลอมแถวผล match ได้ตรง ๆ ผิดเจตนาเดิมของ 016
+--
+-- ทางแก้ที่เลือก: ให้ RPC (ผู้เขียนที่ได้รับอนุญาตเพียงรายเดียว) รันด้วยสิทธิ์
+--   เจ้าของตาราง = postgres → ข้าม RLS ได้ ส่วน client ยังเขียนตรง ๆ ไม่ได้เหมือนเดิม
+--   ปลอดภัยเพราะ: พารามิเตอร์เดียวคือ uuid (ไม่มี dynamic SQL), ตรรกะตายตัว
+--   คำนวณจาก book_stock_lines/stock_adjustments/inventory_counts ของรอบนั้นเท่านั้น
+--   และตั้ง search_path ตายตัวกัน search_path hijacking
+--
+-- ไม่ต้องแก้ apply_stock_adjustment / apply_all_drafts_for_cycle:
+--   ทั้งคู่ไม่แตะ reconciliation_lines เอง แต่ PERFORM refresh_reconciliation_for_cycle
+--   → นับเป็น nested call ที่สลับไปใช้สิทธิ์ definer ให้อัตโนมัติ
+--
+-- ใช้ ALTER (ไม่ CREATE OR REPLACE) เพื่อคง body เดิมจาก 013 ไว้ทุกตัวอักษร
+--
+-- วิธีถอย:
+--   alter function public.refresh_reconciliation_for_cycle(uuid) security invoker;
+--   alter function public.refresh_reconciliation_for_cycle(uuid) reset search_path;
+-- =============================================================================
+
+alter function public.refresh_reconciliation_for_cycle(uuid) security definer;
+alter function public.refresh_reconciliation_for_cycle(uuid) set search_path = public, pg_temp;
+
+-- =============================================================================
+-- ตรวจผลหลังรัน:
+--   select proname, prosecdef, proconfig from pg_proc p
+--   join pg_namespace n on n.oid = p.pronamespace
+--   where n.nspname = 'public' and proname = 'refresh_reconciliation_for_cycle';
+--   -- คาดหวัง: prosecdef = true, proconfig = {search_path=public,pg_temp}
+--
+--   แล้วเปิด Html/reconcile.html เลือกรอบ กด "คำนวณ Match" ต้องไม่ขึ้น 401
+-- =============================================================================

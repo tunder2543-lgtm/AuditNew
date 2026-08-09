@@ -1594,14 +1594,14 @@
         </main>
     </div>
 
-    <script src="../Js/sidebar-shared.js?v=20260809e"></script>
-    <script src="../Js/api.js?v=20260809e"></script>
-    <script src="../Js/sku-utils.js?v=20260809e"></script>
-    <script src="../Js/warehouses-shared.js?v=20260809e"></script>
-    <script src="../Js/db-errors.js?v=20260809e"></script>
-    <script src="../Js/settings-shared.js?v=20260809e"></script>
-    <script src="../Js/reconcile-shared.js?v=20260809e"></script>
-    <script src="../Js/dashboard-shared.js?v=20260809e"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809h"></script>
+    <script src="../Js/api.js?v=20260809h"></script>
+    <script src="../Js/sku-utils.js?v=20260809h"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809h"></script>
+    <script src="../Js/db-errors.js?v=20260809h"></script>
+    <script src="../Js/settings-shared.js?v=20260809h"></script>
+    <script src="../Js/reconcile-shared.js?v=20260809h"></script>
+    <script src="../Js/dashboard-shared.js?v=20260809h"></script>
     <script>
         lucide.createIcons();
 
@@ -1743,13 +1743,10 @@
 
         function computeWarehouseStats(warehouseName) {
             const wh = normalize(warehouseName);
-            const bookList = bookSkuAll;
             const records = allRecords.filter(r => normalize(r.warehouse) === wh);
-            const countedSet = new Set(records.map(r => normalize(r.sku_id)).filter(Boolean));
-            const countedSku = bookList.filter(s => countedSet.has(normalize(s.sku_name))).length;
-            const totalSku = bookList.length;
-            const uncountedSku = Math.max(totalSku - countedSku, 0);
-            const progress = totalSku ? Math.floor((countedSku / totalSku) * 100) : 0;
+            // ใช้ตัวคำนวณกลางตัวเดียวกับ KPI รวม เพื่อให้นิยาม "นับแล้ว/ยังไม่นับ" ตรงกัน
+            const { totalSku, countedSku, uncountedSku, progress } =
+                DS.computeBookCoverage(bookSkuAll, records);
             const totalQty = records.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
 
             return {
@@ -2104,6 +2101,7 @@
                     .select('sku_id, name_pro')
                     .eq('cycle_id', cycleId)
                     .order('sku_id', { ascending: true })
+                    .order('id', { ascending: true })
                     .range(from, from + pageSize - 1);
                 if (error) throw error;
                 (data || []).forEach(row => {
@@ -2390,26 +2388,10 @@
             const bookList = getScopedBookSku();
             bookSku = bookList;
 
-            let countedSku = 0;
-            let totalSku = 0;
-
-            if (!scopeWarehouse) {
-                getWarehouseList().forEach(wh => {
-                    const whNorm = normalize(wh);
-                    const rowSkus = new Set(
-                        rows.filter(r => normalize(r.warehouse) === whNorm).map(r => normalize(r.sku_id)).filter(Boolean)
-                    );
-                    totalSku += bookList.length;
-                    countedSku += bookList.filter(s => rowSkus.has(normalize(s.sku_name))).length;
-                });
-            } else {
-                totalSku = bookList.length;
-                const countedSet = new Set(rows.map(row => normalize(row.sku_id)).filter(Boolean));
-                countedSku = bookList.filter(s => countedSet.has(normalize(s.sku_name))).length;
-            }
-
-            const uncountedSku = Math.max(totalSku - countedSku, 0);
-            const progress = totalSku ? Math.floor((countedSku / totalSku) * 100) : 0;
+            // Book ไม่มีมิติคลัง — นับครั้งเดียวเสมอ ทั้งโหมดคลังเดียวและทุกคลัง
+            // (rows ถูกกรองตามคลังมาแล้วโดย getScopedRecords) — ดู Js/dashboard-shared.js
+            const coverage = DS.computeBookCoverage(bookList, rows);
+            const { totalSku, countedSku, uncountedSku, progress } = coverage;
 
             const totalQty = rows.reduce((sum, row) => sum + (Number(row.counted_qty) || 0), 0);
             const totalRecords = rows.length;
@@ -2440,7 +2422,7 @@
             els.progressBar.style.width = `${progress}%`;
             const progressNote = scopeWarehouse
                 ? `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU (${scopeWarehouse})`
-                : `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU รวม 3 คลัง`;
+                : `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU (ทุกคลังในรอบนี้)`;
             els.progressText.textContent = `${progressNote} | ความคืบหน้า ${progress}%`;
         }
 
@@ -2769,13 +2751,8 @@
             renderTimelineList(filtered);
             updateExportButtons(filtered);
 
-            const bookList = getScopedBookSku();
-            const countedInFilter = new Set(filtered.map(row => normalize(row.sku_id)).filter(Boolean));
-            const countedSku = bookList.filter(s => countedInFilter.has(normalize(s.sku_name))).length;
-            const progress = bookList.length
-                ? Math.min(100, Math.floor((countedSku / bookList.length) * 100))
-                : 0;
-            els.progressBar.style.width = `${progress}%`;
+            // progress bar ถูกตั้งค่าโดย renderKpis(filtered) ไปแล้วด้วยตัวคำนวณกลางตัวเดียวกัน
+            // (เดิมมี logic คำนวณซ้ำตรงนี้แล้วเขียนทับ — เสี่ยงให้แถบกับตัวเลขไม่ตรงกันเมื่อสูตรต่างกัน)
             lucide.createIcons();
         }
 

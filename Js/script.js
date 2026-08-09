@@ -360,6 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     .select('sku_id, name_pro')
                     .eq('cycle_id', cycleId)
                     .order('sku_id', { ascending: true })
+                    .order('id', { ascending: true })
                     .range(from, from + PAGE - 1);
                 if (error) throw error;
                 (data || []).forEach(row => {
@@ -414,7 +415,10 @@ document.addEventListener('DOMContentLoaded', () => {
             let query = supabaseClient
                 .from('inventory_counts')
                 .select('*')
-                .order('created_at', { ascending: false });
+                // tiebreak ด้วย id — created_at ซ้ำกันได้จาก insert ชุดเดียว (group submit / นำเข้า Excel)
+                // ถ้าไม่ใส่ การแบ่งหน้าด้วย .range() จะข้าม/ซ้ำแถว
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: false });
             if (wh) query = query.eq('warehouse', wh);
             const { data, error } = await query.range(from, from + PAGE - 1);
             if (error) throw error;
@@ -1918,7 +1922,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const { data, error } = await supabaseClient
                     .from('inventory_audit_logs')
                     .select('*')
+                    // tiebreak ด้วย id — log ที่เขียนเป็นชุด (bulk จาก audit_check) มี created_at เท่ากันได้
                     .order('created_at', { ascending: false })
+                    .order('id', { ascending: false })
                     .range(from, from + PAGE - 1);
 
                 if (error) throw error;

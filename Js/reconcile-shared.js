@@ -1344,6 +1344,8 @@
 
                 .eq('cycle_id', cycleId)
 
+                .order('id', { ascending: true })
+
                 .range(from, to);
 
             if (error) throw error;
@@ -1740,7 +1742,10 @@
 
                 .is('cycle_id', null)
 
-                .order('created_at', { ascending: false });
+                // tiebreak ด้วย id — created_at ซ้ำกันได้จาก insert ชุดเดียว (ดูหมายเหตุใน loadInventoryCountsForDashboard)
+                .order('created_at', { ascending: false })
+
+                .order('id', { ascending: false });
 
             query = applyWarehouseFilter(query, cycle);
 
@@ -2030,6 +2035,7 @@
 
                 .eq('cycle_id', cycle.id)
 
+                .order('id', { ascending: true })
                 .range(from, to)
 
         );
@@ -2056,7 +2062,7 @@
 
                 query = applyWarehouseFilter(query, cycle);
 
-                return query.range(from, to);
+                return query.order('id', { ascending: true }).range(from, to);
 
             });
 
@@ -2121,6 +2127,8 @@
                 .eq('cycle_id', cycleId)
 
                 .order('sku_id')
+
+                .order('id', { ascending: true })
 
                 .range(from, to);
 
@@ -2260,7 +2268,12 @@
 
                 .select('*')
 
-                .order('created_at', { ascending: false });
+                // เรียง created_at อย่างเดียวไม่พอ — การ insert ชุดเดียว (group submit / นำเข้า Excel)
+                // ทำให้หลายแถวมี created_at เท่ากันเป๊ะ ลำดับจึงไม่คงที่ระหว่างหน้า
+                // → .range() จะข้ามบางแถวและซ้ำบางแถว ต้อง tiebreak ด้วย id เสมอ
+                .order('created_at', { ascending: false })
+
+                .order('id', { ascending: false });
 
 
 
@@ -2408,6 +2421,7 @@
 
                 .eq('cycle_id', cycleId)
 
+                .order('id', { ascending: true })
                 .range(from, to);
 
             if (error) throw error;

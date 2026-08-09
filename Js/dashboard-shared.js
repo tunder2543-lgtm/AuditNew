@@ -73,6 +73,49 @@
         };
     }
 
+    /**
+     * ความคืบหน้าการนับเทียบ Book — "Book มีกี่ SKU และนับไปแล้วกี่ SKU"
+     *
+     * ⚠️ Book (`book_stock_lines`) **ไม่มีมิติคลัง** — เป็นรายการ SKU ชุดเดียวต่อรอบ
+     * ดังนั้นโหมดรวมทุกคลังต้องนับ Book **ครั้งเดียว** แล้วดูว่า SKU ไหนถูกนับที่ไหนก็ได้
+     * (เดิมวน loop ต่อคลังแล้วบวก bookList.length สะสม ทำให้ยอดคูณตามจำนวนคลัง — ISSUES.md H4)
+     *
+     * @param {Array} bookList รายการ SKU ใน Book (ใช้ field `sku_name`)
+     * @param {Array} records  แถวผลนับ (ใช้ field `sku_id`, `warehouse`)
+     * @param {{warehouse?: string}} [opts] กรองเฉพาะคลังที่ระบุ
+     *   ⚠️ ใช้เมื่อส่ง `records` แบบยังไม่กรองเท่านั้น — ถ้ากรองมาก่อนแล้ว (เช่น `getScopedRecords()`)
+     *   ไม่ต้องส่ง เพราะจะเป็นการกรองซ้ำโดยไม่จำเป็น
+     * @returns {{totalSku, countedSku, uncountedSku, progress}}
+     */
+    function computeBookCoverage(bookList, records, opts) {
+        // ใช้มาตรฐาน SKU กลางของระบบ (invariant ข้อ 2) — fallback เผื่อหน้าที่ไม่ได้โหลด sku-utils
+        const norm = (typeof window !== 'undefined' && window.SkuUtils?.normalizeSku)
+            || (v => String(v ?? '').trim().toUpperCase());
+
+        const bookSet = new Set();
+        for (const item of bookList || []) {
+            const sku = norm(item?.sku_name);
+            if (sku) bookSet.add(sku);
+        }
+
+        const wh = opts && opts.warehouse ? norm(opts.warehouse) : '';
+        const counted = new Set();
+        for (const row of records || []) {
+            if (wh && norm(row?.warehouse) !== wh) continue;
+            const sku = norm(row?.sku_id);
+            if (sku && bookSet.has(sku)) counted.add(sku);
+        }
+
+        const totalSku = bookSet.size;
+        const countedSku = counted.size;
+        return {
+            totalSku,
+            countedSku,
+            uncountedSku: Math.max(totalSku - countedSku, 0),
+            progress: totalSku ? Math.floor((countedSku / totalSku) * 100) : 0
+        };
+    }
+
     function aggregateMatchFromSummary(summary) {
         if (!summary) {
             return {
@@ -232,6 +275,7 @@
         formatBucketLabel,
         bucketSubmissionsByInterval,
         computeSubmissionRateStats,
+        computeBookCoverage,
         aggregateMatchFromSummary,
         buildSubmissionLineChart,
         buildMatchDoughnutChart,

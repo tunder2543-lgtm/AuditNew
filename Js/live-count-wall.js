@@ -424,6 +424,7 @@
                 .select('sku_id, name_pro')
                 .eq('cycle_id', cycleId)
                 .order('sku_id', { ascending: true })
+                .order('id', { ascending: true })
                 .range(from, from + pageSize - 1);
             if (error) throw error;
             (data || []).forEach(function (row) {

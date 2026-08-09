@@ -443,12 +443,12 @@
         }
     </style>
 
-    <script src="../Js/api.js?v=20260809e"></script>
-    <script src="../Js/sku-utils.js?v=20260809e"></script>
-    <script src="../Js/warehouses-shared.js?v=20260809e"></script>
-    <script src="../Js/db-errors.js?v=20260809e"></script>
-    <script src="../Js/settings-shared.js?v=20260809e"></script>
-    <script src="../Js/sidebar-shared.js?v=20260809e"></script>
+    <script src="../Js/api.js?v=20260809h"></script>
+    <script src="../Js/sku-utils.js?v=20260809h"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809h"></script>
+    <script src="../Js/db-errors.js?v=20260809h"></script>
+    <script src="../Js/settings-shared.js?v=20260809h"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809h"></script>
     <script>
         lucide.createIcons();
 
@@ -521,6 +521,7 @@
                         .select('*')
                         .eq('warehouse', warehouse)
                         .order('sku_name', { ascending: true })
+                        .order('id', { ascending: true })
                         .range(from, from + PAGE - 1);
                         
                     if (error) throw error;

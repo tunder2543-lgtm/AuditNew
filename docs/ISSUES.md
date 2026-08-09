@@ -88,7 +88,28 @@
 **ผลกระทบ:** ประวัติ audit ให้ภาพเท็จว่าข้อมูลไม่เคยถูกแก้ — โหมดสลับ SKU↔Loc พังครึ่งทางกู้คืนไม่ได้เพราะค่าเดิมถูกทับ
 **แนวทางแก้:** เขียน `inventory_audit_logs` ทุก mutation (batch summary ก็ยังดี) และ/หรือย้าย bulk operation ไปเป็น RPC ฝั่ง DB ให้ atomic
 
-### - [ ] H4. Dashboard โหมด "ทุกคลัง" — Book ถูกคูณด้วยจำนวนคลัง
+### - [x] H4. Dashboard โหมด "ทุกคลัง" — Book ถูกคูณด้วยจำนวนคลัง
+> **✅ แก้แล้ว 2026-08-09** — ย้ายการคำนวณไปเป็น `computeBookCoverage()` ใน [`Js/dashboard-shared.js`](../Js/dashboard-shared.js) (มีเทส 8 ข้อ) แล้วให้ทั้ง `renderKpis` และ `computeWarehouseStats` ใช้ตัวเดียวกัน
+> **หลักการ:** `book_stock_lines` **ไม่มีมิติคลัง** เป็นรายการ SKU ชุดเดียวต่อรอบ → นับ Book ครั้งเดียวเสมอ · "นับแล้ว" = SKU ใน Book ที่ถูกนับที่คลังไหนก็ได้ (union ไม่ใช่ผลบวก)
+> เลิกใช้ป้าย "รวม 3 คลัง" ที่ hardcode · ลบ logic คำนวณซ้ำใน `render()` ที่เขียนทับแถบ progress
+>
+> **ผลจริงกับรอบ TIKTOK (2 คลัง):**
+> | | ก่อน | หลัง | ค่าจริงใน DB |
+> |---|---|---|---|
+> | Book | 2,902 | **1,451** | 1,451 |
+> | นับแล้ว | 2,075 | **1,402** | 1,402 |
+> | ยังไม่นับ | 827 | **49** | 49 |
+> | progress | 71% | **96%** | 96% |
+>
+> **⚠️ พบบั๊กที่สองระหว่างทดสอบ (แก้พร้อมกัน):** ดูข้อ H9
+
+### - [x] H9. การแบ่งหน้าด้วย `.range()` เรียงไม่เสถียร → ข้าม/ซ้ำแถวเงียบ ๆ
+พบตอนทดสอบ H4: dashboard โหลดผลนับได้ครบ **2,230 แถวเท่ากับ DB** แต่ **ข้ามไป 36 แถวและซ้ำอีก 36** ทำให้ KPI ต่ำกว่าความจริง 24 SKU
+**สาเหตุ:** query เรียงด้วย `created_at` อย่างเดียว (บางจุด**ไม่มี `.order()` เลย**) แต่ Postgres `now()` คงที่ทั้ง transaction → การ insert ชุดเดียว (group submit / นำเข้า Excel) ทำให้หลายแถวมีเวลาเท่ากันเป๊ะ ลำดับจึงไม่คงที่ระหว่างหน้า
+**จุดที่กระทบหนักสุด:** `fetchInventoryCountPresenceBySku` (`Js/reconcile-shared.js`) — ตัวตัดสินว่า SKU ไหน "นับแล้ว" ในหน้า reconcile ซึ่งใช้ประกอบการปรับยอด
+> **✅ แก้แล้ว 2026-08-09** — เพิ่ม `.order('id')` เป็น tiebreak ครบ **10 จุด** ใน `reconcile-shared.js`, `script.js`, `live-count-wall.js`, `dashboard.html`, `sku_master.html`, `book_explorer.html`
+> **เทสยาม** `tests/unit/stable-paging.test.mjs` สแกน source บังคับว่าทุก `.range()` ต้องมี `.order('id')` (มี allowlist ที่ต้องเขียนเหตุผลกำกับ)
+> ยืนยันจริง: เรียก `fetchInventoryCountPresenceBySku` 3 ครั้งได้ 1,503 เท่ากันทุกครั้ง (ตรงกับ DB)
 **ตำแหน่ง:** `Html/dashboard.html:2396-2404` + `loadPagedBookSku:2092-2124`
 **ยืนยันแล้ว:** query Book กรองแค่ `cycle_id` ไม่กรอง warehouse แล้ว loop คลังบวก `bookList.length` ต่อคลัง → `totalSku`, "ยังไม่ได้นับ", progress bar ผิดเป็น N เท่า (`computeWarehouseStats:1744-1750` ก็แบบเดียวกัน)
 **ผลกระทบ:** KPI หน้า dashboard เชื่อถือไม่ได้ในโหมดทุกคลัง — และแค่มีชื่อคลังสะกดผิด 1 แถวในข้อมูล ตัวเลขก็กระโดดทั้ง Book
@@ -255,7 +276,7 @@ count_search `cycle_id` โหลดมาแต่ไม่ใช้; precedenc
 | ระดับ | จำนวน | สถานะ verify |
 |---|---|---|
 | 🔴 Critical | 2 | ✅ **แก้ครบแล้วทั้ง C1 และ C2** |
-| 🟠 High | 8 | ✅ H1, H2, H3 แก้แล้ว · อีก 5 ข้อรอ |
+| 🟠 High | 9 | ✅ H1, H2, H3, H4, H9 แก้แล้ว · อีก 4 ข้อรอ (H5–H8) |
 | 🟡 Medium | 27 | ✅ M25 แก้แล้ว · M24, M26, M27 รอ · ที่เหลือจากการสำรวจละเอียด |
 | 🟢 Low | 11 กลุ่ม | L3 (cache-buster + escapeHtml ซ้ำ) แก้ไปเกือบหมดตอนทำ H1/C2 |
 

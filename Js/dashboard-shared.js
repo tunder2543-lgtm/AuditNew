@@ -61,7 +61,13 @@
         const peak = Math.max(...rates);
         const peakBucket = buckets.find(b => b.ratePerMin === peak);
         const total = buckets.reduce((s, b) => s + b.count, 0);
-        const spanMin = buckets.length * (Number(intervalMinutes) || 30);
+        // ตัวหารต้องเป็น "ช่วงเวลาจริง" ตั้งแต่ bucket แรกถึง bucket สุดท้าย — รวมช่วงที่ไม่มีใครส่งงาน
+        // (พักเที่ยง/ช่วงว่าง) ด้วย เพราะ bucket ถูกสร้างเฉพาะช่วงที่มีข้อมูล ถ้าหารด้วย buckets.length
+        // ช่วงว่างจะหายจากตัวหารและค่าเฉลี่ยสูงเกินจริง — docs/ISSUES.md H7
+        const mins = Math.max(1, Number(intervalMinutes) || 30);
+        const sizeMs = mins * 60 * 1000;
+        const bucketSpan = (buckets[buckets.length - 1].ms - buckets[0].ms) / sizeMs + 1;
+        const spanMin = bucketSpan * mins;
         const avgPerMin = spanMin > 0 ? total / spanMin : 0;
 
         return {

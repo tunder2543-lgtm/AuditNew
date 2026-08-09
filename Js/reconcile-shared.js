@@ -1276,6 +1276,28 @@
 
 
 
+        // ลบยอดปรับของ SKU นี้ด้วย — ต้อง log ก่อนลบเหมือนกับตอน Import (docs/ISSUES.md H6)
+
+        // และต้องอยู่ **ก่อน** ลบ book_stock_lines ด้วย ไม่งั้นถ้า log พังจะได้สภาพ
+
+        // "Book หายแล้ว แต่ยอดปรับยังอยู่ และไม่ได้ refresh" ซึ่งย้อนกลับไม่ได้
+
+        const { data: doomedAdj, error: adjSelErr } = await client
+
+            .from('stock_adjustments')
+
+            .select('id, sku_id, status, adjustment_qty, reason, note')
+
+            .eq('cycle_id', cycleId)
+
+            .eq('sku_id', sku);
+
+        if (adjSelErr) throw adjSelErr;
+
+        const adjLog = await logAdjustmentsBeforeDelete(client, cycleId, doomedAdj || [], { source: 'reconcile_delete_book' });
+
+
+
         const { error: bookDelErr } = await client
 
             .from('book_stock_lines')
@@ -1286,7 +1308,13 @@
 
             .eq('sku_id', sku);
 
-        if (bookDelErr) throw bookDelErr;
+        if (bookDelErr) {
+
+            await rollbackAuditEntries(client, adjLog.writtenIds);
+
+            throw bookDelErr;
+
+        }
 
 
 
@@ -1300,7 +1328,15 @@
 
             .eq('sku_id', sku);
 
-        if (adjDelErr) throw adjDelErr;
+        if (adjDelErr) {
+
+            // Book ถูกลบไปแล้วย้อนไม่ได้ แต่ยอดปรับยังอยู่ — log จึงเป็นเท็จ ต้องถอนทิ้ง
+
+            await rollbackAuditEntries(client, adjLog.writtenIds);
+
+            throw adjDelErr;
+
+        }
 
 
 
@@ -2746,22 +2782,127 @@
         return { accepted };
     }
 
-    /** ล้าง adjustment + การยืนยันถูกต้องเดิม ของ SKU ในรอบ */
+    /** action_type ใน inventory_audit_logs สำหรับการล้างยอดปรับตอน Import Excel (docs/ISSUES.md H6) */
+    const ADJ_CLEAR_ACTION = 'RECONCILE_ADJ_CLEAR';
+    const AUDIT_LOG_CHUNK = 100;
+    const AUDIT_DETAIL_MAX = 200;
+
+    /** ใครเป็นคนทำ — reconcile ไม่มีช่องกรอกชื่อ จึงยืมชื่อผู้นับล่าสุดของเครื่องนี้ + ต่อท้ายที่มา */
+    function resolveReconcileActor(suffix) {
+        const tag = suffix || 'reconcile_import';
+        try {
+            const saved = localStorage.getItem('saved_counter_name');
+            if (saved && saved.trim()) return `${saved.trim()} (${tag})`;
+        } catch { /* localStorage อ่านไม่ได้ */ }
+        return tag;
+    }
+
+    function auditQtyOrNull(v) {
+        // '' และ null = "ไม่รู้จำนวน" ไม่ใช่ 0 (Number('') === 0)
+        if (v === '' || v == null) return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.trunc(n) : null;
+    }
+
+    /**
+     * เขียน inventory_audit_logs ให้ทุกแถว stock_adjustments ที่กำลังจะถูกลบ
+     *
+     * ต้องเขียน **ก่อน** ลบเสมอ — ลบแล้วสร้าง log ย้อนหลังไม่ได้ (แนวเดียวกับ Js/audit-log.js)
+     * ถ้าเขียนไม่สำเร็จ จะย้อน log ที่เพิ่งเขียนแล้ว throw เพื่อ **ยกเลิกการลบ** ไม่ให้ยอดปรับ
+     * ที่ apply ไปแล้วหายโดยไม่มีหลักฐาน (docs/ISSUES.md H6)
+     *
+     * คืน `writtenIds` มาด้วยเสมอ เพราะผู้เรียกต้องถอน log ทิ้งเองถ้า **การลบ** พังทีหลัง
+     * (log บอกว่าลบแล้วทั้งที่ข้อมูลยังอยู่ = หลักฐานเท็จ อันตรายกว่าไม่มี log)
+     * @returns {Promise<{count:number, writtenIds:Array}>}
+     */
+    async function logAdjustmentsBeforeDelete(client, cycleId, rows, { source = 'reconcile_import' } = {}) {
+        const list = (rows || []).filter(Boolean);
+        if (!list.length) return { count: 0, writtenIds: [] };
+
+        const actor = resolveReconcileActor(source);
+        const entries = list.map(r => {
+            const detail = `stock_adjustments ${r.status || '-'} · qty=${r.adjustment_qty} · cycle=${cycleId} · ${r.note || r.reason || ''}`;
+            return {
+                action_type: ADJ_CLEAR_ACTION,
+                record_id: r.id == null ? '' : String(r.id),
+                sku_id: normalizeSku(r.sku_id) || '-',
+                old_qty: auditQtyOrNull(r.adjustment_qty),
+                new_qty: null,                      // ลบ = ไม่มีค่าใหม่
+                warehouse: '',                      // stock_adjustments ไม่มีมิติคลัง
+                location: detail.slice(0, AUDIT_DETAIL_MAX),
+                counter_name: actor
+            };
+        });
+
+        const writtenIds = [];
+        for (let i = 0; i < entries.length; i += AUDIT_LOG_CHUNK) {
+            const chunk = entries.slice(i, i + AUDIT_LOG_CHUNK);
+            const { data, error } = await client.from('inventory_audit_logs').insert(chunk).select('id');
+            if (error) {
+                // ย้อน log ที่เขียนไปแล้ว ไม่งั้นจะเหลือหลักฐานเท็จว่า "ลบแล้ว" ทั้งที่ยังไม่ได้ลบ
+                await rollbackAuditEntries(client, writtenIds);
+                throw new Error(`บันทึกประวัติยอดปรับไม่สำเร็จ จึงยกเลิกการล้างยอดปรับเพื่อรักษาหลักฐาน: ${error.message}`);
+            }
+            (data || []).forEach(r => { if (r?.id != null) writtenIds.push(r.id); });
+        }
+        return { count: entries.length, writtenIds };
+    }
+
+    /** ถอน audit log ที่เพิ่งเขียน (ใช้เมื่อการลบจริงไม่สำเร็จ — ไม่ throw ต่อ) */
+    async function rollbackAuditEntries(client, writtenIds) {
+        const ids = (writtenIds || []).filter(v => v != null);
+        if (!client || !ids.length) return false;
+        try {
+            const { error } = await client.from('inventory_audit_logs').delete().in('id', ids);
+            if (error) throw error;
+            return true;
+        } catch (err) {
+            console.warn('[reconcile] ย้อน audit log ไม่สำเร็จ:', err?.message || err);
+            return false;
+        }
+    }
+
+    /**
+     * ล้าง adjustment + การยืนยันถูกต้องเดิม ของ SKU ในรอบ
+     *
+     * ต้องล้างจริง (ไม่ใช่เฉพาะ draft) เพราะ `effective_book_qty = book_qty + SUM(applied)`
+     * ถ้าเหลือยอดปรับเก่าไว้หลัง Import Book ใหม่ จะกลายเป็นนับซ้ำ — แต่ทุกแถวที่ลบ
+     * ต้องมี audit log กำกับก่อนเสมอ (docs/ISSUES.md H6)
+     * @returns {Promise<{deleted:number, logged:number}>}
+     */
     async function clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds, { onProgress } = {}) {
         const client = getClient();
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
         const ids = uniqueSkuIds(skuIds);
-        if (!ids.length) return;
+        if (!ids.length) return { deleted: 0, logged: 0 };
 
         let done = 0;
+        let deleted = 0;
+        let logged = 0;
         for (let i = 0; i < ids.length; i += BOOK_CHUNK) {
             const chunk = ids.slice(i, i + BOOK_CHUNK);
+
+            // อ่านแถวที่กำลังจะหายก่อน แล้วเขียน log — ลำดับนี้ห้ามสลับ
+            const { data: doomed, error: readErr } = await client
+                .from('stock_adjustments')
+                .select('id, sku_id, status, adjustment_qty, reason, note')
+                .eq('cycle_id', cycleId)
+                .in('sku_id', chunk);
+            if (readErr) throw readErr;
+            const chunkLog = await logAdjustmentsBeforeDelete(client, cycleId, doomed || []);
+            logged += chunkLog.count;
+
             const { error: adjErr } = await client
                 .from('stock_adjustments')
                 .delete()
                 .eq('cycle_id', cycleId)
                 .in('sku_id', chunk);
-            if (adjErr) throw adjErr;
+            if (adjErr) {
+                // ลบไม่สำเร็จ = log ของ chunk นี้กลายเป็นหลักฐานเท็จ ต้องถอนก่อนโยน error ออกไป
+                await rollbackAuditEntries(client, chunkLog.writtenIds);
+                throw adjErr;
+            }
+            deleted += (doomed || []).length;
 
             try {
                 const { error: accErr } = await client
@@ -2778,6 +2919,7 @@
                 onProgress({ done, total: ids.length, phase: 'clear' });
             }
         }
+        return { deleted, logged };
     }
 
     async function fetchBookQtySums(cycleId, skuIds, { onProgress } = {}) {
@@ -3003,6 +3145,61 @@
         progress('refresh', 1, 1);
 
         return { applied, skippedZero, results, preview };
+    }
+
+    /**
+     * Import Book จาก Excel แล้ว **ปล่อยให้สถานะคำนวณเองตามจริง** (docs/ISSUES.md H6)
+     *
+     * ของเดิม: merge Book → สร้าง adjustment (ซึ่ง `target − bookQty = 0` เสมอเพราะเพิ่ง merge
+     * ไปแล้ว จึงเป็น dead path) → `acceptReconciliationAsMatchBatch` **force ทุก SKU ในไฟล์
+     * เป็น "ถูกต้อง" โดยไม่ดูผลนับ** ทำให้ KPI สวยเกินจริง
+     *
+     * ของใหม่ ลำดับคือ:
+     *   1. preview ก่อน merge (ตอนนี้ยังเห็นยอดเดิม จึงเทียบ "ก่อน → หลัง" ได้จริง)
+     *   2. merge Book ตามไฟล์
+     *   3. ล้าง adjustment + acceptance เดิมของ SKU ในไฟล์ (เขียน audit log ก่อนลบ)
+     *      — จำเป็นเพราะ effective = book + SUM(applied) ถ้าไม่ล้างจะนับซ้ำกับ Book ใหม่
+     *   4. refresh ให้ DB คำนวณสถานะใหม่จาก Book ใหม่ vs ผลนับจริง
+     *
+     * @returns {Promise<{imported:number, skuIds:string[], preview:Array, cleared:{deleted:number,logged:number}}>}
+     */
+    async function importBookAndRecompute(cycleId, validRows, fileName, { onProgress } = {}) {
+        const client = getClient();
+        if (!client || !cycleId) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
+
+        const rows = (validRows || []).filter(r => r && r.sku != null && r.qty != null);
+        if (!rows.length) throw new Error('ไม่มีแถวที่นำเข้าได้');
+
+        const targets = targetsMapFromValidRows(rows);
+        const skuIds = uniqueSkuIds(Object.keys(targets));
+        const progress = (phase, done, total) => {
+            if (typeof onProgress === 'function') onProgress({ phase, done, total });
+        };
+
+        progress('preview', 0, skuIds.length);
+        const preview = await previewAdjustmentsToBookTargets(cycleId, targets, {
+            onProgress: ({ done, total }) => progress('preview', done, total)
+        });
+
+        // ล้างยอดปรับเก่า **ก่อน** merge เสมอ — ผลลัพธ์ปลายทางเหมือนกัน แต่ถ้าล้มกลางทาง
+        // สภาพที่เหลือต่างกันมาก: ถ้า merge ก่อนแล้ว clear พัง จะได้ Book ใหม่ + ยอดปรับเก่า
+        // = `effective = book + SUM(applied)` นับซ้ำเงียบ ๆ (ยอดพองโดยไม่มีใครรู้)
+        // ส่วนลำดับนี้ถ้าพังจะได้ Book เดิม + ไม่มียอดปรับ ซึ่งเห็นชัดและมี audit log กำกับ
+        progress('clear', 0, skuIds.length);
+        const cleared = await clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds, {
+            onProgress: ({ done, total }) => progress('clear', done, total)
+        });
+
+        progress('import', 0, 1);
+        const importRes = await importBookStockLines(cycleId, rows, fileName, { mode: 'merge' });
+        const imported = typeof importRes === 'number' ? importRes : Number(importRes?.inserted || 0);
+        progress('import', 1, 1);
+
+        progress('refresh', 0, 1);
+        await refreshReconciliation(cycleId);
+        progress('refresh', 1, 1);
+
+        return { imported, skuIds, preview, cleared };
     }
 
     async function deleteDraftAdjustment(adjustmentId) {
@@ -3266,6 +3463,8 @@
         previewAdjustmentsToBookTargets,
 
         applyAdjustmentsToBookTargets,
+
+        importBookAndRecompute,
 
         deleteDraftAdjustment,
 

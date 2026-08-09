@@ -51,7 +51,8 @@ const RS_WRITE_FNS = [
     'createStockAdjustment', 'createStockAdjustmentsBatch', 'deleteDraftAdjustment',
     'applyStockAdjustment', 'applyAllDraftsForCycle',
     'addBookFromCountOnly', 'addBookFromCountOnlyBatch', 'deleteBookStockBySku',
-    'clearAdjustmentsAndMatchAcceptancesForSkus'
+    'clearAdjustmentsAndMatchAcceptancesForSkus',
+    'importBookAndRecompute'          // entry point ของ Import หลังแก้ H6
 ];
 
 /** หา "บล็อกโค้ดที่ครอบบรรทัดนี้" — ไล่ขึ้นไปหาการประกาศฟังก์ชัน/handler ที่ใกล้ที่สุด */

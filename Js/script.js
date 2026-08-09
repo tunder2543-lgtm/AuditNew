@@ -1829,6 +1829,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (String(log.action_type || '').startsWith('AUDIT_')) {
                     // มาจากหน้า audit_check — รายละเอียด "ค่าเดิม → ค่าใหม่" เก็บในคอลัมน์ location
                     detailHtml = AUDIT_ACTION_LABELS[log.action_type] || 'แก้ไขจากหน้าตรวจสอบ';
+                } else if (log.action_type === 'RECONCILE_ADJ_CLEAR') {
+                    // มาจากหน้า reconcile — ล้างยอดปรับก่อน Import Book ใหม่ / ลบรายการ Book
+                    detailHtml = `ล้างยอดปรับเดิม <strong>${log.old_qty ?? '-'}</strong> (รายละเอียดใน location)`;
                 }
 
                 let badgeType = log.action_type;
@@ -1841,6 +1844,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     badgeType = (log.action_type === 'AUDIT_DELETE' || log.action_type === 'AUDIT_DEDUPE')
                         ? 'DELETE' : 'UPDATE';
                     badgeText = AUDIT_ACTION_BADGES[log.action_type] || 'AUDIT';
+                } else if (log.action_type === 'RECONCILE_ADJ_CLEAR') {
+                    badgeType = 'DELETE';
+                    badgeText = 'ล้างยอดปรับ';
                 }
 
                 let skuHtml = `<div class="log-sku" style="word-break: break-all; white-space: normal; line-height: 1.4;">${escapeHtml(log.sku_id)}</div>`;

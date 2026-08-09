@@ -79,6 +79,7 @@ PK `(cycle_id, sku_id)`, `note`, `accepted_at`, `accepted_by` — เป็น�
 | `INSERT` / `GROUP_INSERT` / `UPDATE` / `DELETE` | `index.html` | นับ/แก้/ลบรายแถว |
 | `IMPORT` | `import_counts.html` | `old_qty`=จำนวนที่พลาด · `new_qty`=จำนวนที่สำเร็จ · `record_id`=batch uuid |
 | `AUDIT_EDIT_LOC` / `AUDIT_SWAP` / `AUDIT_LOC_COMPARE` / `AUDIT_DELETE` / `AUDIT_DEDUPE` | `audit_check.html` (ผ่าน `Js/audit-log.js`, เพิ่มตอนแก้ H3) | คอลัมน์ `location` เก็บข้อความ "ค่าเดิม → ค่าใหม่" เพราะ schema ไม่มีช่อง note · `counter_name` ต่อท้าย `(audit_check)` |
+| `RECONCILE_ADJ_CLEAR` | `reconcile.html` (ผ่าน `Js/reconcile-shared.js`, เพิ่มตอนแก้ H6) | 1 แถวต่อ `stock_adjustments` 1 แถวที่ถูกลบ (ทั้ง draft และ applied) · `record_id`=id ของ adjustment · `old_qty`=ยอดปรับเดิม · `new_qty`=null · `location`=`stock_adjustments <status> · qty=… · cycle=…` · `counter_name` ต่อท้าย `(reconcile_import)` หรือ `(reconcile_delete_book)` · ⚠️ ปริมาณเยอะได้ (import ครั้งเดียวอาจหลายร้อยแถว) — drawer ประวัติในหน้า index ดึงแค่ 100 แถวล่าสุดโดยไม่กรอง action_type |
 
 ## Views / Functions (RPC)
 

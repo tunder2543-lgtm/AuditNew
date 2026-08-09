@@ -629,13 +629,13 @@
 </div>
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="../Js/sidebar-shared.js?v=20260809j"></script>
-<script src="../Js/api.js?v=20260809j"></script>
-<script src="../Js/sku-utils.js?v=20260809j"></script>
-<script src="../Js/db-errors.js?v=20260809j"></script>
-<script src="../Js/settings-shared.js?v=20260809j"></script>
-<script src="../Js/reconcile-shared.js?v=20260809j"></script>
-<script src="../Js/ui-confirm-modal.js?v=20260809j"></script>
+<script src="../Js/sidebar-shared.js?v=20260809k"></script>
+<script src="../Js/api.js?v=20260809k"></script>
+<script src="../Js/sku-utils.js?v=20260809k"></script>
+<script src="../Js/db-errors.js?v=20260809k"></script>
+<script src="../Js/settings-shared.js?v=20260809k"></script>
+<script src="../Js/reconcile-shared.js?v=20260809k"></script>
+<script src="../Js/ui-confirm-modal.js?v=20260809k"></script>
 <script>
     lucide.createIcons();
     const RS = window.reconcileService;
@@ -657,38 +657,20 @@
 
     const importAcceptCacheKey = (cycleId) => `recon_import_accept_v1_${cycleId}`;
 
-    function applyImportAcceptedToMap(skuIds, note) {
-        const acceptedAt = new Date().toISOString();
-        (skuIds || []).forEach(sku => {
-            const k = RS.normalizeSku(sku);
-            if (k) matchAcceptanceMap.set(k, { sku_id: k, note, accepted_at: acceptedAt });
-        });
-    }
-
-    function cacheImportAcceptedSkus(cycleId, skuIds) {
-        if (!cycleId || !skuIds?.length) return;
+    /**
+     * ล้าง cache "SKU ที่ import แล้วถือว่าถูกต้อง" ของรอบนี้
+     *
+     * เดิมหน้านี้ force ทุก SKU ในไฟล์เป็น "ถูกต้อง" แล้ว cache ไว้ใน sessionStorage
+     * เพื่อให้แสดงผลทันที (docs/ISSUES.md H6) — ตอนนี้เลิก force แล้ว สถานะมาจากการ
+     * คำนวณจริงเสมอ จึงต้องล้าง cache เก่าทิ้ง ไม่งั้นเครื่องที่เคย import ไว้ก่อนแก้บั๊ก
+     * จะยังเห็น "ถูกต้อง" ปลอมค้างอยู่
+     */
+    function clearImportAcceptCache(cycleId) {
+        if (!cycleId) return;
         try {
-            const key = importAcceptCacheKey(cycleId);
-            const existing = new Set(JSON.parse(sessionStorage.getItem(key) || '[]'));
-            skuIds.forEach(s => existing.add(RS.normalizeSku(s)));
-            sessionStorage.setItem(key, JSON.stringify([...existing]));
+            sessionStorage.removeItem(importAcceptCacheKey(cycleId));
         } catch (e) {
-            console.warn('[cacheImportAcceptedSkus]', e);
-        }
-    }
-
-    function mergeCachedImportAcceptances(cycleId) {
-        try {
-            const raw = sessionStorage.getItem(importAcceptCacheKey(cycleId));
-            if (!raw) return;
-            JSON.parse(raw).forEach(sku => {
-                const k = RS.normalizeSku(sku);
-                if (k && !matchAcceptanceMap.has(k)) {
-                    matchAcceptanceMap.set(k, { sku_id: k, note: 'import_excel' });
-                }
-            });
-        } catch (e) {
-            console.warn('[mergeCachedImportAcceptances]', e);
+            console.warn('[clearImportAcceptCache]', e);
         }
     }
     /** โหมดกรอก: ใส่จำนวนที่ต้องการ แล้วระบบคำนวณเพิ่ม/ลด */
@@ -1274,7 +1256,7 @@
         validate: 'ตรวจสอบข้อมูล',
         import: 'นำเข้า Book',
         clear: 'ล้างปรับเดิม',
-        preview: 'คำนวณปรับยอด',
+        preview: 'ตรวจยอดก่อนนำเข้า',
         draft: 'สร้าง Draft',
         apply: 'Apply ปรับยอด',
         refresh: 'อัปเดต Match',
@@ -1458,7 +1440,7 @@
                         `ไฟล์: ${fileName}`,
                         `อัปเดต book_qty ตามไฟล์ (เฉพาะ SKU ในไฟล์)`,
                         `ล้าง Draft/Applied และการยืนยันถูกต้องเดิมของ SKU เหล่านี้`,
-                        'อัปเดต Book ตามไฟล์แล้วล้างปรับเดิม (adjustment ใหม่ถ้าจำเป็น)',
+                        'ไม่มีการสร้าง adjustment ใหม่ — ยอดในไฟล์กลายเป็นยอด Book โดยตรง',
                         'SKU นอกไฟล์จะไม่ถูกแตะ'
                     ],
                     confirmLabel: 'ดูรายละเอียดต่อ'
@@ -1466,81 +1448,60 @@
                 step2: {
                     intro: `ยืนยัน Apply — ${nClear} SKU มีการเปลี่ยนแปลง`,
                     bullets: [
-                        `SKU ในไฟล์ทั้ง ${validRows.length} รายการจะแสดงสถานะ「ถูกต้อง」หลัง Import`,
-                        'หมายเหตุ: ไม่ได้หมายความว่าผลนับตรงกับ Book — แค่ปิดเคสว่าแก้ด้วยไฟล์แล้ว'
+                        `ยอด Book ของ ${validRows.length} SKU ในไฟล์จะถูกแทนด้วยยอดในไฟล์`,
+                        'สถานะจะคำนวณใหม่ตามจริง (ไฟล์ vs ผลนับ) — ตัวที่ยังไม่ตรงจะขึ้น ขาด/เกิน ไม่ถูกปิดเคสให้อัตโนมัติ'
                     ],
-                    note: 'การลบ adjustment ที่ Apply แล้วเป็นการแก้ประวัติ — ตรวจสอบ preview ให้ครบ',
+                    note: 'ยอดปรับเดิม (draft + applied) ของ SKU เหล่านี้จะถูกล้าง โดยบันทึกลงประวัติก่อนลบทุกแถว',
                     noteVariant: 'warn',
                     confirmLabel: 'ปรับตามไฟล์',
                     confirmIcon: 'play'
                 }
             });
             if (!ok) return;
+            if (!stillOnCycle(cycleId)) return;   // ผู้ใช้อาจสลับรอบระหว่างที่ modal เปิดอยู่
         }
 
         if (!opts.fromAutoPipeline) {
             report({ phase: 'import', label: 'กำลัง Import...', sub: fileName || '' });
         }
         try {
-            report({ phase: 'import', done: 0, total: 1 });
-            await RS.importBookStockLines(cycleId, validRows, fileName, { mode: 'merge' });
-            report({ phase: 'import', done: 1, total: 1 });
-
-            const applyRes = await RS.applyAdjustmentsToBookTargets(cycleId, targets, {
-                notePrefix: 'import_excel',
+            // Import แล้วให้สถานะคำนวณเองจาก Book ใหม่ vs ผลนับจริง — ไม่ force ทุก SKU
+            // เป็น "ถูกต้อง" อีกต่อไป (docs/ISSUES.md H6)
+            const importRes = await RS.importBookAndRecompute(cycleId, validRows, fileName, {
                 onProgress: ({ phase, done, total: t }) => report({ phase, done, total: t || total })
             });
 
-            if (applyRes.preview?.length) {
-                importPreviewRows = applyRes.preview.map(p => ({
+            if (importRes.preview?.length) {
+                importPreviewRows = importRes.preview.map(p => ({
                     ...p,
                     deltaToTarget: p.targetEffective - p.currentEffective
                 }));
             }
 
-            const importSkuIds = validRows.map(r => RS.normalizeSku(r.sku)).filter(Boolean);
-            report({ phase: 'accept', done: 0, total: importSkuIds.length });
-            let acceptRes;
-            try {
-                acceptRes = await RS.acceptReconciliationAsMatchBatch({
-                    cycleId: currentCycle.id,
-                    skuIds: importSkuIds,
-                    note: `import_excel: ${fileName || ''}`,
-                    onProgress: ({ done, total: t }) => report({ phase: 'accept', done, total: t })
-                });
-            } catch (acceptErr) {
-                const msg = acceptErr.message || String(acceptErr);
-                if (/008_reconciliation_match_acceptances|does not exist|relation/i.test(msg)) {
-                    showToast('บันทึกสถานะถูกต้องไม่สำเร็จ — รัน SQL 008 ใน Supabase แล้ว Import ใหม่', 'error');
-                }
-                throw acceptErr;
-            }
-
-            applyImportAcceptedToMap(importSkuIds, `import_excel: ${fileName || ''}`);
-            cacheImportAcceptedSkus(currentCycle.id, importSkuIds);
+            const importSkuIds = importRes.skuIds;
+            // การยืนยัน "ถูกต้อง" เดิมของ SKU เหล่านี้ถูกล้างไปแล้วใน DB — ล้าง cache ฝั่ง
+            // เบราว์เซอร์ด้วย ไม่งั้นหน้าจอจะยังแสดงว่าถูกต้องทั้งที่ยอดไม่ตรง
+            clearImportAcceptCache(cycleId);
 
             report({ phase: 'reload', done: 0, total: 1 });
             await reloadMatchData();
             adjustmentsCache = await RS.fetchAdjustments(cycleId);
             matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(cycleId);
-            mergeCachedImportAcceptances(currentCycle.id);
             report({ phase: 'reload', done: 1, total: 1 });
 
-            const resultMap = new Map((applyRes.results || []).map(r => [r.skuId, r]));
             const previewBySku = new Map((importPreviewRows || []).map(p => [p.skuId, p]));
             lastImportAdjustResults = importSkuIds.map(skuId => {
                 const p = previewBySku.get(skuId);
-                const applied = resultMap.get(skuId);
                 const line = linesCache.find(l => RS.normalizeSku(l.sku_id) === skuId);
                 const targetVal = p?.targetEffective ?? targets[skuId] ?? 0;
                 return {
                     skuId,
                     targetEffective: targetVal,
-                    adjustmentQty: applied?.adjustmentQty ?? 0,
+                    adjustmentQty: null,                 // ไม่มีการสร้างยอดปรับใหม่แล้ว
                     bookQty: targetVal,
                     countedQty: line ? Number(line.counted_qty) : (p?.countedQty ?? 0),
                     effectiveAfter: line ? getLineEffectiveBook(line) : targetVal,
-                    statusAfter: 'match'
+                    statusAfter: line ? resolveDisplayStatus(line) : (p?.statusAfter || 'book_only')
                 };
             });
 
@@ -1551,8 +1512,10 @@
             importPending = null;
             importPreviewRows = [];
             renderImportPreview([]);
+            const nMatch = lastImportAdjustResults.filter(r => r.statusAfter === 'match').length;
+            const nDiff = lastImportAdjustResults.length - nMatch;
             showToast(
-                `Import สำเร็จ · Apply ${applyRes.applied} รายการ · ข้ามไม่ต้องปรับ ${applyRes.skippedZero} · ถูกต้อง ${acceptRes.accepted} SKU`
+                `Import ${importRes.imported.toLocaleString()} SKU · ล้างยอดปรับเดิม ${importRes.cleared.deleted.toLocaleString()} แถว (บันทึกประวัติแล้ว) · ถูกต้อง ${nMatch.toLocaleString()} · ยังต่าง ${nDiff.toLocaleString()}`
             );
         } catch (err) {
             showToast(err.message, 'error');
@@ -1755,7 +1718,6 @@
             adjustmentsCache = await RS.fetchAdjustments(id);
             bookSkuSet = await RS.fetchBookSkuIds(id);
             matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(id);
-            mergeCachedImportAcceptances(id);
 
             document.getElementById('resultsPanel').style.display = '';
             document.getElementById('cycleHintBar').classList.add('show');
@@ -1942,7 +1904,6 @@
         skuNameMap = await RS.fetchBookSkuNames(currentCycle.id);
         bookSkuSet = await RS.fetchBookSkuIds(currentCycle.id);
         matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(currentCycle.id);
-        mergeCachedImportAcceptances(currentCycle.id);
     }
 
     async function markLineAsMatchAccepted(line, opts = {}) {

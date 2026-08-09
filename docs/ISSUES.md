@@ -128,16 +128,22 @@
 **ยืนยันแล้ว:** `currentCycle` อัปเดตเฉพาะใน `runRefresh` (`:1659`) แต่ปุ่ม mutation กว่า 25 จุดใช้ `currentCycle.id` — เปลี่ยน dropdown โดยไม่กด "คำนวณ Match" แล้วกดปุ่มใด ๆ (เพิ่ม/ลบ Book, draft, accept) = เขียนลงรอบที่แล้ว
 **แนวทางแก้:** เพิ่ม change listener ที่ disable ปุ่ม action ทั้งหมดจนกว่าจะกดคำนวณ หรือ auto-refresh เมื่อเปลี่ยนรอบ
 
-### - [ ] H6. reconcile: Import Excel บังคับทุก SKU เป็น "ถูกต้อง" + ลบประวัติ adjustment ที่ applied แล้ว
+### - [x] H6. reconcile: Import Excel บังคับทุก SKU เป็น "ถูกต้อง" + ลบประวัติ adjustment ที่ applied แล้ว
 **ตำแหน่ง:** `Html/reconcile.html:1479-1498` + `Js/reconcile-shared.js:2858, 2712-2717`
 **ยืนยันแล้ว:** pipeline import Book (merge) ก่อนแล้วค่อยคำนวณ adjustment → `requiredAdjustmentQty = target − bookQty = 0 เสมอ` (กลไก adjustment เป็น dead path, ตัวเลขใน confirm ก็ไม่ตรงผลจริง) — สถานะเปลี่ยนเพราะ `acceptReconciliationAsMatchBatch` **force ทุก SKU ในไฟล์เป็น match ไม่สนผลนับ**; และ `clearAdjustmentsAndMatchAcceptancesForSkus` delete `stock_adjustments` **โดยไม่กรอง status** — ลบทั้ง draft และ **applied** (ทำลาย audit trail)
 **ผลกระทบ:** admin เห็น KPI "ถูกต้อง" สูงโดยที่ของจริงอาจไม่ตรง + ประวัติการปรับยอดที่ apply ไปแล้วหายถาวร
 **แนวทางแก้:** ตัดสินใจ semantic ที่ต้องการก่อน (นี่คือคำถามเชิงธุรกิจ): ถ้า import = "ยอด Book ใหม่ที่แก้แล้ว" ควร refresh แล้วปล่อยให้สถานะคำนวณเองตามจริง ไม่ force-accept; และ delete ควรกรอง `status='draft'` เท่านั้น
+> **✅ แก้แล้ว 2026-08-09 — admin เลือก semantic แล้ว**
+> 1. **สถานะ = คำนวณตามจริง** เลิก force ทุก SKU ในไฟล์เป็น match · ฟังก์ชันใหม่ `importBookAndRecompute()` (`Js/reconcile-shared.js`) ทำตามลำดับ preview(ก่อน merge) → merge Book → ล้างยอดปรับเก่า → `refresh_reconciliation_for_cycle` แล้วปล่อยให้ DB ตัดสินสถานะเอง
+> 2. **ยอดปรับเก่ายังต้องลบทั้ง draft และ applied** (ไม่ใช่กรอง `status='draft'` อย่างที่เสนอไว้ตอนแรก) เพราะ `effective_book_qty = book_qty + SUM(applied)` ถ้าเหลือไว้จะนับซ้ำกับ Book ใหม่ทันที — แต่**เขียน `inventory_audit_logs` (`action_type='RECONCILE_ADJ_CLEAR'`) ก่อนลบทุกแถว** ถ้าเขียน log ไม่สำเร็จจะยกเลิกการลบทั้งชุด
+> **เทสยาม** `tests/dryrun/clear-adjustments.test.mjs` [H6-guard] × 9 (รวมเคส "ลบพังหลังเขียน log แล้วต้องถอน log" และ "ไฟล์ ≠ ผลนับ ต้องได้ ขาด/เกิน")
 
-### - [ ] H7. dashboard-shared: ค่าเฉลี่ยส่งงาน/นาที สูงเกินจริง
+### - [x] H7. dashboard-shared: ค่าเฉลี่ยส่งงาน/นาที สูงเกินจริง
 **ตำแหน่ง:** `Js/dashboard-shared.js:38-43, 64-65`
 **ยืนยันแล้ว:** bucket ถูกสร้างเฉพาะช่วงที่มีข้อมูล — `avgPerMin = total / (buckets.length × interval)` ช่วงว่าง (พักเที่ยง) หายจากตัวหาร
 **แนวทางแก้:** หารด้วยช่วงเวลาจริง (max−min timestamp) หรือเติม bucket ว่างให้ครบช่วง
+> **✅ แก้แล้ว 2026-08-09** — ตัวหารเป็นช่วงเวลาจริงจาก bucket แรกถึง bucket สุดท้าย (`(lastMs − firstMs)/sizeMs + 1` คูณ interval) เท่ากับเติม bucket ว่างให้ครบ · ใช้วิธีนี้แทน max−min timestamp เพราะ max−min จะสั้นกว่าช่วงจริง 1 bucket (เคส 30 นาทีจะได้ 29)
+> **เทสยาม** `tests/unit/dashboard-shared.test.mjs` [H7-guard] × 3 — รวมข้อที่บังคับว่า `peakPerMin` ต้องไม่เปลี่ยน และข้อมูลต่อเนื่องต้องได้ค่าเท่าเดิม
 
 ### - [ ] H8. chat: ลบแชททั้งห้องไม่มี authorization + ปุ่มยืนยันแสดงข้อความผิด + UI ค้างเมื่อไม่มี client
 **ตำแหน่ง:** `Html/chat.html:545` (`okLabel` แต่ modal อ่าน `confirmLabel` — `ui-confirm-modal.js:145`), `:552-599` (ไม่มี else — ข้อความค้าง "กำลังล้างแชท...")
@@ -231,6 +237,15 @@ loop `update` ทีละแถวไม่มี transaction — พังก�
 **ผลกระทบ:** แก้ตำแหน่งแบบ bulk ไม่ผ่านโดยไม่มีเหตุผลที่ถูกต้อง (ไม่ทำข้อมูลเสียหาย แค่ทำงานไม่ได้)
 **แนวทางแก้:** ใช้เกณฑ์เดียวกับ `Js/audit-dedupe.js` — ชนกันจริงเมื่อ cycle+ผู้นับเดียวกันเท่านั้น
 
+### - [ ] M29. `deleteCycle` ลบยอดปรับทั้งรอบด้วย FK CASCADE โดยไม่มี audit log
+พบระหว่าง review H6 — `deleteCycle()` (`Js/reconcile-shared.js:1030-1038`, เรียกจาก `Html/cycle_config.html`) ลบ `count_cycles` แล้ว CASCADE พา `stock_adjustments` (รวม **applied**), `book_stock_lines`, `reconciliation_lines` หายทั้งรอบ
+**ผลกระทบ:** เป็นเส้นทางที่ลบ adjustment ที่ apply แล้วได้มากที่สุดในระบบ และไม่ทิ้งหลักฐานเลย — H6 ปิดเฉพาะเส้นทาง import และลบรายการ Book
+**แนวทางแก้:** ใช้ `logAdjustmentsBeforeDelete()` ตัวเดียวกับ H6 หรือเขียน log สรุประดับรอบ 1 แถวก่อนลบ (ปริมาณอาจมากถ้า log รายแถว)
+
+### - [ ] M30. `RECONCILE_ADJ_CLEAR` อาจท่วม drawer ประวัติในหน้า index
+drawer ดึง `inventory_audit_logs` แค่ 100 แถวล่าสุดโดยไม่กรอง `action_type` (`Js/script.js:1787-1791`) — import ครั้งเดียวที่ล้างยอดปรับ 500 SKU จะเขียน log 500 แถวและกลบประวัติการนับหายจากหน้าจอ
+**แนวทางแก้:** เพิ่มตัวกรอง action_type/แท็บในหน้า index หรือเขียนเป็น log สรุปต่อ import 1 แถว (แบบที่ `IMPORT` ทำ) แล้วเก็บรายละเอียดรายแถวไว้ต่างหาก — ต้องชั่งกับกติกา "ทุกแถวที่ลบต้องมีหลักฐานรายแถว"
+
 ### - [ ] M24. รอบที่ปิดแล้ว (`status = closed/archived`) ยังรับผลนับใหม่ได้
 พบระหว่าง review การแก้ H1 — `isCycleRelevantNow()` (`Js/reconcile-shared.js`) ดูแค่ช่วงเวลา **ไม่ดู `status`** ดังนั้นรอบที่ถูกปิดไปแล้วแต่ยังอยู่ในเดือนปัจจุบัน ยังถูกแนบให้ผลนับใหม่ได้ → ข้อมูลไหลเข้ารอบที่ปิด/กระทบยอดที่ reconcile ไปแล้ว
 **ผลกระทบตอนนี้: ยังไม่มี** — ตรวจแล้วทั้ง 6 รอบใน DB เป็น `open` ทั้งหมด
@@ -284,7 +299,7 @@ count_search `cycle_id` โหลดมาแต่ไม่ใช้; precedenc
 | ระดับ | จำนวน | สถานะ verify |
 |---|---|---|
 | 🔴 Critical | 2 | ✅ **แก้ครบแล้วทั้ง C1 และ C2** |
-| 🟠 High | 9 | ✅ H1–H5, H9 แก้แล้ว · อีก 3 ข้อรอ (H6, H7, H8) |
+| 🟠 High | 9 | ✅ H1–H7, H9 แก้แล้ว · เหลือข้อเดียว: H8 (ปุ่มล้างแชท) |
 | 🟡 Medium | 27 | ✅ M25 แก้แล้ว · M24, M26, M27 รอ · ที่เหลือจากการสำรวจละเอียด |
 | 🟢 Low | 11 กลุ่ม | L3 (cache-buster + escapeHtml ซ้ำ) แก้ไปเกือบหมดตอนทำ H1/C2 |
 

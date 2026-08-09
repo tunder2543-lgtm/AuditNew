@@ -114,11 +114,27 @@ test('ค่าว่าง/null ไม่พัง และไม่หาร 
 // ช่วงเวลาจริง = 30 นาที → ค่าเฉลี่ยที่ถูกต้อง = 60/30 = 2 ชิ้น/นาที
 // โค้ดปัจจุบัน: 60/(2 bucket × 10 นาที) = 3 ชิ้น/นาที (สูงเกินจริง 50%)
 // -----------------------------------------------------------------------------
-knownIssue('H7', 'avgPerMin ต้องคิดจากช่วงเวลาจริง (รวมช่วงว่าง) ไม่ใช่เฉพาะ bucket ที่มีข้อมูล', () => {
+test('[H7-guard] avgPerMin ต้องคิดจากช่วงเวลาจริง (รวมช่วงว่าง) ไม่ใช่เฉพาะ bucket ที่มีข้อมูล', () => {
     const rows = [];
     for (let i = 0; i < 30; i++) rows.push(rowAtMin(0 + (i % 10)));   // 30 ชิ้น นาที 0-9
     for (let i = 0; i < 30; i++) rows.push(rowAtMin(20 + (i % 10)));  // 30 ชิ้น นาที 20-29
     const s = DS.computeSubmissionRateStats(rows, 10);
     assert.ok(Math.abs(s.avgPerMin - 2) < 0.01,
         `ค่าเฉลี่ยที่ถูกต้องคือ 2/นาที แต่ได้ ${s.avgPerMin} (ช่วงพักหายจากตัวหาร)`);
+});
+
+test('[H7-guard] peakPerMin ต้องไม่เปลี่ยน — วัดจาก bucket ที่หนาแน่นที่สุดเหมือนเดิม', () => {
+    const rows = [];
+    for (let i = 0; i < 30; i++) rows.push(rowAtMin(0 + (i % 10)));
+    for (let i = 0; i < 30; i++) rows.push(rowAtMin(20 + (i % 10)));
+    const s = DS.computeSubmissionRateStats(rows, 10);
+    assert.equal(s.peakPerMin, 3, 'bucket ละ 30 ชิ้นใน 10 นาที = 3/นาที');
+});
+
+test('[H7-guard] ข้อมูลต่อเนื่องไม่มีช่วงว่าง ค่าเฉลี่ยต้องเท่าเดิม (ไม่ทำให้ต่ำเกินจริง)', () => {
+    const rows = [];
+    for (let i = 0; i < 30; i++) rows.push(rowAtMin(i % 10));         // นาที 0-9
+    for (let i = 0; i < 30; i++) rows.push(rowAtMin(10 + (i % 10)));  // นาที 10-19 (ติดกัน)
+    const s = DS.computeSubmissionRateStats(rows, 10);
+    assert.ok(Math.abs(s.avgPerMin - 3) < 0.01, `ควรได้ 3/นาที แต่ได้ ${s.avgPerMin}`);
 });

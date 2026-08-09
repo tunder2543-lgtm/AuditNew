@@ -60,7 +60,9 @@
 
             .replace(/>/g, '&gt;')
 
-            .replace(/"/g, '&quot;');
+            .replace(/"/g, '&quot;')
+
+            .replace(/'/g, '&#39;');
 
     }
 
@@ -528,13 +530,44 @@
 
 
 
-    function getCycleIdForWarehouse(warehouse) {
+    /** YYYY-MM ของ "ตอนนี้" ตามปฏิทินไทย (+07) */
+    function bangkokYearMonthNow(now) {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit'
+        }).formatToParts(now instanceof Date ? now : new Date());
+        const get = t => parts.find(p => p.type === t)?.value || '';
+        return `${get('year')}-${get('month')}`;
+    }
+
+    /**
+     * รอบนี้ยังใช้แนบกับผลนับที่บันทึก "ตอนนี้" ได้หรือไม่ — ผ่านข้อใดข้อหนึ่ง:
+     *   1) year_month ของรอบ = เดือนปัจจุบัน (รองรับการกรอกย้อนหลังไม่กี่วันในเดือนเดียวกัน
+     *      แม้ช่วงวันของรอบจะจบไปแล้ว)
+     *   2) เวลาปัจจุบันอยู่ในช่วง count_start_at..count_end_at (รองรับรอบที่คร่อมเดือน)
+     * กันเคส active cycle ของเดือนเก่าค้างใน localStorage แล้วถูกแนบให้ผลนับเดือนใหม่
+     */
+    function isCycleRelevantNow(cycle, now) {
+        if (!cycle) return false;
+        const at = now instanceof Date ? now : new Date();
+        if (cycle.year_month && cycle.year_month === bangkokYearMonthNow(at)) return true;
+        const range = getCycleLinkRange(cycle);
+        if (!range?.start || !range?.end) return false;
+        const start = new Date(range.start).getTime();
+        const end = new Date(range.end).getTime();
+        if (Number.isNaN(start) || Number.isNaN(end)) return false;
+        const t = at.getTime();
+        return t >= start && t < end;
+    }
+
+    function getCycleIdForWarehouse(warehouse, opts = {}) {
 
         const wh = String(warehouse ?? '').trim();
 
         const active = getActiveCycle();
 
         if (!active || !wh) return null;
+
+        if (!isCycleRelevantNow(active, opts.now)) return null;
 
         if (isAllWarehousesCycle(active)) return active.id;
 
@@ -546,9 +579,9 @@
 
 
 
-    function attachCycleToPayload(payload, warehouse) {
+    function attachCycleToPayload(payload, warehouse, opts = {}) {
 
-        const cycleId = getCycleIdForWarehouse(warehouse);
+        const cycleId = getCycleIdForWarehouse(warehouse, opts);
 
         if (!cycleId) return payload;
 
@@ -3113,6 +3146,8 @@
         clearActiveCycle,
 
         getCycleIdForWarehouse,
+
+        isCycleRelevantNow,
 
         attachCycleToPayload,
 

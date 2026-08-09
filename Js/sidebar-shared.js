@@ -5,6 +5,12 @@
 (function () {
     const STORAGE_KEY = 'sidebar_groups_open_v1';
 
+    /**
+     * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
+     * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
+     */
+    const ASSET_VER = '20260809c';
+
     /** หน้าเหล่านี้: เปิดทุกกลุ่มเป็นค่าเริ่มต้น (ยังพับได้) — ไม่ซ่อนรายการย่อยแบบพับปิดตลอด */
     const FLAT_PAGES = new Set(['index', 'import_counts', 'sku_master', 'settings']);
 
@@ -197,7 +203,7 @@
         if (!document.querySelector('link[data-chat-notify-css]')) {
             const link = document.createElement('link');
             link.rel = 'stylesheet';
-            link.href = base + 'Css/chat-notify.css';
+            link.href = base + 'Css/chat-notify.css?v=' + ASSET_VER;
             link.dataset.chatNotifyCss = '1';
             document.head.appendChild(link);
         }
@@ -210,8 +216,12 @@
             return false;
         }
 
-        function loadScript(src, cb) {
-            const existing = document.querySelector('script[src="' + src + '"]');
+        function loadScript(srcRaw, cb) {
+            // เติม cache-buster ให้ไฟล์ในโปรเจกต์ (CDN ไม่ต้อง) — ไม่งั้นเบราว์เซอร์ใช้ไฟล์เก่าค้าง
+            const src = /^https?:/i.test(srcRaw) ? srcRaw : srcRaw + '?v=' + ASSET_VER;
+            // prefix match — script tag ของหน้าเว็บมี cache-buster ต่อท้าย (?v=...) จึงเทียบเต็มไม่ได้
+            const bare = srcRaw;
+            const existing = document.querySelector('script[src="' + bare + '"], script[src^="' + bare + '?"]');
             if (existing) {
                 if (scriptReady(src, existing)) {
                     existing.dataset.loaded = '1';

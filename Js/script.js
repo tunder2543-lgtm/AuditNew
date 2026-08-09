@@ -222,6 +222,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * กันเคสเปิดหน้าค้างข้ามเดือน: รอบที่เลือกไว้กลายเป็นรอบเดือนเก่า
+     * ถ้าปล่อยไว้ แถวที่บันทึกจะไม่ได้ cycle_id แล้วหายจากรายการ/สถิติทันที
+     * (recordBelongsToActiveCycle กรองออก) — ผู้ใช้จะนึกว่าบันทึกไม่ติดแล้วกรอกซ้ำ
+     * คืน true = บันทึกต่อได้ · false = โหลดรอบใหม่ให้แล้ว ให้ผู้ใช้ตรวจก่อนกดอีกครั้ง
+     */
+    async function ensureCycleStillValid(warehouse) {
+        const RS = window.reconcileService;
+        if (!RS?.isCycleRelevantNow || !activeCycleForPage) return true;
+        if (RS.isCycleRelevantNow(activeCycleForPage)) return true;
+        await populateAndResolveCycle(warehouse);
+        showToast('ข้ามเดือนแล้ว — รอบที่เลือกไว้ไม่ใช่ของเดือนนี้ ระบบโหลดรอบใหม่ให้แล้ว กรุณาตรวจรอบแล้วกดบันทึกอีกครั้ง', 'error');
+        return false;
+    }
+
     async function onCycleSelectChanged() {
         if (isApplyingCycleSelect) return;
         const select = countCycleSelect || document.getElementById('countCycle');
@@ -517,12 +532,19 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
+    /**
+     * escape สำหรับใส่ใน HTML และใน attribute (ครอบ ' และ " ด้วย)
+     * ⚠️ ห้ามใช้ค่าที่ผู้ใช้กรอกไปต่อสตริงใน onclick="fn('...')" แม้ escape แล้ว —
+     * เบราว์เซอร์ decode entity ก่อนแล้วค่อย parse เป็น JS จึงหลุดออกจาก string ได้
+     * ให้เก็บใน data-* แล้วอ่านผ่าน this.dataset แทน
+     */
     function escapeHtml(value) {
-        return String(value || '')
+        return String(value ?? '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     function isTodayInThailand(isoString) {
@@ -548,21 +570,21 @@ document.addEventListener('DOMContentLoaded', () => {
         listEl.innerHTML = records.map(row => {
             const proName = getBookSkuName(row.sku_id);
             return `
-                <li class="record-item" id="record-${row.id}">
+                <li class="record-item" id="record-${escapeHtml(row.id)}">
                     <div class="record-main">
-                        <span class="record-sku">${row.sku_id}</span>
-                        ${proName ? `<span class="record-pro-name">${proName}</span>` : ''}
-                        <span class="record-loc" id="loc-${row.id}">
+                        <span class="record-sku">${escapeHtml(row.sku_id)}</span>
+                        ${proName ? `<span class="record-pro-name">${escapeHtml(proName)}</span>` : ''}
+                        <span class="record-loc" id="loc-${escapeHtml(row.id)}">
                             <i data-lucide="warehouse"></i> ${escapeHtml(row.warehouse || '-')} &nbsp;|&nbsp;
                             <i data-lucide="map-pin"></i> ${escapeHtml(row.location || '-')}
                         </span>
                     </div>
                     <div class="record-actions" style="display: flex; gap: 0.5rem; align-items: center;">
-                        <span class="record-qty" id="qty-${row.id}">+${row.counted_qty}</span>
-                        <button class="icon-btn" onclick="openEditModal('${row.id}')" title="แก้ไขรายการ" style="padding: 0.25rem; color: var(--text-muted);">
+                        <span class="record-qty" id="qty-${escapeHtml(row.id)}">+${Number(row.counted_qty)}</span>
+                        <button class="icon-btn" data-rec-id="${escapeHtml(row.id)}" onclick="openEditModal(this.dataset.recId)" title="แก้ไขรายการ" style="padding: 0.25rem; color: var(--text-muted);">
                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                         </button>
-                        <button class="icon-btn" onclick="openDeleteModal('${row.id}', '${row.sku_id}', ${row.counted_qty})" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
+                        <button class="icon-btn" data-rec-id="${escapeHtml(row.id)}" data-rec-sku="${escapeHtml(row.sku_id)}" data-rec-qty="${Number(row.counted_qty)}" onclick="openDeleteModal(this.dataset.recId, this.dataset.recSku, Number(this.dataset.recQty))" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
                             <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                         </button>
                     </div>
@@ -782,7 +804,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const skuHtml  = highlightMatch(item.sku_name  || '', skuInput.value);
             const nameHtml = highlightMatch(item.name_pro  || '', skuInput.value);
             return `
-                <div class="sku-drop-item" data-sku="${item.sku_name}" data-name="${item.name_pro}" data-idx="${i}">
+                <div class="sku-drop-item" data-sku="${escapeHtml(item.sku_name)}" data-name="${escapeHtml(item.name_pro)}" data-idx="${Number(i)}">
                     <span class="drop-sku">${skuHtml}</span>
                     <span class="drop-name">${nameHtml}</span>
                 </div>
@@ -799,10 +821,22 @@ document.addEventListener('DOMContentLoaded', () => {
         skuDropdown.style.display = 'block';
     }
 
+    /**
+     * ไฮไลต์คำค้นในข้อความ — หาตำแหน่งบน "ข้อความดิบ" ก่อน แล้วค่อย escape ทีละชิ้น
+     * (ถ้า escape ก่อนแล้วค่อย match จะเพี้ยนเมื่อคำค้นมี ' " & < > เพราะกลายเป็น entity)
+     */
     function highlightMatch(text, query) {
-        if (!query) return escHtml(text);
-        const regex = new RegExp(`(${escRegex(query)})`, 'gi');
-        return escHtml(text).replace(regex, '<mark>$1</mark>');
+        const raw = String(text ?? '');
+        if (!query) return escapeHtml(raw);
+        const regex = new RegExp(`(${escRegex(String(query))})`, 'gi');
+        let out = '';
+        let last = 0;
+        for (const m of raw.matchAll(regex)) {
+            out += escapeHtml(raw.slice(last, m.index));
+            out += `<mark>${escapeHtml(m[0])}</mark>`;
+            last = m.index + m[0].length;
+        }
+        return out + escapeHtml(raw.slice(last));
     }
 
     function highlightItem(items) {
@@ -856,8 +890,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Helpers
+    /** alias ของ escapeHtml — คงชื่อเดิมไว้ให้โค้ดส่วน autocomplete เรียกใช้ */
     function escHtml(str) {
-        return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return escapeHtml(str);
     }
     function escRegex(str) {
         return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1031,11 +1066,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 <div class="record-item" style="padding: 0.75rem 1rem; margin-bottom: 0;">
                     <div class="record-main" style="flex-direction: row; justify-content: space-between; align-items: center; width: 100%;">
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                            <span class="record-sku">${item.sku}</span>
-                            ${item.name ? `<span class="record-pro-name" style="font-size: 0.75rem;">${item.name}</span>` : ''}
+                            <span class="record-sku">${escapeHtml(item.sku)}</span>
+                            ${item.name ? `<span class="record-pro-name" style="font-size: 0.75rem;">${escapeHtml(item.name)}</span>` : ''}
                         </div>
                         <div style="display: flex; align-items: center; gap: 1rem;">
-                            <span class="record-qty" style="padding: 0.25rem 0.75rem; font-size: 0.9rem;">+${item.quantity}</span>
+                            <span class="record-qty" style="padding: 0.25rem 0.75rem; font-size: 0.9rem;">+${Number(item.quantity)}</span>
                             <button type="button" class="icon-btn" onclick="removeGroupItem(${idx})" style="padding: 0.2rem; color: var(--danger);">
                                 <i data-lucide="x" style="width: 16px; height: 16px;"></i>
                             </button>
@@ -1090,6 +1125,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         const { counter_name, warehouse, location } = getGroupContext();
+
+        if (!await ensureCycleStillValid(warehouse)) return;
 
         const snapshot = [...groupItems];
         if (snapshot.length === 0) {
@@ -1232,6 +1269,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (isSingleSubmitting) return;
 
+        if (!await ensureCycleStillValid(warehouse)) return;
+
         isSingleSubmitting = true;
         submitBtn.disabled = true;
         const orig = submitBtn.innerHTML;
@@ -1318,19 +1357,19 @@ document.addEventListener('DOMContentLoaded', () => {
         li.id = `record-${id}`;
         li.innerHTML = `
             <div class="record-main">
-                <span class="record-sku">${sku}</span>
-                ${proName ? `<span class="record-pro-name">${proName}</span>` : ''}
-                <span class="record-loc" id="loc-${id}">
+                <span class="record-sku">${escapeHtml(sku)}</span>
+                ${proName ? `<span class="record-pro-name">${escapeHtml(proName)}</span>` : ''}
+                <span class="record-loc" id="loc-${escapeHtml(id)}">
                     <i data-lucide="warehouse"></i> ${escapeHtml(warehouse || '-')} &nbsp;|&nbsp;
                     <i data-lucide="map-pin"></i> ${escapeHtml(location || '-')}
                 </span>
             </div>
             <div class="record-actions" style="display: flex; gap: 0.5rem; align-items: center;">
-                <span class="record-qty" id="qty-${id}">+${quantity}</span>
-                <button class="icon-btn" onclick="openEditModal('${id}')" title="แก้ไขรายการ" style="padding: 0.25rem; color: var(--text-muted);">
+                <span class="record-qty" id="qty-${escapeHtml(id)}">+${Number(quantity)}</span>
+                <button class="icon-btn" data-rec-id="${escapeHtml(id)}" onclick="openEditModal(this.dataset.recId)" title="แก้ไขรายการ" style="padding: 0.25rem; color: var(--text-muted);">
                     <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i>
                 </button>
-                <button class="icon-btn" onclick="openDeleteModal('${id}', '${sku}', ${quantity})" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
+                <button class="icon-btn" data-rec-id="${escapeHtml(id)}" data-rec-sku="${escapeHtml(sku)}" data-rec-qty="${Number(quantity)}" onclick="openDeleteModal(this.dataset.recId, this.dataset.recSku, Number(this.dataset.recQty))" title="ลบรายการ" style="padding: 0.25rem; color: #ef4444;">
                     <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i>
                 </button>
             </div>`;
@@ -1420,7 +1459,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const toast    = document.createElement('div');
         toast.className = `toast ${type}`;
         const iconName  = type === 'success' ? 'check-circle-2' : 'alert-circle';
-        toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+        toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${escapeHtml(message)}</span>`;
         toastContainer.appendChild(toast);
         lucide.createIcons();
         setTimeout(() => {
@@ -1468,8 +1507,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const editBtn = liEl.querySelector('button[title="แก้ไขรายการ"]');
         const delBtn = liEl.querySelector('button[title="ลบรายการ"]');
-        if (editBtn) editBtn.setAttribute('onclick', `openEditModal('${state.id}')`);
-        if (delBtn) delBtn.setAttribute('onclick', `openDeleteModal('${state.id}', '${state.sku}', ${state.qty})`);
+        // อัปเดตผ่าน dataset — ปุ่มอ่านค่าจาก this.dataset อยู่แล้ว (ไม่ต้องเขียน onclick ใหม่)
+        if (editBtn) editBtn.dataset.recId = state.id;
+        if (delBtn) {
+            delBtn.dataset.recId = state.id;
+            delBtn.dataset.recSku = state.sku;
+            delBtn.dataset.recQty = state.qty;
+        }
         lucide.createIcons();
     }
 
@@ -1514,7 +1558,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         edState = { mode: 'delete', id, sku, oldQty: qty, step: 1, warehouse: rec?.warehouse, location: rec?.location, counterName: rec?.counter_name };
         document.getElementById('edModalTitle').innerHTML = `<i data-lucide="trash-2"></i> ยืนยันการลบรายการ (ขั้นที่ 1/2)`;
-        document.getElementById('edModalDesc').innerHTML = `คุณต้องการลบรายการสแกน <strong>${sku}</strong> (จำนวน: ${qty} ชิ้น) ใช่หรือไม่?`;
+        document.getElementById('edModalDesc').innerHTML = `คุณต้องการลบรายการสแกน <strong>${escapeHtml(sku)}</strong> (จำนวน: ${Number(qty)} ชิ้น) ใช่หรือไม่?`;
         document.getElementById('edInputGroup').style.display = 'none';
         document.getElementById('edWarningBox').style.display = 'none';
         document.getElementById('edConfirmBtn').innerHTML = `ยืนยันขั้นที่ 1`;
@@ -1642,7 +1686,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (edState.step === 1) {
                 edState.step = 2;
                 document.getElementById('edModalTitle').innerHTML = `<i data-lucide="trash-2"></i> ยืนยันการลบ (ขั้นที่ 2/2)`;
-                document.getElementById('edModalDesc').innerHTML = `คุณแน่ใจหรือไม่ที่จะลบ <strong>${edState.sku}</strong> ออกจากระบบ?`;
+                document.getElementById('edModalDesc').innerHTML = `คุณแน่ใจหรือไม่ที่จะลบ <strong>${escapeHtml(edState.sku)}</strong> ออกจากระบบ?`;
                 document.getElementById('edWarningText').textContent = `⚠️ คำเตือน: ข้อมูลจะถูกลบออกจากฐานข้อมูล Supabase ทันทีและไม่สามารถกู้คืนได้`;
                 document.getElementById('edWarningBox').style.display = 'flex';
                 document.getElementById('edConfirmBtn').innerHTML = `<i data-lucide="trash-2"></i> ยืนยันการลบจริง`;
@@ -1768,13 +1812,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     badgeText = 'GROUP';
                 }
 
-                let skuHtml = `<div class="log-sku" style="word-break: break-all; white-space: normal; line-height: 1.4;">${log.sku_id}</div>`;
+                let skuHtml = `<div class="log-sku" style="word-break: break-all; white-space: normal; line-height: 1.4;">${escapeHtml(log.sku_id)}</div>`;
                 if (log.action_type === 'GROUP_INSERT') {
-                    const skuArray = log.sku_id.split(', ');
+                    const skuArray = String(log.sku_id ?? '').split(', ');
                     const itemCount = skuArray.length;
-                    
+
                     const detailsList = skuArray.map(s => {
-                        return `<div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><i data-lucide="package" style="width:12px;height:12px;color:var(--text-muted);"></i> ${s}</div>`;
+                        return `<div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid rgba(255,255,255,0.05);"><i data-lucide="package" style="width:12px;height:12px;color:var(--text-muted);"></i> ${escapeHtml(s)}</div>`;
                     }).join('');
 
                     skuHtml = `
@@ -1792,14 +1836,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 return `
                     <div class="log-item">
                         <div class="log-item-header">
-                            <span class="log-badge ${badgeType}">${badgeText}</span>
-                            <span class="log-time"><i data-lucide="clock" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i> ${thaiTime}</span>
+                            <span class="log-badge ${escapeHtml(badgeType)}">${escapeHtml(badgeText)}</span>
+                            <span class="log-time"><i data-lucide="clock" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i> ${escapeHtml(thaiTime)}</span>
                         </div>
                         ${skuHtml}
                         <div class="log-details">${detailHtml}</div>
                         <div class="log-meta">
-                            <span><i data-lucide="user" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i> ${log.counter_name || 'Unknown'}</span>
-                            <span><i data-lucide="map-pin" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i> ${log.warehouse || ''} / ${log.location || ''}</span>
+                            <span><i data-lucide="user" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i> ${escapeHtml(log.counter_name || 'Unknown')}</span>
+                            <span><i data-lucide="map-pin" style="width:12px;height:12px;display:inline;vertical-align:middle;"></i> ${escapeHtml(log.warehouse || '')} / ${escapeHtml(log.location || '')}</span>
                         </div>
                     </div>`;
             }).join('');
@@ -1808,7 +1852,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (err) {
             console.error('[Audit Log Load Error]', err);
-            container.innerHTML = `<div class="empty-state"><p style="color:#f87171;">เกิดข้อผิดพลาด: ${err.message}</p></div>`;
+            container.innerHTML = `<div class="empty-state"><p style="color:#f87171;">เกิดข้อผิดพลาด: ${escapeHtml(err.message)}</p></div>`;
         }
     }
 
@@ -2052,8 +2096,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = items.map(item => `
             <div class="log-item" style="border-left: 3px solid #fca5a5;">
-                <div class="log-sku" style="color: #fca5a5; margin-bottom: 0.25rem;">${item.sku_name}</div>
-                <div class="log-details" style="font-size: 0.85rem;">${item.name_pro || '-'}</div>
+                <div class="log-sku" style="color: #fca5a5; margin-bottom: 0.25rem;">${escapeHtml(item.sku_name)}</div>
+                <div class="log-details" style="font-size: 0.85rem;">${escapeHtml(item.name_pro || '-')}</div>
             </div>
         `).join('');
     }
@@ -2148,7 +2192,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const current = dashboardFilters.counter || '';
         const options = getCounterOptions();
-        select.innerHTML = `<option value="">ทั้งหมด</option>` + options.map(name => `<option value="${name}">${name}</option>`).join('');
+        select.innerHTML = `<option value="">ทั้งหมด</option>` + options.map(name => `<option value="${escapeHtml(name)}">${escapeHtml(name)}</option>`).join('');
         select.value = current;
     }
 
@@ -2250,8 +2294,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const skuName = getBookSkuName(row.sku_id);
             return `
                 <div class="dashboard-submission-item">
-                    <strong>${row.counter_name || 'Unknown'} • ${row.sku_id || '-'}</strong>
-                    <small>${skuName ? `${skuName}<br>` : ''}${row.warehouse || '-'} / ${row.location || '-'}<br>${formatThaiDateTime(row.created_at)} • จำนวน ${row.counted_qty || 0}</small>
+                    <strong>${escapeHtml(row.counter_name || 'Unknown')} • ${escapeHtml(row.sku_id || '-')}</strong>
+                    <small>${skuName ? `${escapeHtml(skuName)}<br>` : ''}${escapeHtml(row.warehouse || '-')} / ${escapeHtml(row.location || '-')}<br>${escapeHtml(formatThaiDateTime(row.created_at))} • จำนวน ${Number(row.counted_qty) || 0}</small>
                 </div>`;
         }).join('');
 
@@ -2259,9 +2303,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const isRecent = row.created_at ? new Date(row.created_at).getTime() >= (Date.now() - (24 * 60 * 60 * 1000)) : false;
             return `
                 <tr>
-                    <td>${row.counter_name || 'Unknown'}</td>
-                    <td>${formatThaiDateTime(row.created_at)}</td>
-                    <td>${row.sku_id || '-'} <span class="progress-pill">${row.counted_qty || 0}</span></td>
+                    <td>${escapeHtml(row.counter_name || 'Unknown')}</td>
+                    <td>${escapeHtml(formatThaiDateTime(row.created_at))}</td>
+                    <td>${escapeHtml(row.sku_id || '-')} <span class="progress-pill">${Number(row.counted_qty) || 0}</span></td>
                     <td>${isRecent ? 'วันนี้' : 'ก่อนหน้า'}</td>
                 </tr>`;
         }).join('');

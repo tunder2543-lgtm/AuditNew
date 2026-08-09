@@ -929,9 +929,9 @@
                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                 ลบรายการที่เลือก (<span id="selectedCount">0</span>)
                             </button>
-                            <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบแถวซ้ำใน inventory_counts (warehouse + sku + location + counted_qty ซ้ำ) — เก็บแถวเก่าสุด">
+                            <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบเฉพาะแถวที่น่าจะกดบันทึกซ้ำ — ต้องเหมือนกันทั้ง คลัง+SKU+ตำแหน่ง+จำนวน และอยู่รอบนับเดียวกัน ผู้นับคนเดียวกัน บันทึกห่างกันไม่เกิน 10 นาที · การนับคนละรอบ/คนละผู้นับ จะไม่ถูกลบ">
                                 <i data-lucide="copy-x" style="width:16px;height:16px"></i>
-                                ลบ duplicate ใน DB
+                                ลบแถวที่กดบันทึกซ้ำ
                             </button>
                         </div>
                     </div>
@@ -1187,13 +1187,14 @@
         </div>
     </div>
 
-    <script src="../Js/sidebar-shared.js"></script>
-<script src="../Js/api.js"></script>
-    <script src="../Js/sku-utils.js"></script>
-    <script src="../Js/warehouses-shared.js"></script>
-    <script src="../Js/db-errors.js"></script>
-    <script src="../Js/settings-shared.js"></script>
-    <script src="../Js/ui-confirm-modal.js"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809c"></script>
+<script src="../Js/api.js?v=20260809c"></script>
+    <script src="../Js/sku-utils.js?v=20260809c"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809c"></script>
+    <script src="../Js/db-errors.js?v=20260809c"></script>
+    <script src="../Js/settings-shared.js?v=20260809c"></script>
+    <script src="../Js/ui-confirm-modal.js?v=20260809c"></script>
+    <script src="../Js/audit-dedupe.js?v=20260809c"></script>
     <script>
         lucide.createIcons();
 
@@ -1317,10 +1318,11 @@
             else tr.removeAttribute('data-created-at');
         }
 
+        /** escape สำหรับ HTML/attribute — ครอบ " และ ' ด้วย ให้ใช้ใน attribute ได้ปลอดภัย */
         function escapeHtml(s) {
             const d = document.createElement('div');
             d.textContent = s == null ? '' : String(s);
-            return d.innerHTML;
+            return d.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         }
 
         function showToast(message, type = 'success') {
@@ -1329,7 +1331,7 @@
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             const iconName = type === 'success' ? 'check-circle-2' : 'alert-circle';
-            toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+            toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${escapeHtml(message)}</span>`;
             toastContainer.appendChild(toast);
             lucide.createIcons();
             setTimeout(() => {
@@ -1584,7 +1586,7 @@
 
             if (!months.length) {
                 const whLabel = warehouse || 'ทุกคลัง';
-                monthEl.innerHTML = `<option value="">ไม่มีข้อมูลการนับ (${whLabel})</option>`;
+                monthEl.innerHTML = `<option value="">ไม่มีข้อมูลการนับ (${escapeHtml(whLabel)})</option>`;
                 monthEl.disabled = true;
                 return;
             }
@@ -1976,18 +1978,35 @@
                     record_count: 1,
                     record_ids: rowId ? [rowId] : [],
                     duplicate: false,
+                    dupReason: '',
+                    rawRows: [row],
                     created_at: created
                 });
                 return;
             }
 
             existing.record_count += 1;
-            existing.duplicate = true;
+            existing.rawRows.push(row);
             if (rowId) existing.record_ids.push(rowId);
             if (created && (!existing.created_at || created > existing.created_at)) {
                 existing.counted_qty = qty;
                 existing.counter_name = row.counter_name || existing.counter_name;
                 existing.created_at = created;
+            }
+        }
+
+        /**
+         * ตัดสินว่า entry ที่มีหลายแถวเป็น "กดบันทึกซ้ำ" หรือ "การนับที่ถูกต้อง"
+         * ทำครั้งเดียวหลังรวมข้อมูลครบ — ถ้าเรียกระหว่าง merge ทีละแถวจะกลายเป็น O(n²)
+         * นิยาม + เทสอยู่ที่ Js/audit-dedupe.js (นโยบาย docs/sql/011)
+         */
+        function classifyRefDuplicates() {
+            for (const entry of refBySkuLoc.values()) {
+                if (entry.record_count < 2) continue;
+                const cls = window.AuditDedupe?.classifyRefDuplicate(entry.rawRows)
+                    || { suspicious: true, reason: '' };
+                entry.duplicate = cls.suspicious;
+                entry.dupReason = cls.reason;
             }
         }
 
@@ -2150,8 +2169,10 @@
             refBySku.clear();
 
             try {
+                // ต้องดึง cycle_id + counter_name มาด้วย — ใช้ตัดสินว่าแถวที่ค่าเหมือนกัน
+                // เป็นการนับที่ถูกต้อง (คนละรอบ/คนละคน) หรือกดบันทึกซ้ำ
                 const { rows: allRows, rounds, dedupedCount } = await fetchAllInventoryCounts(
-                    'id, sku_id, location, counted_qty, warehouse, counter_name, created_at',
+                    'id, sku_id, location, counted_qty, warehouse, counter_name, created_at, cycle_id',
                     filters
                 );
 
@@ -2171,12 +2192,13 @@
                     mergeRefEntry(refBySkuLoc, sku, loc, row);
                 }
 
+                classifyRefDuplicates();
                 rebuildRefBySku();
 
                 const totalRows = allRows.length;
                 const scope = formatAuditScopeLabel(filters);
                 document.getElementById('refBadge').innerHTML =
-                    `อ้างอิง <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ · <strong>${totalRows.toLocaleString()}</strong> แถว · <span style="color:#93c5fd">${scope}</span>`;
+                    `อ้างอิง <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ · <strong>${totalRows.toLocaleString()}</strong> แถว · <span style="color:#93c5fd">${escapeHtml(scope)}</span>`;
                 showToast(`โหลดอ้างอิง ${totalRows.toLocaleString()} แถว · ${scope}`);
             } catch (err) {
                 console.error(err);
@@ -2186,14 +2208,17 @@
             }
         }
 
+        /** หมายเหตุอ้างอิง — ผลลัพธ์ถูกใส่ผ่าน innerHTML (applyResult) จึงต้อง escape ทุกค่าที่มาจาก DB */
         function formatRefNote(entry) {
             const parts = [
-                `${entry.sku_id} @ ${entry.location} = ${entry.counted_qty} ชิ้น`
+                `${escapeHtml(entry.sku_id)} @ ${escapeHtml(entry.location)} = ${Number(entry.counted_qty)} ชิ้น`
             ];
-            if (entry.warehouse) parts.push(entry.warehouse);
-            if (entry.counter_name) parts.push(`ผู้นับ: ${entry.counter_name}`);
-            if (entry.duplicate || entry.record_count > 1) {
-                parts.push(`ข้อมูลซ้ำ ${entry.record_count} แถว — ต้องลบ/รวมใน DB ก่อนตรวจ`);
+            if (entry.warehouse) parts.push(escapeHtml(entry.warehouse));
+            if (entry.counter_name) parts.push(`ผู้นับ: ${escapeHtml(entry.counter_name)}`);
+            if (entry.duplicate) {
+                parts.push(`น่าจะกดบันทึกซ้ำ ${entry.record_count} แถว — ตรวจแล้วลบได้ที่ปุ่ม "ลบแถวที่กดบันทึกซ้ำ"`);
+            } else if (entry.record_count > 1) {
+                parts.push(`มี ${entry.record_count} แถวที่ค่าเหมือนกัน (${escapeHtml(entry.dupReason || 'การนับที่ถูกต้อง')}) — ไม่ต้องแก้`);
             }
             return parts.join(' · ');
         }
@@ -2284,12 +2309,14 @@
             }
 
             if (exact) {
-                if (exact.duplicate || exact.record_count > 1) {
+                // เตือนเฉพาะที่น่าจะกดบันทึกซ้ำจริง — ค่าเหมือนกันเพราะคนละรอบ/คนละผู้นับ/คนละเวลา
+                // เป็นข้อมูลที่ถูกต้องตาม docs/sql/011 จึงไม่ควรขึ้น error
+                if (exact.duplicate) {
                     return {
-                        status: 'error',
-                        message: 'ข้อมูลซ้ำในระบบ',
-                        note: `มี ${exact.record_count} แถวใน inventory_counts สำหรับ SKU+ตำแหน่ง+คลัง+จำนวนนี้ — ต้องลบ/รวมใน DB ก่อนตรวจ · ${formatRefNote(exact)}`,
-                        rowClass: 'row-error'
+                        status: 'warn',
+                        message: 'น่าจะกดบันทึกซ้ำ',
+                        note: `มี ${exact.record_count} แถวที่ค่าเหมือนกันและบันทึกห่างกันไม่กี่วินาที โดยผู้นับคนเดียวกันในรอบเดียวกัน — ตรวจแล้วลบได้ที่ปุ่ม "ลบแถวที่กดบันทึกซ้ำ" · ${formatRefNote(exact)}`,
+                        rowClass: 'row-warn'
                     };
                 }
                 const expected = Number(exact.counted_qty);
@@ -2324,9 +2351,9 @@
             if (qtyMatchElsewhere) {
                 const suggestions = buildSuggestions(sku, loc, qty);
                 const top = suggestions[0];
-                let noteHtml = `ตำแหน่ง <strong>${loc}</strong> ไม่ตรงกับระบบ แต่จำนวน ${qty} ตรงกับรายการอื่น<br>`;
+                let noteHtml = `ตำแหน่ง <strong>${escapeHtml(loc)}</strong> ไม่ตรงกับระบบ แต่จำนวน ${Number(qty)} ตรงกับรายการอื่น<br>`;
                 noteHtml += suggestions.map(s =>
-                    `<span class="suggest-item">→ อาจเป็น <strong>${s.entry.location}</strong> (${s.entry.warehouse || '-'}) จำนวน ${s.entry.counted_qty}${s.entry.counter_name ? ` · ${s.entry.counter_name}` : ''} · <span class="prob">~${s.probability}%</span></span>`
+                    `<span class="suggest-item">→ อาจเป็น <strong>${escapeHtml(s.entry.location)}</strong> (${escapeHtml(s.entry.warehouse || '-')}) จำนวน ${Number(s.entry.counted_qty)}${s.entry.counter_name ? ` · ${escapeHtml(s.entry.counter_name)}` : ''} · <span class="prob">~${Number(s.probability)}%</span></span>`
                 ).join('');
                 return {
                     status: 'warn',
@@ -2340,9 +2367,9 @@
             const suggestions = buildSuggestions(sku, loc, qty);
             const sugText = suggestions.length
                 ? suggestions.map(s =>
-                    `${s.entry.location} (qty ${s.entry.counted_qty}, ~${s.probability}%)`
+                    `${escapeHtml(s.entry.location)} (qty ${Number(s.entry.counted_qty)}, ~${Number(s.probability)}%)`
                 ).join(' · ')
-                : skuEntries.slice(0, 3).map(e => `${e.location} (${e.counted_qty})`).join(' · ');
+                : skuEntries.slice(0, 3).map(e => `${escapeHtml(e.location)} (${Number(e.counted_qty)})`).join(' · ');
 
             return {
                 status: 'error',
@@ -3851,6 +3878,34 @@
          * ค้นหา duplicate ใน inventory_counts (ตามตัวกรอง คลัง/เดือน ปัจจุบัน)
          * แล้วลบเฉพาะแถวที่ created_at ใหม่กว่า (เก็บแถวเก่าสุด)
          */
+        /**
+         * ดาวน์โหลดแถวที่กำลังจะลบเป็น CSV — เป็น safety net เดียวก่อนลบถาวร
+         * (ยังไม่มี audit log ในหน้านี้ — ดู ISSUES.md H3)
+         * @throws ถ้าสร้าง/ดาวน์โหลดไฟล์ไม่สำเร็จ — ผู้เรียกต้องหยุดการลบ
+         */
+        function downloadRowsBackupCsv(rows) {
+            // เก็บคอลัมน์ให้ครบพอ insert กลับได้จริง (รวม key กันซ้ำและ batch นำเข้า)
+            const cols = ['id', 'sku_id', 'location', 'warehouse', 'counted_qty',
+                          'counter_name', 'cycle_id', 'client_request_id', 'import_batch_id', 'created_at'];
+            const esc = v => {
+                let s = v == null ? '' : String(v);
+                // กัน Excel ตีความเป็นสูตร (ค่า location/counter_name มาจากผู้ใช้)
+                if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+                return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+            };
+            const csv = [cols.join(',')]
+                .concat((rows || []).map(r => cols.map(c => esc(r[c])).join(',')))
+                .join('\r\n');
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `deleted-inventory-counts-${stamp}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        }
+
         async function dedupeInventoryCountsInDb() {
             if (!supabaseClient) {
                 showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
@@ -3864,7 +3919,7 @@
             try {
                 const filters = getAuditFilters();
                 const { rows, dedupedCount } = await fetchAllInventoryCounts(
-                    'id, sku_id, location, warehouse, counted_qty, created_at',
+                    'id, sku_id, location, warehouse, counted_qty, created_at, counter_name, cycle_id',
                     filters
                 );
 
@@ -3875,59 +3930,57 @@
                     );
                 }
 
-                const groups = new Map();
-                rows.forEach(r => {
-                    const key = [
-                        norm(r.warehouse),
-                        norm(r.sku_id),
-                        norm(r.location),
-                        Number(r.counted_qty)
-                    ].join('|');
-                    if (!groups.has(key)) groups.set(key, []);
-                    groups.get(key).push(r);
-                });
+                // นิยาม "ซ้ำโดยไม่ตั้งใจ" อยู่ใน Js/audit-dedupe.js (มีเทสคุ้มกัน)
+                // กันไม่ให้ลบแถวที่ต่างรอบ / ต่างผู้นับ / นับซ้ำคนละเวลา ตาม docs/sql/011
+                const analysis = window.AuditDedupe.findAccidentalDuplicates(rows);
+                const { groups: dupGroups, toDelete, keptSeparate, stats } = analysis;
 
-                const dupGroups = [];
-                for (const list of groups.values()) {
-                    if (list.length > 1) dupGroups.push(list);
-                }
-
-                if (!dupGroups.length) {
-                    showToast('ไม่พบ duplicate ในขอบเขตที่กรอง', 'success');
+                if (!toDelete.length) {
+                    const extra = stats.keptRowCount
+                        ? ` · มี ${stats.keptRowCount.toLocaleString()} แถวที่ค่าเหมือนกันแต่เป็นการนับที่ถูกต้อง (คนละรอบ/คนละผู้นับ/คนละเวลา) — ไม่ลบ`
+                        : '';
+                    showToast(`ไม่พบการกดบันทึกซ้ำในขอบเขตที่กรอง${extra}`, 'success');
                     return;
                 }
 
-                const toDelete = [];
-                dupGroups.forEach(list => {
-                    list.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
-                    for (let i = 1; i < list.length; i++) toDelete.push(list[i]);
+                const preview = dupGroups.slice(0, 8).map(g => {
+                    const h = g.keep;
+                    return `${h.sku_id} @ ${h.location || '-'} = ${h.counted_qty} ชิ้น · ${h.counter_name || 'ไม่ระบุผู้นับ'} · ลบ ${g.remove.length} แถว`;
                 });
-
-                const preview = dupGroups.slice(0, 8).map(list => {
-                    const head = list[0];
-                    return `${head.sku_id} @ ${head.location || '-'} = ${head.counted_qty} ชิ้น (${head.warehouse || '-'}) · ${list.length} แถว → ลบ ${list.length - 1}`;
-                });
-                if (dupGroups.length > 8) preview.push(`… และอีก ${dupGroups.length - 8} กลุ่ม`);
+                if (dupGroups.length > 8) preview.push(`… และอีก ${(dupGroups.length - 8).toLocaleString()} กลุ่ม`);
+                if (stats.keptRowCount) {
+                    preview.push(`✔ กันไว้ไม่ลบ ${stats.keptRowCount.toLocaleString()} แถว (ค่าเหมือนกันแต่คนละรอบ/คนละผู้นับ/คนละเวลา)`);
+                }
 
                 setLoading(false);
 
                 const okConfirm = await uiConfirm.twoStep({
-                    title: 'ลบ duplicate ใน inventory_counts',
+                    title: 'ลบแถวที่กดบันทึกซ้ำ',
                     variant: 'danger',
                     step1: {
-                        intro: `พบ ${dupGroups.length.toLocaleString()} กลุ่มซ้ำ — จะลบ ${toDelete.length.toLocaleString()} แถว (เก็บแถวเก่าสุดในแต่ละกลุ่ม)`,
+                        intro: `พบ ${dupGroups.length.toLocaleString()} กลุ่มที่น่าจะกดซ้ำ — จะลบ ${toDelete.length.toLocaleString()} แถว (เก็บแถวเก่าสุดของแต่ละกลุ่ม)`,
                         bullets: preview,
+                        note: `เกณฑ์ลบ (ต้องครบทุกข้อ): คลัง+SKU+ตำแหน่ง+จำนวนเหมือนกัน · รอบนับเดียวกัน · ผู้นับคนเดียวกัน · ห่างกันไม่เกิน ${stats.windowMinutes} นาที · ไม่ได้บันทึกมาในชุดเดียวกันหรือไฟล์นำเข้าเดียวกัน — แถวที่ไม่เข้าเกณฑ์จะไม่ถูกลบ (ตามนโยบาย docs/sql/011)`,
                         confirmLabel: 'ดำเนินการต่อ'
                     },
                     step2: {
                         intro: `ยืนยันลบ ${toDelete.length.toLocaleString()} แถวถาวร`,
-                        note: 'ลบจาก Supabase โดยตรง · ไม่สามารถกู้คืนได้',
+                        note: 'ระบบจะดาวน์โหลดไฟล์สำรอง (CSV) ของแถวที่จะลบให้อัตโนมัติก่อน · ลบจาก Supabase โดยตรง กู้คืนจาก UI ไม่ได้',
                         noteVariant: 'danger',
                         confirmLabel: 'ลบถาวร',
                         confirmIcon: 'trash-2'
                     }
                 });
                 if (!okConfirm) return;
+
+                // สำรองแถวที่จะลบเป็น CSV ก่อนเสมอ — ถ้าสำรองไม่ได้ ต้องไม่ลบ
+                try {
+                    downloadRowsBackupCsv(toDelete);
+                } catch (backupErr) {
+                    console.error('[Dedupe] สำรอง CSV ไม่สำเร็จ:', backupErr);
+                    showToast('สำรองไฟล์ CSV ไม่สำเร็จ — ยกเลิกการลบเพื่อความปลอดภัย', 'error');
+                    return;
+                }
 
                 setLoading(true, 'กำลังลบ duplicate...', `0 / ${toDelete.length}`);
                 const ids = toDelete.map(r => r.id);

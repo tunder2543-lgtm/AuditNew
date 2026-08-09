@@ -1594,14 +1594,14 @@
         </main>
     </div>
 
-    <script src="../Js/sidebar-shared.js"></script>
-    <script src="../Js/api.js"></script>
-    <script src="../Js/sku-utils.js"></script>
-    <script src="../Js/warehouses-shared.js"></script>
-    <script src="../Js/db-errors.js"></script>
-    <script src="../Js/settings-shared.js"></script>
-    <script src="../Js/reconcile-shared.js"></script>
-    <script src="../Js/dashboard-shared.js"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809c"></script>
+    <script src="../Js/api.js?v=20260809c"></script>
+    <script src="../Js/sku-utils.js?v=20260809c"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809c"></script>
+    <script src="../Js/db-errors.js?v=20260809c"></script>
+    <script src="../Js/settings-shared.js?v=20260809c"></script>
+    <script src="../Js/reconcile-shared.js?v=20260809c"></script>
+    <script src="../Js/dashboard-shared.js?v=20260809c"></script>
     <script>
         lucide.createIcons();
 
@@ -2724,11 +2724,12 @@
         }
 
         function escapeHtml(value) {
-            return String(value || '')
+            return String(value ?? '')
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function populateFilterOptions(rows) {

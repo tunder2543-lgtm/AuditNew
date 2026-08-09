@@ -1,0 +1,18 @@
+# --- เครื่องมือ / editor ---
+.cursor/
+.sixth/
+*.log
+
+# --- ระบบปฏิบัติการ ---
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# --- ไฟล์ชั่วคราวของเทส/การทำงาน ---
+baseline*.json
+*.tmp
+
+# --- ห้าม commit key/credential เด็ดขาด ---
+*.env
+.env*
+**/secrets*

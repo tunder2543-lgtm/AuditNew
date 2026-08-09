@@ -443,12 +443,12 @@
         }
     </style>
 
-    <script src="../Js/api.js"></script>
-    <script src="../Js/sku-utils.js"></script>
-    <script src="../Js/warehouses-shared.js"></script>
-    <script src="../Js/db-errors.js"></script>
-    <script src="../Js/settings-shared.js"></script>
-    <script src="../Js/sidebar-shared.js"></script>
+    <script src="../Js/api.js?v=20260809c"></script>
+    <script src="../Js/sku-utils.js?v=20260809c"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809c"></script>
+    <script src="../Js/db-errors.js?v=20260809c"></script>
+    <script src="../Js/settings-shared.js?v=20260809c"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809c"></script>
     <script>
         lucide.createIcons();
 
@@ -461,12 +461,14 @@
         let pendingDeleteItems = [];
         let deleteSkuModalResolve = null;
 
+        /** escape สำหรับ HTML/attribute — ครอบ ' ด้วย (ค่าที่มาจาก Excel/DB ไว้ใจไม่ได้) */
         function escapeHtml(value) {
             return String(value ?? '')
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;');
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function getSelectedWarehouse() {
@@ -753,7 +755,7 @@
                         <td>
                             <input type="checkbox" class="sku-row-chk" data-id="${escapeHtml(idAttr)}"
                                 ${checked ? 'checked' : ''} ${item.id == null ? 'disabled' : ''}
-                                onchange="toggleSkuRowSelection('${escapeHtml(idAttr)}', this.checked)">
+                                onchange="toggleSkuRowSelection(this.dataset.id, this.checked)">
                         </td>
                         <td style="color: var(--text-muted);">${start + index + 1}</td>
                         <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${escapeHtml(item.sku_name)}</td>
@@ -761,8 +763,8 @@
                         <td style="font-size: 0.9rem;">${escapeHtml(item.warehouse || '-')}</td>
                         <td style="font-size: 0.85rem; color: var(--text-muted);">${escapeHtml(date)}</td>
                         <td>
-                            <button type="button" class="sku-btn-icon" title="ลบออกจากคลังนี้"
-                                onclick="openDeleteModalForOne('${escapeHtml(idAttr)}')" ${item.id == null ? 'disabled' : ''}>
+                            <button type="button" class="sku-btn-icon" title="ลบออกจากคลังนี้" data-id="${escapeHtml(idAttr)}"
+                                onclick="openDeleteModalForOne(this.dataset.id)" ${item.id == null ? 'disabled' : ''}>
                                 <i data-lucide="trash-2" style="width:16px;height:16px;"></i>
                             </button>
                         </td>
@@ -863,14 +865,14 @@
             const tbody = document.getElementById('previewTableBody');
 
             const wh = getSelectedWarehouse();
-            desc.innerHTML = `นำเข้าหมวด <strong>${wh}</strong> — พบ <strong>${data.length.toLocaleString()}</strong> รายการ (แสดงตัวอย่าง 5 รายการแรก)`;
+            desc.innerHTML = `นำเข้าหมวด <strong>${escapeHtml(wh)}</strong> — พบ <strong>${data.length.toLocaleString()}</strong> รายการ (แสดงตัวอย่าง 5 รายการแรก)`;
 
             const previewSlice = data.slice(0, 5);
             tbody.innerHTML = previewSlice.map((item, idx) => `
                 <tr>
                     <td style="color: var(--text-muted);">${idx + 1}</td>
-                    <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${item.sku_name}</td>
-                    <td>${item.name_pro || '-'}</td>
+                    <td style="font-family: 'Outfit'; font-weight: 600; color: var(--primary);">${escapeHtml(item.sku_name)}</td>
+                    <td>${escapeHtml(item.name_pro || '-')}</td>
                 </tr>
             `).join('');
 
@@ -1118,7 +1120,7 @@
             const toast = document.createElement('div');
             toast.className = `toast ${type}`;
             const iconName = type === 'success' ? 'check-circle-2' : 'alert-circle';
-            toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${message}</span>`;
+            toast.innerHTML = `<i data-lucide="${iconName}"></i><span>${escapeHtml(message)}</span>`;
             toastContainer.appendChild(toast);
             lucide.createIcons();
             

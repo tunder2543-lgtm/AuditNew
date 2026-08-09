@@ -72,6 +72,8 @@
         const u = (url || '').trim();
         const k = (key || '').trim();
         if (!u || !k) return false;
+        // ห้ามบันทึก service_role key (key ระดับ admin) ฝั่งเว็บ — docs/ISSUES.md ข้อ C1
+        if (window.apiService?.isServiceRoleKey?.(k)) return false;
         localStorage.setItem('SB_URL', u);
         localStorage.setItem('SB_KEY', k);
         return true;

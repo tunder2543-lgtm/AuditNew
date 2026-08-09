@@ -246,15 +246,29 @@
 
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="../Js/api.js"></script>
-    <script src="../Js/warehouses-shared.js"></script>
-    <script src="../Js/settings-shared.js"></script>
-    <script src="../Js/sidebar-shared.js"></script>
+    <script src="../Js/api.js?v=20260809c"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809c"></script>
+    <script src="../Js/settings-shared.js?v=20260809c"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809c"></script>
     <script>
         lucide.createIcons();
 
         document.getElementById('sbUrl').value = localStorage.getItem('SB_URL') || '';
         document.getElementById('sbKey').value = localStorage.getItem('SB_KEY') || '';
+
+        /**
+         * escape สำหรับใส่ใน HTML/attribute (ครอบ ' และ " ด้วย)
+         * ⚠️ ค่าที่มาจาก DB (ชื่อคลัง) ห้ามต่อสตริงใน onclick="fn('...')" แม้ escape แล้ว —
+         * เบราว์เซอร์ decode entity ก่อน parse JS จึงหลุดออกจาก string ได้ ให้ใช้ data-* + this.dataset
+         */
+        function escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
 
         function showToast(msg, type) {
             const container = document.getElementById('toastContainer');
@@ -318,6 +332,10 @@
         window.runSaveSettings = async function () {
             const url = document.getElementById('sbUrl').value.trim();
             const key = document.getElementById('sbKey').value.trim();
+            if (window.apiService?.isServiceRoleKey?.(key)) {
+                showToast('❌ ห้ามใช้ service_role key ฝั่งเว็บ — ใช้ anon/publishable key เท่านั้น', 'error');
+                return;
+            }
             if (!window.saveSupabaseSettings(url, key)) {
                 showToast('กรุณากรอก URL และ API Key ให้ครบ', 'error');
                 return;
@@ -345,18 +363,18 @@
                     return `
                         <div class="warehouse-item">
                             <label class="warehouse-toggle-wrap" title="เปิด/ปิดใช้งานคลัง">
-                                <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleWarehouseActive('${name.replace(/'/g, "\\'")}', this.checked)">
+                                <input type="checkbox" ${active ? 'checked' : ''} data-wh="${escapeHtml(name)}" onchange="toggleWarehouseActive(this.dataset.wh, this.checked)">
                                 <span>${active ? 'on' : 'off'}</span>
                             </label>
                             <div class="warehouse-main">
-                                <span class="warehouse-name">${name}</span>
-                                <span class="warehouse-meta">ลำดับ ${displayOrder}</span>
+                                <span class="warehouse-name">${escapeHtml(name)}</span>
+                                <span class="warehouse-meta">ลำดับ ${Number(displayOrder)}</span>
                             </div>
                             <div class="warehouse-right">
                                 <span class="warehouse-pill ${active ? 'active' : ''}">
                                     ${active ? 'active' : 'inactive'}
                                 </span>
-                                <button type="button" class="cs-btn-test warehouse-del-btn" onclick="deleteWarehouseName('${name.replace(/'/g, "\\'")}')">
+                                <button type="button" class="cs-btn-test warehouse-del-btn" data-wh="${escapeHtml(name)}" onclick="deleteWarehouseName(this.dataset.wh)">
                                     <i data-lucide="trash-2" style="width:14px;height:14px;"></i> ลบ
                                 </button>
                             </div>
@@ -365,7 +383,7 @@
                 }).join('') || '<div style="color:var(--text-muted);">ยังไม่มีรายการคลังที่แสดงผล</div>';
                 lucide.createIcons();
             } catch (err) {
-                wrap.innerHTML = `<div style="color:var(--danger);">โหลดคลังไม่สำเร็จ: ${err.message}</div>`;
+                wrap.innerHTML = `<div style="color:var(--danger);">โหลดคลังไม่สำเร็จ: ${escapeHtml(err.message)}</div>`;
             }
         }
 

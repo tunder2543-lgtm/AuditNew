@@ -1,0 +1,90 @@
+# audit_check.html — ตรวจสอบคุณภาพข้อมูลผลนับ
+
+> ไฟล์: `Html/audit_check.html` (~4,167 บรรทัด: CSS ~870 + markup ~300 + **inline script ~2,968 บรรทัด** `:1197-4165`)
+> หน้าแบบตาราง Google-Sheets สำหรับตรวจ/แก้/ลบข้อมูล `inventory_counts` — **ไฟล์ที่มีความเสี่ยงสูงสุดในระบบ** เพราะแก้และลบข้อมูลจำนวนมากได้โดยไม่เขียน audit log
+
+## หน้าที่และฟีเจอร์
+
+### Scope bar (`:979-999`)
+คลัง · เดือน (เฉพาะเดือนที่มีข้อมูล) · checkbox "ทุกช่วงเวลา" — เปลี่ยนค่าแล้ว auto รัน pipeline `runFullAuditLoad` (`:4023`): โหลด reference → เติมตาราง → verify ทุกแถว
+
+### ตาราง (grid) (`:1052-1078`, `createRow:2990`)
+คอลัมน์: checkbox / # / SKU / Location / จำนวน / คลัง (read-only) / วันเวลา (read-only) / สถานะ / หมายเหตุ
+- นำทางด้วย Enter/Tab, verify เมื่อ blur, **paste TSV จาก Excel ได้** (`:4069` — ลำดับ SKU, Loc, Qty ⚠️ สลับกับไฟล์ import ที่เป็น Loc, SKU, Qty)
+- เริ่ม 25 แถว ขยายอัตโนมัติ
+
+### เครื่องยนต์ verify (`verifyRow:2249`)
+เทียบแต่ละแถวกับ reference map ที่สร้างจาก `inventory_counts` ใน scope เดียวกัน:
+- `ok` — ตรงทั้ง sku+loc+warehouse+qty
+- `error` — ข้อมูลขาด / **ซ้ำใน DB** / จำนวนไม่ตรง / ไม่พบ SKU / ผิดทั้ง loc+qty / กำกวมข้ามคลัง
+- `warn` — จำนวนตรงแต่ location ไม่ตรง พร้อม**รายการแนะนำจัดอันดับ** (`buildSuggestions:2223`, `locationSimilarity:2202` — คะแนน 45 จาก qty + 35 จากความคล้าย loc)
+
+### ฟิลเตอร์/เรียง
+กรองตามโซน (อักษรแรกของ location), natural sort location พร้อมทิศทางอัตโนมัติ (`autoSortDirectionForZone:1440`), คลิกกล่องสถิติสถานะเพื่อกรอง (`toggleStatusFilter:1821`)
+
+### โหมดแก้ไข 4 โหมด
+1. **แก้ Location** (`setEditLocationMode:2831`): ล็อก SKU+qty แก้เฉพาะ location, ยืนยัน 2 ขั้น, `update` ทีละแถว
+2. **สลับ SKU ↔ Location** (`applySwapSkuLocSelected:2700`): สำหรับแถวที่กรอกสลับช่อง, `update({sku_id, location})` ทีละแถว
+3. **เทียบ Location กับ Excel** (modal เต็มจอ `:1104-1170`): โหลด template จาก Supabase Storage → อัปโหลด A=SKU, B=Location → เลือกโซน → `buildLocComparePlan:3305` แยกเป็น ไม่ตรง/ตรงอยู่แล้ว/ไม่มีในระบบ/กำกวมใน DB → review → apply 2 ขั้น → export แถวที่ข้าม
+4. **ลบแถวที่กดบันทึกซ้ำ** (`dedupeInventoryCountsInDb`): ใช้เกณฑ์จาก [`Js/audit-dedupe.js`](../../Js/audit-dedupe.js) — ต้องเหมือนกันครบทุกข้อ: คลัง+SKU+ตำแหน่ง+จำนวน · **รอบนับเดียวกัน** · **ผู้นับคนเดียวกัน** · ห่างกันไม่เกิน 10 นาที · `created_at` ไม่ตรงกันเป๊ะ (ตรงกัน = insert ชุดเดียวกัน) · ไม่ได้มาจากไฟล์นำเข้าเดียวกัน — สำรอง CSV อัตโนมัติก่อนลบ (ยกเลิกถ้าสำรองไม่ได้) แล้วลบเป็น chunk ละ 100
+   > แก้ในข้อ H2 (2026-08-09) — เดิม group แค่ `warehouse|sku|location|qty` ซึ่งจะลบข้อมูลนับที่ถูกต้อง 470 แถวจากข้อมูลจริง
+
+### ลบแถวที่เลือก (`deleteSelectedRows:2489`)
+ลบผสมแถวใน DB + แถว local, ยืนยัน 2 ขั้น, `.in('id',…)` chunk
+
+### Guard กันชนปลายทาง (ใช้ร่วมโหมด 1-3)
+`getDestinationCollision:2017` / `validateDestUpdateBatch:2083` / `confirmDestUpdatesWithSkips:2123` — แยก batch เป็นทำได้/ถูกบล็อก แล้วถามว่าจะข้ามไหม
+
+## ตาราง Supabase ที่ใช้
+
+| ตาราง / RPC | Operation | รายละเอียด |
+|---|---|---|
+| `rpc('get_inventory_count_months')` | CALL | รายการเดือน; fallback สแกนทั้งตารางถ้าไม่มีฟังก์ชัน (`:1515-1553`) |
+| `inventory_counts` | SELECT | `fetchAllInventoryCounts:1704` แบ่งหน้า 1000, กรอง warehouse + ช่วง created_at |
+| `inventory_counts` | UPDATE | `{location}` (`:2945, 3722`), `{sku_id, location}` (`:2778`) — ทีละแถว |
+| `inventory_counts` | DELETE | `.in('id', chunk)` ละ 100 (`:2481, 3938`) |
+| `warehouses` | SELECT | `warehouseService.populateSelect` (`:1666`) |
+| Supabase Storage | GET | `TemplateMATH.xlsx` URL สาธารณะ hardcode (`:3155`) |
+
+⚠️ **ไม่เขียน `inventory_audit_logs` เลยแม้แต่จุดเดียว** — ทุก bulk แก้/ลบในหน้านี้ไม่มีร่องรอยในประวัติ
+
+## ฟังก์ชันหลัก
+
+| ฟังก์ชัน | บรรทัด |
+|---|---|
+| `refEntryKey` / `findRefEntriesBySkuLocQty` | 1222 / 1229 |
+| `fetchAvailableMonths` / `getAuditFilters` | 1514 / 1602 |
+| `fetchAllInventoryCounts` | 1704 |
+| `applyTableView` / `verifyRowsInBatches` | 1834 / 1946 |
+| `getDestinationCollision` / `validateDestUpdateBatch` | 2017 / 2083 |
+| `loadReferenceData` / `buildSuggestions` / `verifyRow` | 2145 / 2223 / 2249 |
+| `deleteSelectedRows` | 2489 |
+| `applySwapSkuLocSelected` | 2700 |
+| `setEditLocationMode` / `saveLocationChanges` | 2831 / 2873 |
+| `createRow` / `fillRows` | 2990 / 3068 |
+| `buildLocComparePlan` / `applyLocCompareUpdates` | 3305 / 3626 |
+| `dedupeInventoryCountsInDb` | 3854 |
+| `loadCountsToTable` / `runFullAuditLoad` | 3960 / 4023 |
+
+## Shared JS ที่โหลด (`:1190-1196`)
+
+`sidebar-shared.js` (มาก่อน api.js — ต่างจากหน้าอื่น), `api.js`, `sku-utils.js`, `warehouses-shared.js`, `db-errors.js`, `settings-shared.js`, `ui-confirm-modal.js`, **`audit-dedupe.js`** (เพิ่มตอนแก้ H2) — ยังไม่โหลด `reconcile-shared.js` แต่ตอนนี้ดึง `cycle_id` มาใช้ตัดสิน "แถวซ้ำ" แล้ว
+
+## localStorage keys
+
+`audit_check_year_month` (อ่าน/เขียน), `audit_check_all_time` (อ่าน/เขียน), `audit_check_warehouse` (**เขียนอย่างเดียว ไม่เคยอ่าน** — `:1649, 1674`)
+
+## ความสัมพันธ์กับหน้าอื่น
+
+- อ่าน+แก้+ลบข้อมูลที่ index.html / import_counts.html เขียน
+- **ไม่รู้จัก cycle**: scope ตามคลัง+เดือนปฏิทินเท่านั้น — รอบที่คร่อมเดือนถูกผ่าครึ่ง, สองรอบในเดือนเดียวถูกรวม, การนับซ้ำข้ามรอบถูกมองเป็น "ข้อมูลซ้ำ"
+
+## ข้อสังเกต / จุดเปราะบาง (ดู [ISSUES.md](../ISSUES.md))
+
+- ~~โหมด "ลบ duplicate" ขัดนโยบาย DB~~ **แก้แล้ว (H2, 2026-08-09)** — ดูเกณฑ์ใหม่ในหัวข้อโหมด 4 ข้างบน
+- **Bulk mutation ไม่ log, ไม่ atomic**: loop `update` ทีละแถว พังกลางทางค้างครึ่ง ๆ ไม่มี rollback (`:2769-2795, 2938-2960, 3717-3736`)
+- **XSS ใน note/suggestion**: `noteTd.innerHTML = result.note` โดย note สร้างจากค่า DB ไม่ escape (`:2291-2329, 2367`) ทั้งที่มี `escapeHtml` (`:1320`) ใช้ใน modal เทียบ Excel
+- โหมดสลับ SKU↔Loc normalize ฝั่งเดียว — สลับสองครั้งไม่ได้ค่าเดิมกลับ (`:2742-2778`)
+- Reference map จำกัด scope ปัจจุบัน → guard ชนปลายทางมองไม่เห็นข้อมูลนอก scope (`:2117-2145`)
+- ประสิทธิภาพ: `findRefEntriesBySkuLocQty` O(n) ใน loop (`:1229, 2273`), `getWarehouseForRecordId` O(n·m) (`:2003-2011`)
+- Dead code: `verifyAll` (`:2401-2430` — ปุ่มไม่มีใน markup), `btnLoadCounts`, `initConnectionBadge` (ไม่มีนิยามที่ไหนเลย), `btnAddRows` ซ่อนอยู่

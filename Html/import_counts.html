@@ -536,14 +536,14 @@
 
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="../Js/api.js"></script>
-    <script src="../Js/sku-utils.js"></script>
-    <script src="../Js/warehouses-shared.js"></script>
-    <script src="../Js/db-errors.js"></script>
-    <script src="../Js/settings-shared.js"></script>
-    <script src="../Js/reconcile-shared.js"></script>
-    <script src="../Js/sidebar-shared.js"></script>
-    <script src="../Js/ui-confirm-modal.js"></script>
+    <script src="../Js/api.js?v=20260809c"></script>
+    <script src="../Js/sku-utils.js?v=20260809c"></script>
+    <script src="../Js/warehouses-shared.js?v=20260809c"></script>
+    <script src="../Js/db-errors.js?v=20260809c"></script>
+    <script src="../Js/settings-shared.js?v=20260809c"></script>
+    <script src="../Js/reconcile-shared.js?v=20260809c"></script>
+    <script src="../Js/sidebar-shared.js?v=20260809c"></script>
+    <script src="../Js/ui-confirm-modal.js?v=20260809c"></script>
     <script>
         lucide.createIcons();
 
@@ -605,7 +605,10 @@
             if (!cycleId) {
                 let detail = 'ยังไม่ได้เลือกรอบนับที่ตรงกับคลังนี้';
                 if (active?.warehouse) {
-                    detail = `รอบที่เลือกอยู่ (${RS.formatWarehouseDisplay?.(active.warehouse) || active.warehouse}) ไม่ครอบคลัง "${warehouse}"`;
+                    const stale = RS.isCycleRelevantNow && !RS.isCycleRelevantNow(active);
+                    detail = stale
+                        ? `รอบที่เลือกอยู่ (${active.label || active.year_month || 'รอบเก่า'}) ไม่ใช่รอบของเดือนนี้แล้ว — เลือกรอบใหม่ที่ตั้งค่ารอบการนับ`
+                        : `รอบที่เลือกอยู่ (${RS.formatWarehouseDisplay?.(active.warehouse) || active.warehouse}) ไม่ครอบคลัง "${warehouse}"`;
                 }
                 return {
                     linked: false,
@@ -903,10 +906,10 @@
             body.innerHTML = show.map((r, i) => `
                 <tr class="${r.valid ? '' : 'row-invalid'}">
                     <td>${i + 1}</td>
-                    <td>${r.sku || '-'}</td>
-                    <td>${r.loc || '-'}</td>
-                    <td>${r.qty != null ? r.qty : '-'}</td>
-                    <td>${r.valid ? 'พร้อมนำเข้า' : r.errors}</td>
+                    <td>${escHtml(r.sku || '-')}</td>
+                    <td>${escHtml(r.loc || '-')}</td>
+                    <td>${r.qty != null ? Number(r.qty) : '-'}</td>
+                    <td>${r.valid ? 'พร้อมนำเข้า' : escHtml(r.errors)}</td>
                 </tr>
             `).join('');
 
@@ -954,8 +957,14 @@
             reader.readAsBinaryString(file);
         }
 
+        /** escape สำหรับ HTML/attribute — ครอบ " และ ' ด้วย (ค่ามาจากไฟล์ Excel ไว้ใจไม่ได้) */
         function escHtml(s) {
-            return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return String(s ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel, cycleId, batchImportId }) {

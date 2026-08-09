@@ -335,13 +335,13 @@
 </div>
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="../Js/api.js"></script>
-<script src="../Js/sku-utils.js"></script>
-<script src="../Js/warehouses-shared.js"></script>
-<script src="../Js/db-errors.js"></script>
-<script src="../Js/settings-shared.js"></script>
-<script src="../Js/reconcile-shared.js"></script>
-<script src="../Js/sidebar-shared.js"></script>
+<script src="../Js/api.js?v=20260809c"></script>
+<script src="../Js/sku-utils.js?v=20260809c"></script>
+<script src="../Js/warehouses-shared.js?v=20260809c"></script>
+<script src="../Js/db-errors.js?v=20260809c"></script>
+<script src="../Js/settings-shared.js?v=20260809c"></script>
+<script src="../Js/reconcile-shared.js?v=20260809c"></script>
+<script src="../Js/sidebar-shared.js?v=20260809c"></script>
 <script>
     lucide.createIcons();
 
@@ -492,8 +492,14 @@
         summaryEl.textContent = summary;
     }
 
+    /** escape สำหรับ HTML/attribute — ครอบ " และ ' ด้วย */
     function esc(s) {
-        return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return String(s ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
 
     function showToast(msg, type = 'success') {

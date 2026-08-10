@@ -1,5 +1,6 @@
-// เทส parser Book Excel + สถานะ Match — รวม knownIssue M4 (ชื่อโดน UPPERCASE)
-// และ M2 (สถานะ JS ไม่ตรง SQL)
+// เทส parser Book Excel + สถานะ Match
+// [M4] ชื่อโดน UPPERCASE — แก้แล้ว 2026-08-10 (เป็นเทสถาวรกัน regression)
+// knownIssue ที่เหลือ: M2 (สถานะ JS ไม่ตรง SQL)
 import assert from 'node:assert/strict';
 import { suite, test, knownIssue } from '../helpers/harness.mjs';
 import { loadFresh } from '../helpers/sandbox.mjs';
@@ -61,13 +62,40 @@ test('computeMatchStatus: adjustment มีผลต่อ effective book', () =
 });
 
 // -----------------------------------------------------------------------------
-// M4 (docs/ISSUES.md): parseBookExcelRows ใช้ normalizeSku กับชื่อสินค้า
-// → "Widget Pro" กลายเป็น "WIDGET PRO" ใน DB
+// M4 — ✅ แก้แล้ว 2026-08-10 (ย้ายจาก knownIssue → เทสถาวรกัน regression)
+//
+// เดิม `parseBookExcelRows` ใช้ `normalizeSku` กับ **ชื่อสินค้า** ด้วย → "Widget Pro"
+// กลายเป็น "WIDGET PRO" ถาวรใน `book_stock_lines.name_pro`
+// invariant ข้อ 2 (UPPERCASE + trim) เป็นมาตรฐานของ **รหัส SKU** เท่านั้น ไม่ใช่ของชื่อ
+//
+// เรื่องนี้กว้างกว่าที่คิดตอนแรก: ตั้งแต่ถอดฟีเจอร์ SKU Master ปุ่ม "สร้างลง Book"
+// ก็ดึงชื่อจาก `book_stock_lines` แล้ว ⇒ บั๊กนี้จะไหลไปทุกเส้นทาง และไม่มี UI แก้รายแถว
 // -----------------------------------------------------------------------------
-knownIssue('M4', 'parseBookExcelRows ต้องคงตัวพิมพ์ของชื่อสินค้า (name_pro) ไว้', () => {
+test('[M4] parseBookExcelRows คงตัวพิมพ์ของชื่อสินค้า (name_pro) ไว้', () => {
     const out = RS.parseBookExcelRows([['E-01', '1', 'Widget Pro']]);
     assert.equal(out.rows[0].namePro, 'Widget Pro',
-        `ชื่อควรคงเดิม แต่ได้ "${out.rows[0].namePro}"`);
+        `ชื่อต้องคงเดิม แต่ได้ "${out.rows[0].namePro}"`);
+    // `rows` เป็น items ดิบ — ตัวที่ไหลเข้า DB จริงคือ `validRows` (ผ่าน aggregateBookRowsBySku)
+    // ต้อง assert ทั้งคู่ ไม่งั้นถ้าใครเผลอ uppercase ตอน aggregate เทสจะมองไม่เห็น
+    assert.equal(out.validRows[0].namePro, 'Widget Pro',
+        'แถวที่ส่งเข้า DB จริงก็ต้องคงตัวพิมพ์');
+});
+
+test('[M4] ชื่อสินค้ายัง trim หัวท้าย และรับค่าว่าง/ไทยได้ถูกต้อง', () => {
+    const out = RS.parseBookExcelRows([
+        ['E-01', '1', '  Widget Pro  '],
+        ['E-02', '2', 'สร้อยข้อมือหยก 6 มิล'],
+        ['E-03', '3', ''],
+    ]);
+    assert.equal(out.rows[0].namePro, 'Widget Pro', 'ต้อง trim ช่องว่างหัวท้าย');
+    assert.equal(out.rows[1].namePro, 'สร้อยข้อมือหยก 6 มิล', 'ภาษาไทยต้องไม่เพี้ยน');
+    assert.equal(out.rows[2].namePro, '', 'ช่องว่าง = string ว่าง ไม่ใช่ throw');
+});
+
+test('[M4] แต่ **รหัส SKU** ต้องยัง UPPERCASE ตาม invariant ข้อ 2', () => {
+    const out = RS.parseBookExcelRows([['  e-01  ', '1', 'Widget Pro']]);
+    assert.equal(out.rows[0].sku, 'E-01',
+        'การแก้ M4 ต้องไม่เผลอถอด normalizeSku ออกจากคอลัมน์ SKU ด้วย');
 });
 
 // -----------------------------------------------------------------------------

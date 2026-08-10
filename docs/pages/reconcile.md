@@ -78,7 +78,7 @@
 - แถว "ขาด" แสดงเครื่องหมาย `+` (เช่น ขาด 5 แสดง `+5` สีแดง) (`:867, 974`); แถวรวมใน export บวก variance คนละเครื่องหมายรวมกัน (`:2447`)
 - `%` ใช้ค่า `variance_pct` เก่าจาก DB ก่อนมี draft — ขัดกับคอลัมน์ `ต่าง` ที่คำนวณใหม่ (`:895`)
 - `computeMatchStatus` (JS) กับ SQL ให้สถานะไม่ตรงกันกรณี `effective=0 && counted>0` (JS=`over`, SQL=`count_only`)
-- `parseBookExcelRows` ใช้ `normalizeSku` กับชื่อสินค้า → `name_pro` ถูกแปลงเป็นตัวพิมพ์ใหญ่หมด (`reconcile-shared.js:1108`)
+- ~~`parseBookExcelRows` ใช้ `normalizeSku` กับชื่อสินค้า → `name_pro` ถูกแปลงเป็นตัวพิมพ์ใหญ่หมด~~ **แก้แล้ว (M4, 2026-08-10)** — ใช้ `String(...).trim()` เฉพาะคอลัมน์ชื่อ (คอลัมน์ SKU ยัง normalize เหมือนเดิม) · ⚠️ ข้อมูลเก่ายังเป็น ALL CAPS
 - `saveDraft` ไม่ normalize SKU จากช่องค้นหา (`:1712-1728`)
 - Dead: `renderImportPreview` + `#importPreviewWrap` ไม่เคยแสดง (`:1326-1346, 473-478`), `adjInputMode` ประกาศแล้วไม่อ่าน (`:693`), `updateCycleStatus`/`importBookStockLinesMerge` ใน shared ไม่มีผู้เรียก
 - `deleteCycle` unlink + delete เป็น 2 statement — พังกลางทางเหลือรอบค้างกับ count ที่ `cycle_id=null` (`reconcile-shared.js:965-1017`)

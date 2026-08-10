@@ -92,4 +92,6 @@ node tests/run.mjs
   - ⚠️ **บทเรียน:** `reconcile.html` เขียน `namePro: masterNames[sku] || skuNameMap[sku] || null` ดูเหมือนมี fallback แต่ **ตายสนิท** (`canAddToBookLine` บังคับ `!bookSkuSet.has(sku)` และทั้ง 2 map มาจาก `book_stock_lines` ของ cycle เดียวกัน) — ตัด lookup ทิ้งเฉย ๆ = `name_pro` เป็น null 100% เขียนลง DB ถาวร · แหล่งใหม่คือ `fetchBookNamesBySkusAnyCycle` อ่าน `book_stock_lines` ข้ามรอบ (กว้างกว่าเดิม + ปิดบั๊ก query ไม่กรอง warehouse)
   - ⚠️ กลุ่มเมนูที่เหลือ 0 รายการจะกลายเป็นหัวข้อพับที่กดแล้วว่าง — ลบ item สุดท้ายต้องลบทั้งกลุ่ม · มีเทส `[menu-guard]` × 4 บังคับแล้ว
   - ⚠️ **ต้องทำมือในเครื่องที่เคยเข้าโหมดแก้ไขคู่มือ**: `manual-editor.js` restore `innerHTML` จาก localStorage ทับ source ⇒ กด "สำรอง" แล้ว "รีเซ็ตคู่มือ" ใน `user_manual.html` ไม่งั้นยังเห็น section F1 SKU Master
+- ✅ **M4 เสร็จ** (2026-08-10): `parseBookExcelRows` เลิกใช้ `normalizeSku` กับ **ชื่อสินค้า** (invariant ข้อ 2 เป็นมาตรฐานของ *รหัส SKU* เท่านั้น) — คอลัมน์ SKU ยัง UPPERCASE เหมือนเดิม มีเทสบังคับ · เทสย้ายจาก knownIssue → ถาวร 3 ข้อ · **267 PASS / 2 KNOWN-OPEN**
+  - ⚠️ **แก้โค้ดไม่ได้แก้ข้อมูลเก่า** — แถว `book_stock_lines.name_pro` ที่นำเข้าไปแล้วยังเป็น ALL CAPS · จะล้างต้องอัปโหลดไฟล์ Book ทับ (โหมด replace) หรือ UPDATE ใน DB
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

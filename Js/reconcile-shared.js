@@ -1138,7 +1138,9 @@
 
             const qtyRaw = row[1] ?? row['qty'] ?? row['จำนวน'] ?? row['book_qty'] ?? '';
 
-            const namePro = normalizeSku(row[2] ?? row['name'] ?? row['ชื่อ'] ?? '');
+            // ⚠️ ห้ามใช้ normalizeSku กับชื่อสินค้า — มันเป็น UPPERCASE ซึ่งเป็นมาตรฐานของ "รหัส"
+            // ไม่ใช่ของ "ชื่อ" (invariant ข้อ 2 พูดถึง SKU เท่านั้น) · ชื่อต้องคงตัวพิมพ์เดิมไว้
+            const namePro = String(row[2] ?? row['name'] ?? row['ชื่อ'] ?? '').trim();
 
 
 

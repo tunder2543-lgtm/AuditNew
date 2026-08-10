@@ -43,7 +43,7 @@ tests/
 │   ├── db-errors.test.mjs           ตัวแปล error
 │   ├── dashboard-shared.test.mjs    bucket/สถิติ (+H7)
 │   ├── reconcile-warehouse.test.mjs encode/parse คลัง (+M19)
-│   └── reconcile-book.test.mjs      parser Book + สถานะ match (+M4, M2)
+│   └── reconcile-book.test.mjs      parser Book + สถานะ match (M4 แก้แล้ว, knownIssue M2)
 └── dryrun/                  รันโค้ดจริงกับ mock DB — ตรวจว่า "ถ้ารันจริงจะเขียนอะไร"
     ├── mock-selftest.test.mjs       พิสูจน์กลไก dry run เชื่อถือได้
     ├── active-cycle.test.mjs        การแนบ cycle_id (+H1)

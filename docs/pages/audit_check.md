@@ -69,7 +69,16 @@
 ### โหมดแก้ไข 4 โหมด
 1. **แก้ Location** (`setEditLocationMode:2831`): ล็อก SKU+qty แก้เฉพาะ location, ยืนยัน 2 ขั้น, `update` ทีละแถว
 2. **สลับ SKU ↔ Location** (`applySwapSkuLocSelected:2700`): สำหรับแถวที่กรอกสลับช่อง, `update({sku_id, location})` ทีละแถว
-3. **เทียบ Location กับ Excel** (modal เต็มจอ `:1104-1170`): โหลด template จาก Supabase Storage → อัปโหลด A=SKU, B=Location → เลือกโซน → `buildLocComparePlan:3305` แยกเป็น ไม่ตรง/ตรงอยู่แล้ว/ไม่มีในระบบ/กำกวมใน DB → review → apply 2 ขั้น → export แถวที่ข้าม
+3. **เทียบ Location กับ Excel** (modal เต็มจอ): โหลด template จาก Supabase Storage → อัปโหลด A=SKU, B=Location → **เลือกคลังในโมดัล** + เลือกโซน → [`Js/audit-loc-compare.js`](../../Js/audit-loc-compare.js) `buildLocComparePlan` แยกเป็น ไม่ตรง/ตรงอยู่แล้ว/ไม่มีในระบบ/กำกวมใน DB/**ข้อมูลไม่ครบ** → review → apply 2 ขั้น → export แถวที่ข้าม
+   > **เลือกคลังได้ทีละคลัง** (Excel ไม่มีคอลัมน์คลัง จึงบอกไม่ได้ว่าตำแหน่งเป็นของคลังไหน) · ตอนกด "เทียบข้อมูล" ระบบ **ซิงก์คลังกลับไปที่แถบด้านบน** แล้วโหลด `loadReferenceData()` + `loadCountsToTable()` + `verifyAll()` เองก่อนเสมอ — เพราะ `getDestinationCollision` ตัดสินจาก `refBySkuLoc` และ `getWarehouseForRecordId()` ตัดสินจากแถวในตาราง ถ้าสองอย่างนี้เป็นคนละคลังกันจะ "ตาบอด" แล้วปล่อยผ่านหมด
+   > **🐛 บั๊กที่เคยทำให้โหมดนี้ใช้ไม่ได้เลย (แก้ 2026-08-10):** `runLocCompare` SELECT มาโดยไม่มี `counted_qty` → แผนเก็บเป็น `''` → `resolveDestQty` คืน NaN → `getDestinationCollision` บล็อก **ทุกแถว 100%** ด้วยข้อความ "จำนวนปลายทางไม่ถูกต้อง" ผู้ใช้เห็นแค่ "ไม่บันทึก — ปลายทางซ้ำทั้งหมด N รายการ"
+   > ตอนนี้แถวที่ข้อมูลไม่ครบไปอยู่ใน `missingQty` — โผล่เป็น chip ที่ 5, ในกล่อง "รายการที่ไม่อัปเดตอัตโนมัติ" และในไฟล์ Excel export (ไม่ใช่แค่ toast ที่หายไปใน 4 วินาที)
+   > **กติกาที่ code-review บังคับไว้ (มียามสแกน source `unit/audit-select-columns` พิสูจน์ด้วย mutation แล้วทั้ง 4 ข้อ):**
+   > - SELECT ต้องมี `counted_qty` + `cycle_id`
+   > - `populateLocCompareWarehouses` ต้องใส่ placeholder กลับและบังคับค่าเอง — `warehouseService.populateSelect` เลือกคลังแรกให้อัตโนมัติ ทำให้ guard "ต้องเลือกคลัง" ไม่เคยทำงานและ default เป็นคลังที่ผู้ใช้ไม่ได้เลือก (= แก้ผิดคลังทั้งชุด)
+   > - หลังสลับคลังต้องเรียก `loadReferenceData()` **ตรง ๆ** ห้ามพึ่ง `onAuditWarehouseChange()` → `runFullAuditLoad()` ซึ่ง early-return ได้ (`autoRunInFlight` / โหมดแก้ตำแหน่ง) แล้ว `refBySkuLoc` ค้างเป็นคลังเดิม = guard ชนปลายทางตาบอด ปล่อยผ่านทุกแถว
+   > - ต้องผ่านด่านตรวจให้ครบ (เดือน / ทุกช่วงเวลา / SKU ซ้ำในไฟล์) **ก่อน** จะไปแตะ scope ของหน้า ไม่งั้นผู้ใช้กดยกเลิกแล้วหน้ายังเปลี่ยนคลังค้างไว้ · ถ้าเดือนถูกสลับอัตโนมัติต้องเตือน
+   > - ห้ามเทียบตำแหน่งระหว่างเปิดโหมดแก้ตำแหน่ง/สลับ SKU
 4. **ลบแถวที่กดบันทึกซ้ำ** (`dedupeInventoryCountsInDb`): ใช้ `findSameCycleDuplicates` จาก [`Js/audit-dedupe.js`](../../Js/audit-dedupe.js) — ซ้ำ = **รอบนับ + คลัง + SKU + ตำแหน่ง + จำนวน เหมือนกันครบ** (ไม่สนผู้นับ/เวลา) เก็บแถวเก่าสุดของกลุ่มไว้เสมอ · **ข้ามกลุ่มที่กด "ยืนยันว่าปกติ" ไว้แล้ว** · ยืนยัน 2 ขั้น (ขั้น 2 ลิสต์ SKU/ตำแหน่ง/จำนวน/เวลา/ผู้นับ ของทุกแถวที่จะลบ) · สำรอง CSV อัตโนมัติก่อนลบ (ยกเลิกถ้าสำรองไม่ได้) · เขียน `inventory_audit_logs` ก่อนลบ แล้วลบเป็น chunk ละ 100
    > แก้ที่ H12 (2026-08-10) — เกณฑ์เดิม (ผู้นับคนเดียวกัน + ห่างไม่เกิน 10 นาที) ทำให้เคสจริงอย่าง `PC700 @ G3-03 = 192` (คนละผู้นับ ข้ามวัน) ไม่เคยถูกเลือกเลย · `findAccidentalDuplicates` ยังอยู่แต่ไม่ใช่ตัวตัดสินการลบแล้ว
    > แก้ในข้อ H2 (2026-08-09) — เดิม group แค่ `warehouse|sku|location|qty` ซึ่งจะลบข้อมูลนับที่ถูกต้อง 470 แถวจากข้อมูลจริง

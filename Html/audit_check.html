@@ -1253,6 +1253,13 @@
                     </div>
                     <div class="loc-compare-zone-row">
                         <label>
+                            <i data-lucide="warehouse" style="width:14px;height:14px"></i>
+                            คลัง
+                            <select id="locCompareWarehouse" title="Excel มีแค่ SKU กับตำแหน่ง ไม่มีชื่อคลัง จึงเทียบได้ทีละคลัง">
+                                <option value="">เลือกคลัง</option>
+                            </select>
+                        </label>
+                        <label>
                             <i data-lucide="layout-grid" style="width:14px;height:14px"></i>
                             โซนตำแหน่ง
                             <select id="locCompareZone">
@@ -1389,6 +1396,7 @@
     <script src="../Js/ui-confirm-modal.js?v=20260809j"></script>
     <script src="../Js/audit-dedupe.js?v=20260810d"></script>
     <script src="../Js/audit-book-impact.js?v=20260810d"></script>
+    <script src="../Js/audit-loc-compare.js?v=20260810f"></script>
     <script src="../Js/audit-log.js?v=20260809j"></script>
     <script>
         lucide.createIcons();
@@ -2489,7 +2497,9 @@
                 return { blocked: true, message: 'SKU หรือตำแหน่งปลายทางว่าง' };
             }
             if (Number.isNaN(qtyN)) {
-                return { blocked: true, message: 'จำนวนปลายทางไม่ถูกต้อง' };
+                // อ่านจำนวนของแถวไม่ได้ = ข้อมูลที่โหลดมาไม่ครบ (เคยเกิดจริงเพราะ SELECT ลืม
+                // `counted_qty` แล้วทุกแถวโดนบล็อกด้วยข้อความที่ไม่บอกสาเหตุ) — บอกให้ตรงจุด
+                return { blocked: true, message: 'อ่านจำนวนของแถวนี้ไม่ได้ (ข้อมูลโหลดมาไม่ครบ) — กด「โหลดใหม่」แล้วลองอีกครั้ง' };
             }
 
             const exclude = new Set();
@@ -3976,7 +3986,9 @@
             excelRows: [],
             fileName: '',
             zone: '',
+            warehouse: '',      // คลังที่ใช้เทียบจริง (จากตัวเลือกในโมดัล)
             mismatches: [],
+            missingQty: [],
             matchedOk: 0,
             notInSystem: [],
             dbAmbiguous: []
@@ -4002,7 +4014,39 @@
             const btn = document.getElementById('btnLocCompareRun');
             if (!btn) return;
             const zone = document.getElementById('locCompareZone')?.value || '';
-            btn.disabled = !locCompareState.excelRows.length || !zone || !supabaseClient;
+            const wh = document.getElementById('locCompareWarehouse')?.value || '';
+            btn.disabled = !locCompareState.excelRows.length || !zone || !wh || !supabaseClient;
+        }
+
+        /**
+         * เติมรายชื่อคลังในโมดัล — เลือกได้ทีละคลัง เพราะไฟล์ Excel มีแค่ SKU กับตำแหน่ง
+         * ไม่มีคอลัมน์คลัง จึงบอกไม่ได้ว่าตำแหน่งที่ให้มาเป็นของคลังไหน
+         * ตั้งค่าเริ่มต้นตามคลังที่เลือกไว้ในแถบด้านบน (ถ้ามี)
+         */
+        async function populateLocCompareWarehouses() {
+            const sel = document.getElementById('locCompareWarehouse');
+            if (!sel) return;
+            try {
+                if (window.warehouseService) {
+                    await window.warehouseService.populateSelect(sel, {
+                        includeAll: false,
+                        selected: getAuditFilters().warehouse
+                    });
+                }
+            } catch (err) {
+                console.warn('[LocCompare] เติมรายชื่อคลังไม่สำเร็จ:', err?.message || err);
+            }
+            // populateSelect ล้าง innerHTML แล้ว "เลือกคลังแรกให้เอง" เมื่อไม่มีค่า selected
+            // ที่นี่ต้องไม่เดาแทนผู้ใช้ — เลือกผิดคลัง = แก้ตำแหน่งผิดคลังทั้งชุด
+            // จึงใส่ placeholder กลับแล้วบังคับค่าให้ตรงกับแถบด้านบน (ว่างได้)
+            if (!sel.querySelector('option[value=""]')) {
+                sel.insertAdjacentHTML('afterbegin', '<option value="">เลือกคลัง</option>');
+            }
+            const scopeWh = getAuditFilters().warehouse;
+            const hasScopeWh = scopeWh && [...sel.options].some(o => o.value === scopeWh);
+            sel.value = hasScopeWh ? scopeWh : '';
+            updateLocCompareScopeNote();
+            updateLocCompareRunButton();
         }
 
         function openLocCompareModal() {
@@ -4017,16 +4061,27 @@
             document.getElementById('btnLocCompareApply').disabled = true;
             document.getElementById('btnLocCompareApply').innerHTML =
                 '<i data-lucide="check-check" style="width:16px;height:16px"></i> ยืนยันแก้ไข (1/2)';
-            const scopeNote = document.getElementById('locCompareScopeNote');
-            if (scopeNote) {
-                scopeNote.textContent = supabaseClient
-                    ? `ขอบเขต: ${formatAuditScopeLabel(getAuditFilters())}`
-                    : 'ยังไม่ได้เชื่อมต่อ Supabase — ตั้งค่าในหน้าตั้งค่าก่อน';
-            }
+            updateLocCompareScopeNote();
             backdrop.classList.add('open');
             backdrop.setAttribute('aria-hidden', 'false');
             lucide.createIcons();
             updateLocCompareRunButton();
+            populateLocCompareWarehouses();
+        }
+
+        function updateLocCompareScopeNote() {
+            const scopeNote = document.getElementById('locCompareScopeNote');
+            if (!scopeNote) return;
+            if (!supabaseClient) {
+                scopeNote.textContent = 'ยังไม่ได้เชื่อมต่อ Supabase — ตั้งค่าในหน้าตั้งค่าก่อน';
+                return;
+            }
+            const f = getAuditFilters();
+            const period = f.allTime ? 'ทุกช่วงเวลา' : (f.yearMonth || 'ยังไม่เลือกเดือน');
+            const wh = document.getElementById('locCompareWarehouse')?.value || '';
+            scopeNote.textContent = wh
+                ? `จะเทียบกับ: ${wh} · ${period} — เลือกคลังตรงนี้ได้เลย ไม่ต้องไปตั้งที่แถบด้านบน`
+                : `ช่วงเวลา: ${period} · เลือกคลังก่อนเทียบ`;
         }
 
         function closeLocCompareModal() {
@@ -4047,6 +4102,8 @@
             locCompareState.matchedOk = 0;
             locCompareState.notInSystem = [];
             locCompareState.dbAmbiguous = [];
+            locCompareState.missingQty = [];
+            locCompareState.warehouse = '';
             const exportBtn = document.getElementById('btnLocCompareExportSkipped');
             const exportFooterBtn = document.getElementById('btnLocCompareExportSkippedFooter');
             if (exportBtn) exportBtn.style.display = 'none';
@@ -4094,66 +4151,15 @@
          * เทียบตำแหน่งตาม SKU ในขอบเขตคลัง/เดือน (รวม counted_qty = 0)
          * Excel ต้องอยู่ในโซนที่เลือก — ถ้า SKU มีในระบบแล้ว แม้ตำแหน่งเดิมอยู่โซนอื่น ก็อัปเดตได้
          */
-        function buildLocComparePlan(dbRows, zone, excelBySku) {
-            const mismatches = [];
-            let matchedOk = 0;
-            const dbAmbiguous = [];
-            const filters = getAuditFilters();
-            const scopeWh = filters.warehouse ? norm(filters.warehouse) : '';
-
-            /** @type {Map<string, Array>} */
-            const bySkuInScope = new Map();
-
-            dbRows.forEach(rec => {
-                if (scopeWh && norm(rec.warehouse) !== scopeWh) return;
-                const sku = norm(rec.sku_id);
-                if (!sku) return;
-                if (!bySkuInScope.has(sku)) bySkuInScope.set(sku, []);
-                bySkuInScope.get(sku).push(rec);
+        /**
+         * นิยามการเทียบอยู่ใน Js/audit-loc-compare.js (มีเทสคุ้มกัน)
+         * เดิมฟังก์ชันนี้อ่าน `getAuditFilters()` เองจึงเทสไม่ได้ — ตอนนี้ส่งคลังเข้าไปตรง ๆ
+         */
+        function buildLocComparePlan(dbRows, zone, excelBySku, warehouse) {
+            return window.AuditLocCompare.buildLocComparePlan(dbRows, zone, excelBySku, {
+                warehouse,
+                skuLabelOf: findExcelSkuLabel
             });
-
-            const notInSystem = [];
-
-            excelBySku.forEach((excelLoc, sku) => {
-                if (getLocationZone(excelLoc) !== zone) return;
-
-                const recs = bySkuInScope.get(sku);
-                if (!recs || !recs.length) {
-                    notInSystem.push({
-                        sku: findExcelSkuLabel(sku),
-                        excelLocation: excelLoc
-                    });
-                    return;
-                }
-
-                const distinctLocs = new Set(recs.map(r => norm((r.location || '').trim())));
-                if (distinctLocs.size > 1) {
-                    dbAmbiguous.push({
-                        sku: recs[0].sku_id,
-                        locations: [...distinctLocs]
-                    });
-                    return;
-                }
-
-                recs.forEach(rec => {
-                    const dbLoc = (rec.location || '').trim();
-                    const qty = Number(rec.counted_qty);
-                    if (norm(dbLoc) === norm(excelLoc)) {
-                        matchedOk += 1;
-                    } else {
-                        mismatches.push({
-                            id: rec.id,
-                            sku: rec.sku_id,
-                            dbLocation: dbLoc,
-                            newLocation: excelLoc,
-                            warehouse: rec.warehouse || '',
-                            counted_qty: Number.isNaN(qty) ? '' : qty
-                        });
-                    }
-                });
-            });
-
-            return { mismatches, matchedOk, notInSystem, dbAmbiguous };
         }
 
         function renderLocCompareResults(plan, zone) {
@@ -4171,6 +4177,7 @@
             locCompareState.matchedOk = plan.matchedOk;
             locCompareState.notInSystem = plan.notInSystem;
             locCompareState.dbAmbiguous = plan.dbAmbiguous || [];
+            locCompareState.missingQty = plan.missingQty || [];
             locCompareState.zone = zone;
 
             if (setup) setup.style.display = 'none';
@@ -4178,12 +4185,14 @@
             if (backBtn) backBtn.style.display = '';
 
             const ambCount = (plan.dbAmbiguous || []).length;
+            const missingQtyCount = (plan.missingQty || []).length;
             if (summary) {
                 summary.innerHTML = `
                     <div class="loc-compare-chip fix"><strong>${plan.mismatches.length}</strong><span>ต้องแก้ตำแหน่ง</span></div>
                     <div class="loc-compare-chip ok"><strong>${plan.matchedOk}</strong><span>ตรงกันแล้ว</span></div>
                     <div class="loc-compare-chip mute"><strong>${plan.notInSystem.length}</strong><span>SKU ใน Excel ไม่มีในระบบ (โซน ${zone})</span></div>
                     <div class="loc-compare-chip warn"><strong>${ambCount}</strong><span>SKU ซ้ำหลายตำแหน่งใน DB</span></div>
+                    ${missingQtyCount ? `<div class="loc-compare-chip warn"><strong>${missingQtyCount}</strong><span>ข้อมูลไม่ครบ (ไม่มีจำนวน)</span></div>` : ''}
                 `;
             }
 
@@ -4217,6 +4226,12 @@
                         items.push(`<li>${escapeHtml(x.sku)}: ${x.locations.map(escapeHtml).join(' / ')}</li>`);
                     });
                 }
+                if (missingQtyCount > 0) {
+                    items.push(`<li><strong>ข้อมูลไม่ครบ — ไม่มีจำนวน (${missingQtyCount})</strong> — แถวเหล่านี้ยังไม่ถูกแก้</li>`);
+                    (plan.missingQty || []).forEach(x => {
+                        items.push(`<li>${escapeHtml(x.sku)}: ${escapeHtml(x.dbLocation)} → ${escapeHtml(x.newLocation)}</li>`);
+                    });
+                }
                 if (items.length) {
                     missingBlock.style.display = '';
                     missingSummary.textContent = 'รายการที่ไม่อัปเดตอัตโนมัติ';
@@ -4226,7 +4241,7 @@
                 }
             }
 
-            const skippedCount = plan.notInSystem.length + ambCount;
+            const skippedCount = plan.notInSystem.length + ambCount + missingQtyCount;
             const exportBtn = document.getElementById('btnLocCompareExportSkipped');
             const exportFooterBtn = document.getElementById('btnLocCompareExportSkippedFooter');
             if (exportBtn) exportBtn.style.display = skippedCount > 0 ? '' : 'none';
@@ -4260,7 +4275,7 @@
                     'ตำแหน่ง (Excel)': x.excelLocation || '',
                     'ตำแหน่งในระบบ': '',
                     เหตุผล: `ไม่มีแถวนับในคลัง/เดือนนี้ (โซน Excel ${zone}) — ไม่สร้างเข้าระบบ`,
-                    คลัง: f.warehouse || '',
+                    คลัง: locCompareState.warehouse || f.warehouse || '',
                     เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
                 });
             });
@@ -4270,7 +4285,17 @@
                     'ตำแหน่ง (Excel)': '',
                     'ตำแหน่งในระบบ': (x.locations || []).join(' / '),
                     เหตุผล: 'ซ้ำหลายตำแหน่งใน DB — ต้องแก้ด้วยมือ',
-                    คลัง: f.warehouse || '',
+                    คลัง: locCompareState.warehouse || f.warehouse || '',
+                    เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
+                });
+            });
+            (locCompareState.missingQty || []).forEach(x => {
+                rows.push({
+                    SKU: x.sku,
+                    'ตำแหน่ง (Excel)': x.newLocation || '',
+                    'ตำแหน่งในระบบ': x.dbLocation || '',
+                    เหตุผล: 'ข้อมูลไม่ครบ — แถวนี้ไม่มีจำนวนในระบบ จึงยังไม่แก้ตำแหน่งให้',
+                    คลัง: x.warehouse || locCompareState.warehouse || f.warehouse || '',
                     เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
                 });
             });
@@ -4302,12 +4327,15 @@
                 mismatches: [],
                 matchedOk: locCompareState.matchedOk,
                 notInSystem: locCompareState.notInSystem || [],
-                dbAmbiguous: locCompareState.dbAmbiguous || []
+                dbAmbiguous: locCompareState.dbAmbiguous || [],
+                // ต้องส่งต่อ ไม่งั้น renderLocCompareResults จะล้าง locCompareState.missingQty
+                // ทิ้งทันทีหลังกดยืนยัน = รายการที่ตกค้างหายไปตอนที่ผู้ใช้ต้องการเห็นที่สุด
+                missingQty: locCompareState.missingQty || []
             };
             renderLocCompareResults(plan, locCompareState.zone);
             const banner = document.getElementById('locCompareConfirmBanner');
             if (banner) {
-                const n = plan.notInSystem.length + (plan.dbAmbiguous || []).length;
+                const n = plan.notInSystem.length + (plan.dbAmbiguous || []).length + (plan.missingQty || []).length;
                 if (n > 0) {
                     banner.classList.add('show');
                     banner.textContent =
@@ -4331,16 +4359,24 @@
                 return;
             }
 
-            const filters = getAuditFilters();
-            if (!filters.warehouse) {
+            const chosenWh = document.getElementById('locCompareWarehouse')?.value.trim() || '';
+            if (!chosenWh) {
                 showToast('กรุณาเลือกคลังก่อนเทียบตำแหน่ง', 'error');
                 return;
             }
-            if (!filters.allTime && !filters.yearMonth) {
+            if (editLocationMode || swapSkuLocMode) {
+                showToast('ปิดโหมดแก้ตำแหน่ง/สลับ SKU ก่อนเทียบตำแหน่งจาก Excel', 'error');
+                return;
+            }
+
+            // ด่านตรวจที่เหลือต้องผ่านให้หมด **ก่อน** จะไปแตะ scope ของหน้า
+            // (เดิมสลับคลังทิ้งไว้แล้วค่อย abort — หน้าเปลี่ยนถาวรทั้งที่ผู้ใช้ยกเลิก)
+            const beforeSync = getAuditFilters();
+            if (!beforeSync.allTime && !beforeSync.yearMonth) {
                 showToast('กรุณาเลือกเดือนที่มีข้อมูลการนับ หรือติ๊ก「ทุกช่วงเวลา」', 'error');
                 return;
             }
-            if (filters.allTime) {
+            if (beforeSync.allTime) {
                 const ok = await uiConfirm.show({
                     title: 'เทียบตำแหน่ง',
                     variant: 'amber',
@@ -4352,6 +4388,77 @@
                 if (!ok) return;
             }
 
+            const { map: excelBySku, conflicts: excelConflicts } = buildExcelSkuMap(locCompareState.excelRows);
+            if (excelConflicts.length) {
+                showToast(`Excel มี SKU ซ้ำตำแหน่งต่างกัน ${excelConflicts.length} รายการ — แก้ไฟล์ก่อน`, 'error');
+                return;
+            }
+
+            // ซิงก์คลังที่เลือกในโมดัลกลับไปที่แถบด้านบน
+            // เพราะตัวเช็คชนปลายทาง (getDestinationCollision) ตัดสินจาก refBySkuLoc
+            // ซึ่งโหลดตามแถบด้านบน — ถ้าคนละคลังกัน มันจะ "ตาบอด" แล้วปล่อยผ่านหมด
+            const whEl = document.getElementById('auditFilterWarehouse');
+            const monthBefore = beforeSync.yearMonth;
+            const whBefore = whEl ? whEl.value : '';
+            let monthSwitchedTo = '';
+            if (whEl && whEl.value.trim() !== chosenWh) {
+                setLoading(true, 'กำลังสลับคลัง...', chosenWh);
+                let switched = false;
+                try {
+                    whEl.value = chosenWh;
+                    saveAuditFilters();
+                    await refreshAuditMonthSelect();
+
+                    // เช็คเดือน "ก่อน" โหลดข้อมูล — ถ้าไม่มีเดือน getMonthBoundsIso คืน null ทั้งคู่
+                    // แล้วจะดึงทั้งคลังทุกช่วงเวลามาทิ้งเปล่า ๆ ก่อน abort
+                    const afterSwitch = getAuditFilters();
+                    if (!afterSwitch.allTime && !afterSwitch.yearMonth) {
+                        whEl.value = whBefore;          // คืนสภาพหน้าให้เหมือนก่อนกด
+                        saveAuditFilters();
+                        await refreshAuditMonthSelect();
+                        showToast(`คลัง ${chosenWh} ไม่มีข้อมูลการนับให้เลือกเดือน — ติ๊ก「ทุกช่วงเวลา」หรือเลือกคลังอื่น`, 'error');
+                        return;
+                    }
+                    if (!afterSwitch.allTime && monthBefore && afterSwitch.yearMonth !== monthBefore) {
+                        monthSwitchedTo = afterSwitch.yearMonth;
+                    }
+
+                    // ⚠️ ห้ามพึ่ง runFullAuditLoad() — มันคืนค่าเงียบ ๆ ได้ถ้ามี pipeline อื่นค้างอยู่
+                    // (autoRunInFlight) หรืออยู่ในโหมดแก้ตำแหน่ง แล้ว refBySkuLoc จะยังเป็นของคลังเดิม
+                    // = guard ชนปลายทางตาบอด · loadReferenceData() อ่าน getAuditFilters() เองเสมอ
+                    await loadReferenceData();
+                    // ต้องโหลดตารางใหม่ด้วย ไม่งั้นตารางค้างเป็นแถวของคลังเก่า แล้ว
+                    // getWarehouseForRecordId() หา id ไม่เจอใน refBySkuLoc → คืนคลังใหม่ให้แถวเก่า
+                    // = guard ชนปลายทางตาบอดอีกทาง + audit log บันทึกคลังผิด
+                    await loadCountsToTable({ silent: true });
+                    await verifyAll();
+                    switched = true;
+                } finally {
+                    setLoading(false);
+                    if (!switched && whEl.value !== whBefore) {
+                        whEl.value = whBefore;
+                        saveAuditFilters();
+                    }
+                }
+                updateLocCompareScopeNote();
+            }
+
+            const filters = getAuditFilters();
+            if (!filters.warehouse) {
+                showToast('กรุณาเลือกคลังก่อนเทียบตำแหน่ง', 'error');
+                return;
+            }
+            if (!filters.allTime && !filters.yearMonth) {
+                showToast(`คลัง ${chosenWh} ไม่มีข้อมูลการนับให้เลือกเดือน — ติ๊ก「ทุกช่วงเวลา」หรือเลือกคลังอื่น`, 'error');
+                return;
+            }
+            // เดือนถูกสลับให้อัตโนมัติ — เขียนค้างไว้ในโมดัล ไม่ใช้ toast
+            // (toast z-index 50 อยู่ใต้ backdrop 12000 และ overlay 15000 → มองไม่เห็น)
+            if (monthSwitchedTo) {
+                const note = document.getElementById('locCompareScopeNote');
+                if (note) note.textContent += ` · ⚠️ คลังนี้ไม่มีข้อมูลเดือน ${monthBefore} จึงเปลี่ยนเป็น ${monthSwitchedTo}`;
+            }
+
             locCompareConfirmStep = 0;
             const banner = document.getElementById('locCompareConfirmBanner');
             if (banner) banner.classList.remove('show');
@@ -4359,13 +4466,12 @@
             setLoading(true, 'กำลังเทียบข้อมูล...', `โซน ${zone} · ${formatAuditScopeLabel(filters)}`);
 
             try {
-                const { map: excelBySku, conflicts: excelConflicts } = buildExcelSkuMap(locCompareState.excelRows);
-                if (excelConflicts.length) {
-                    showToast(`Excel มี SKU ซ้ำตำแหน่งต่างกัน ${excelConflicts.length} รายการ — แก้ไฟล์ก่อน`, 'error');
-                    return;
-                }
+                // ⚠️ `counted_qty` จำเป็นจริง — ตัวเช็คชนปลายทาง (resolveDestQty → getDestinationCollision)
+                // ใช้จำนวนเป็นส่วนหนึ่งของคีย์ ถ้าไม่มีจะได้ NaN แล้ว "บล็อกทุกแถว" เงียบ ๆ
+                // (บั๊กจริงที่ทำให้โหมดนี้ใช้งานไม่ได้เลยจนถึง 2026-08-10)
+                // `cycle_id` ใช้ให้ guard M26 ตัดสินได้ว่าปลายทางชนในรอบเดียวกันหรือคนละรอบ
                 const { rows, dedupedCount } = await fetchAllInventoryCounts(
-                    'id, sku_id, location, warehouse',
+                    'id, sku_id, location, warehouse, counted_qty, cycle_id',
                     filters
                 );
                 if (dedupedCount > 0) {
@@ -4377,10 +4483,19 @@
                 setLoadingMessage('กำลังวิเคราะห์ความต่าง...', `${rows.length.toLocaleString()} แถวในระบบ`);
                 await yieldToBrowser();
 
-                const plan = buildLocComparePlan(rows, zone, excelBySku);
+                const plan = buildLocComparePlan(rows, zone, excelBySku, filters.warehouse);
                 locCompareState.dbAmbiguous = plan.dbAmbiguous || [];
+                locCompareState.warehouse = filters.warehouse || '';
                 renderLocCompareResults(plan, zone);
 
+                // ข้อมูลที่โหลดมาไม่ครบ = บั๊กฝั่งโค้ด ไม่ใช่ความผิดผู้ใช้ — ต้องบอกให้ชัด
+                // ไม่ปล่อยให้ไปโผล่ตอนกดยืนยันเป็น "ปลายทางซ้ำทั้งหมด" ซึ่งอ่านไม่ออก
+                if (plan.missingQty?.length) {
+                    showToast(
+                        `ข้ามไป ${plan.missingQty.length.toLocaleString()} แถวที่ไม่มีจำนวนในระบบ — ดูรายการได้ในกล่อง「รายการที่ไม่อัปเดตอัตโนมัติ」`,
+                        'error'
+                    );
+                }
                 if (plan.mismatches.length) {
                     showToast(`พบ ${plan.mismatches.length} รายการที่ตำแหน่งไม่ตรง — ตรวจสอบแล้วกดยืนยัน`);
                 } else {
@@ -4548,7 +4663,8 @@
                 const skippedLeft =
                     locCompareState.mismatches.length +
                     (locCompareState.notInSystem || []).length +
-                    (locCompareState.dbAmbiguous || []).length;
+                    (locCompareState.dbAmbiguous || []).length +
+                    (locCompareState.missingQty || []).length;
 
                 const skipDest = skipped > 0 ? ` · ข้ามปลายทางซ้ำ ${skipped}` : '';
                 const baseMsg = `อัปเดตตำแหน่งสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}${skipDest}` +
@@ -4597,6 +4713,10 @@
             if (e.target.id === 'locCompareBackdrop') closeLocCompareModal();
         });
         document.getElementById('locCompareZone').addEventListener('change', updateLocCompareRunButton);
+        document.getElementById('locCompareWarehouse')?.addEventListener('change', () => {
+            updateLocCompareRunButton();
+            updateLocCompareScopeNote();
+        });
 
         document.getElementById('btnLocCompareBack').addEventListener('click', () => {
             locCompareConfirmStep = 0;

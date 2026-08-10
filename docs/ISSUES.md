@@ -250,10 +250,20 @@ loop `update` ทีละแถวไม่มี transaction — พังก�
 **ข้อยกเว้น:** สลับ SKU↔Location ไม่ idempotent (กดซ้ำ = สลับกลับ) — แต่มี log before/after ให้กู้ได้
 **แนวทางแก้:** RPC ฝั่ง DB ที่รับ array แล้ว update + เขียน log ใน transaction เดียว (`SECURITY DEFINER` + `SET search_path` ตามบทเรียนจาก 018) — ต้องขออนุมัติ admin ก่อนเพราะแตะ DB
 
-### - [ ] M26. `getDestinationCollision` ยังบล็อกการแก้ตำแหน่งตาม key ที่ migration 011 ยกเลิก
+### - [x] M26. `getDestinationCollision` ยังบล็อกการแก้ตำแหน่งตาม key ที่ migration 011 ยกเลิก
 พบระหว่าง review H2 — H2 แก้ฝั่ง "ลบ" แล้ว แต่ `Html/audit_check.html` `getDestinationCollision()` ยัง **block** การแก้ location/สลับ SKU เมื่อปลายทางมีแถว `sku+loc+warehouse+qty` เหมือนกันอยู่ ทั้งที่แถวนั้นอาจมาจากคนละรอบ/คนละผู้นับ (= ข้อมูลถูกต้อง)
 **ผลกระทบ:** แก้ตำแหน่งแบบ bulk ไม่ผ่านโดยไม่มีเหตุผลที่ถูกต้อง (ไม่ทำข้อมูลเสียหาย แค่ทำงานไม่ได้)
-**แนวทางแก้:** ใช้เกณฑ์เดียวกับ `Js/audit-dedupe.js` — ชนกันจริงเมื่อ cycle+ผู้นับเดียวกันเท่านั้น
+> **✅ แก้แล้ว 2026-08-10** — ย้ายการตัดสินไป `classifyDestinationCollision` ใน [`Js/audit-dedupe.js`](../Js/audit-dedupe.js)
+> บล็อกเฉพาะเมื่อปลายทางมีแถว **รอบนับเดียวกัน** (จะกลายเป็นเคส H10 ที่ Match บวกซ้ำ) · คนละรอบ = ผ่าน พร้อมแสดงรายการเตือนในกล่องยืนยันก่อนบันทึก
+> `validateDestUpdateBatch` คืน `{ok, blocked, warned}` · เทส `unit/audit-dedupe` [M26] × 6
+
+### - [x] H11. audit_check มองไม่เห็นแถวทับซ้อน (ตำแหน่งเดียวกัน จำนวนต่างกัน)
+> **✅ แก้แล้ว 2026-08-10** — เก็บไว้เป็นบันทึกเพราะเป็นบั๊กที่ทำให้ยอด Match เพี้ยนจริงในข้อมูลปัจจุบัน
+
+`refresh_reconciliation_for_cycle` ใช้ `SUM(counted_qty)` ต่อ SKU ต่อรอบ → SKU เดียวกันที่ตำแหน่งเดียวกันหลายแถวถูกบวกรวมเสมอ แต่หน้า audit_check ขึ้นเขียว "ข้อมูลถูกต้อง" ทุกแถว
+**หลักฐาน (รอบ `141972ac` สิงหาคม 2569):** 16 กลุ่ม · **6 กลุ่มที่ลบแถวเดียวแล้ว variance = 0 พอดีเป๊ะ** (BNP298 51+1 vs Book 1 · NER041 11+1 vs 1 · RJGN0870 2+19 vs 2 · RJBL0354 8+1 vs 1 · FR022 3+1 vs 1 · NB070 42+1 vs 42) รวมยอดเกินหลอก ~285 ชิ้นเมื่อรวม PC700
+**แต่ตัดสินอัตโนมัติไม่ได้:** `BNP20 @ B2-01` = 70+200 = 270 = Book 270 เป๊ะ → ทยอยนับที่ถูกต้อง
+**ทางแก้ที่ใช้:** สถานะใหม่ "ทับซ้อน" (ส้ม) + โหลด `reconciliation_lines` มาเทียบ Book — [`Js/audit-book-impact.js`](../Js/audit-book-impact.js) · ตามนโยบาย admin (invariant 3) **ไม่มีคำแนะนำให้ลบ** (นับแยกถุงเป็นเรื่องปกติ) ให้คนกด "ยืนยันว่าปกติ" แทน · เทส `unit/audit-book-impact`
 
 ### - [ ] M29. `deleteCycle` ลบยอดปรับทั้งรอบด้วย FK CASCADE โดยไม่มี audit log
 พบระหว่าง review H6 — `deleteCycle()` (`Js/reconcile-shared.js:1030-1038`, เรียกจาก `Html/cycle_config.html`) ลบ `count_cycles` แล้ว CASCADE พา `stock_adjustments` (รวม **applied**), `book_stock_lines`, `reconciliation_lines` หายทั้งรอบ

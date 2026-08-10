@@ -399,6 +399,57 @@
             background: #fef7e0;
         }
 
+        /* แถวต้นฉบับของกลุ่มที่ซ้ำ — สถานะยังถูกต้อง แต่ถูกลากมาแสดงคู่กับตัวซ้ำตอนกรอง "ผิดพลาด"
+           ขีดซ้ายสีแดงจาง ๆ ให้เห็นว่าอยู่กลุ่มเดียวกับแถวแดง โดยไม่ทำให้ดูเหมือนแถวผิด */
+        tr.row-dup-partner td.col-row-num {
+            border-left: 3px solid #f28b82;
+        }
+
+        /* ทับซ้อน = ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน (Match บวกรวมทุกแถว)
+           ส้ม — คนละเรื่องกับ "ตำแหน่งน่าจะผิด" (เหลือง) และ "ซ้ำในรอบเดียวกัน" (แดง) */
+        tr.row-overlap td.col-sku,
+        tr.row-overlap td.col-loc,
+        tr.row-overlap td.col-qty,
+        tr.row-overlap td.col-wh,
+        tr.row-overlap td.col-dt {
+            background: #ffedd5;
+        }
+
+        .status-overlap { color: #c2410c; font-weight: 600; }
+
+        .audit-impact-bar {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            flex-wrap: wrap;
+            margin-top: 0.75rem;
+            padding: 0.6rem 0.85rem;
+            border: 1px solid rgba(249, 115, 22, 0.45);
+            border-radius: 10px;
+            background: rgba(249, 115, 22, 0.08);
+            color: #fdba74;
+            font-size: 0.86rem;
+            line-height: 1.5;
+        }
+
+        .audit-impact-bar strong { color: #fed7aa; }
+
+        .audit-impact-link {
+            margin-left: auto;
+            padding: 0.25rem 0.7rem;
+            border: 1px solid rgba(249, 115, 22, 0.5);
+            border-radius: 999px;
+            background: transparent;
+            color: #fdba74;
+            font: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .audit-impact-link:hover {
+            background: rgba(249, 115, 22, 0.18);
+        }
+
         .btn-gs {
             display: inline-flex;
             align-items: center;
@@ -641,6 +692,68 @@
         }
         .loc-compare-backdrop.open {
             display: flex;
+        }
+
+        .audit-history-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 0.7rem;
+            flex-wrap: wrap;
+            margin-bottom: 0.7rem;
+        }
+        .audit-history-toolbar label {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.84rem;
+            color: var(--text-muted);
+        }
+        .audit-history-toolbar select,
+        .audit-history-toolbar input {
+            padding: 0.35rem 0.55rem;
+            border-radius: 8px;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+            background: rgba(15, 23, 42, 0.6);
+            color: inherit;
+            font: inherit;
+        }
+        .audit-history-count {
+            margin-left: auto;
+            font-size: 0.84rem;
+            color: var(--text-muted);
+        }
+        .audit-history-wrap {
+            max-height: 60vh;
+            overflow: auto;
+            border: 1px solid rgba(148, 163, 184, 0.22);
+            border-radius: 10px;
+        }
+        .audit-history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.83rem;
+        }
+        .audit-history-table th {
+            position: sticky;
+            top: 0;
+            background: #1e293b;
+            text-align: left;
+            padding: 0.5rem 0.6rem;
+            white-space: nowrap;
+            z-index: 1;
+        }
+        .audit-history-table td {
+            padding: 0.42rem 0.6rem;
+            border-top: 1px solid rgba(148, 163, 184, 0.14);
+            vertical-align: top;
+        }
+        .audit-history-table tr.is-delete td {
+            background: rgba(239, 68, 68, 0.08);
+        }
+        .audit-history-empty {
+            padding: 1.4rem;
+            text-align: center;
+            color: var(--text-muted);
         }
 
         .loc-compare-dialog {
@@ -929,7 +1042,15 @@
                                 <i data-lucide="trash-2" style="width:16px;height:16px"></i>
                                 ลบรายการที่เลือก (<span id="selectedCount">0</span>)
                             </button>
-                            <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบเฉพาะแถวที่น่าจะกดบันทึกซ้ำ — ต้องเหมือนกันทั้ง คลัง+SKU+ตำแหน่ง+จำนวน และอยู่รอบนับเดียวกัน ผู้นับคนเดียวกัน บันทึกห่างกันไม่เกิน 10 นาที · การนับคนละรอบ/คนละผู้นับ จะไม่ถูกลบ">
+                            <button type="button" class="btn-gs" id="btnHistory" title="ดูว่าใครแก้/ลบอะไรไปบ้าง — SKU · ตำแหน่ง · จำนวน · วันเวลา · ผู้ทำ">
+                                <i data-lucide="history" style="width:15px;height:15px"></i>
+                                ประวัติการแก้ไข/ลบ
+                            </button>
+                            <button type="button" class="btn-gs" id="btnAcceptNormal" disabled title="ติ๊กแถวที่ตรวจแล้วว่าปกติ (เช่น นับแยกถุง) แล้วกดปุ่มนี้ — ระบบจะจำไว้และเลิกเตือนกลุ่มนั้น จนกว่าข้อมูลจะเปลี่ยน · ไม่แตะข้อมูลผลนับเลย">
+                                <i data-lucide="badge-check" style="width:15px;height:15px"></i>
+                                ยืนยันว่าปกติ
+                            </button>
+                            <button type="button" class="btn-gs" id="btnDedupeDb" title="ลบแถวที่ซ้ำกันในรอบนับเดียวกัน — ต้องเหมือนกันครบทุกช่อง: รอบนับ + คลัง + SKU + ตำแหน่ง + จำนวน · เก็บแถวเก่าสุดของแต่ละกลุ่มไว้เสมอ · ยืนยัน 2 ขั้น + สำรอง CSV + บันทึกประวัติก่อนลบ · ⚠️ แถวที่จำนวนต่างกันในตำแหน่งเดียวกัน (นับแยกถุง) จะไม่ถูกแตะ">
                                 <i data-lucide="copy-x" style="width:16px;height:16px"></i>
                                 ลบแถวที่กดบันทึกซ้ำ
                             </button>
@@ -1008,12 +1129,22 @@
                     <div class="audit-stat audit-stat-filter" data-filter="warn" style="border-color: rgba(234,179,8,0.4)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
                         <span style="color:#fbbf24">●</span> ตำแหน่งน่าจะผิด: <strong id="statWarn">0</strong>
                     </div>
+                    <div class="audit-stat audit-stat-filter" data-filter="overlap" style="border-color: rgba(249,115,22,0.45)" title="ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน — Match บวกรวมทุกแถว · กดเพื่อกรอง">
+                        <span style="color:#fb923c">●</span> ทับซ้อน: <strong id="statOverlap">0</strong>
+                    </div>
                     <div class="audit-stat audit-stat-filter" data-filter="pending" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
                         รอตรวจ: <strong id="statPending">0</strong>
                     </div>
                     <div class="audit-stat">
                         แสดง: <strong id="statVisible">0</strong> / <strong id="statTotal">0</strong> แถว
                     </div>
+                </div>
+
+                <!-- แถบสรุปผลกระทบต่อ Match — ขึ้นเฉพาะตอนตรวจแล้วเจอแถวซ้ำ/ทับซ้อน -->
+                <div class="audit-impact-bar" id="auditImpactBar" style="display:none;">
+                    <i data-lucide="alert-triangle" style="width:16px;height:16px;flex:none"></i>
+                    <span id="auditImpactText"></span>
+                    <button type="button" class="audit-impact-link" id="btnImpactFilter">ดูเฉพาะรายการนี้</button>
                 </div>
 
                 <div class="audit-filter">
@@ -1177,6 +1308,68 @@
         </div>
     </div>
 
+    <!-- ประวัติการแก้ไข/ลบ — อ่านจาก inventory_audit_logs (เขียนก่อนลบเสมอตาม invariant 1) -->
+    <div class="loc-compare-backdrop" id="historyBackdrop" aria-hidden="true">
+        <div class="loc-compare-dialog" role="dialog" aria-labelledby="historyTitle" aria-modal="true">
+            <div class="loc-compare-header">
+                <div>
+                    <h2 id="historyTitle">ประวัติการแก้ไข / ลบ</h2>
+                    <p id="historySubtitle">ทุกการแก้และลบในหน้านี้ถูกบันทึกไว้ก่อนเสมอ — ดูได้ว่าใครทำอะไร SKU ไหน ตำแหน่งไหน จำนวนเท่าไหร่ เมื่อไหร่</p>
+                </div>
+                <button type="button" class="loc-compare-close" id="btnHistoryClose" title="ปิด">
+                    <i data-lucide="x" style="width:22px;height:22px"></i>
+                </button>
+            </div>
+            <div class="loc-compare-body">
+                <div class="audit-history-toolbar">
+                    <label>
+                        ประเภท
+                        <select id="historyAction">
+                            <option value="">ทั้งหมด</option>
+                            <option value="AUDIT_DEDUPE">ลบแถวซ้ำ</option>
+                            <option value="AUDIT_DELETE">ลบที่เลือก</option>
+                            <option value="AUDIT_EDIT_LOC">แก้ตำแหน่ง</option>
+                            <option value="AUDIT_SWAP">สลับ SKU↔ตำแหน่ง</option>
+                            <option value="AUDIT_LOC_COMPARE">แก้ตำแหน่งจาก Excel</option>
+                        </select>
+                    </label>
+                    <label>
+                        ค้นหา SKU
+                        <input type="text" id="historySku" placeholder="เช่น PC700" autocomplete="off">
+                    </label>
+                    <button type="button" class="btn-gs" id="btnHistoryReload">
+                        <i data-lucide="refresh-cw" style="width:15px;height:15px"></i>
+                        โหลดใหม่
+                    </button>
+                    <button type="button" class="btn-gs" id="btnHistoryExport">
+                        <i data-lucide="download" style="width:15px;height:15px"></i>
+                        ส่งออก Excel
+                    </button>
+                    <span class="audit-history-count" id="historyCount"></span>
+                </div>
+                <div class="audit-history-wrap">
+                    <table class="audit-history-table">
+                        <thead>
+                            <tr>
+                                <th>วันที่-เวลา</th>
+                                <th>ประเภท</th>
+                                <th>รหัสสินค้า</th>
+                                <th>ตำแหน่ง / รายละเอียด</th>
+                                <th>จำนวน</th>
+                                <th>คลัง</th>
+                                <th>ผู้ทำ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="loc-compare-footer">
+                <button type="button" class="btn-gs" id="btnHistoryCancel">ปิด</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast-container" id="toastContainer"></div>
 
     <div class="audit-loading-overlay" id="loadingOverlay" aria-hidden="true" role="alertdialog" aria-busy="true" aria-labelledby="loadingText">
@@ -1194,7 +1387,8 @@
     <script src="../Js/db-errors.js?v=20260809j"></script>
     <script src="../Js/settings-shared.js?v=20260809j"></script>
     <script src="../Js/ui-confirm-modal.js?v=20260809j"></script>
-    <script src="../Js/audit-dedupe.js?v=20260809j"></script>
+    <script src="../Js/audit-dedupe.js?v=20260810d"></script>
+    <script src="../Js/audit-book-impact.js?v=20260810d"></script>
     <script src="../Js/audit-log.js?v=20260809j"></script>
     <script>
         lucide.createIcons();
@@ -1211,6 +1405,18 @@
         let refBySkuLoc = new Map();
         /** @type {Map<string, Array>} key = normalized sku */
         let refBySku = new Map();
+        /** @type {Map<string, object>} reconciliation_lines · key = `${cycle_id}|${SKU}` */
+        let recLineByCycleSku = new Map();
+        /** รอบที่มีข้อมูลนับ แต่ยังไม่เคยกด "คำนวณ Match" — ห้ามเดายอด Book ให้ */
+        let cyclesWithoutMatch = new Set();
+        /** @type {Map<string, object>} ผลจาก AuditBookImpact · key = `${cycle_id}|${SKU}` */
+        let impactByCycleSku = new Map();
+        /** @type {Map<string, {key:string, location:string}>} record id → กลุ่มทับซ้อนที่แถวนั้นอยู่ */
+        let overlapRowIndex = new Map();
+        /** @type {Map<string, object>} inventory_count_acceptances · key = `${cycle}|${SKU}|${LOC}` */
+        let acceptanceByKey = new Map();
+        /** ตาราง acceptances ยังไม่ได้สร้างใน DB (ยังไม่ได้รัน docs/sql/019) */
+        let acceptanceTableMissing = false;
 
         const sheetBody = document.getElementById('sheetBody');
         const loadingBar = document.getElementById('loadingBar');
@@ -1737,6 +1943,156 @@
             return { rows: deduped.rows, rounds, filters: f, dedupedCount: deduped.dedupedCount };
         }
 
+        function cycleKeyOf(v) {
+            return v == null || v === '' ? '(no-cycle)' : String(v);
+        }
+
+        /**
+         * ดึงผล Match ที่คำนวณไว้แล้ว (reconciliation_lines) ของรอบที่เกี่ยวข้อง
+         * ใช้ตอบคำถาม "แถวทับซ้อนพวกนี้ทำให้ยอดเพี้ยนกี่ชิ้น" โดยไม่ต้องคำนวณ Book เอง
+         * .order('id') + .range() ตามกติกาข้อ 13 (created_at/computed_at ซ้ำกันได้ทั้ง batch)
+         */
+        async function fetchReconciliationLines(cycleIds) {
+            const ids = [...new Set((cycleIds || []).filter(id => id != null && id !== ''))];
+            if (!ids.length) return [];
+
+            let rows = [];
+            let from = 0;
+            const PAGE = 1000;
+            while (true) {
+                const { data, error } = await supabaseClient
+                    .from('reconciliation_lines')
+                    .select('id, cycle_id, sku_id, book_qty, effective_book_qty, counted_qty, variance_qty, match_status')
+                    .in('cycle_id', ids)
+                    .order('id', { ascending: true })
+                    .range(from, from + PAGE - 1);
+                if (error) throw error;
+                const batch = data || [];
+                rows = rows.concat(batch);
+                if (batch.length < PAGE) break;
+                from += PAGE;
+            }
+            return rows;
+        }
+
+        /**
+         * คำนวณผลกระทบต่อ Match ต่อ (รอบ, SKU) — จัดกลุ่มแบบเดียวกับ
+         * refresh_reconciliation_for_cycle เป๊ะ ๆ คือ upper(trim(sku)) ต่อ cycle_id (ไม่แยกคลัง)
+         */
+        function buildImpactMap(allRows) {
+            impactByCycleSku.clear();
+            overlapRowIndex.clear();
+            const bySkuCycle = new Map();
+            for (const r of allRows || []) {
+                const sku = norm(r.sku_id);
+                if (!sku) continue;
+                const key = `${cycleKeyOf(r.cycle_id)}|${sku}`;
+                if (!bySkuCycle.has(key)) bySkuCycle.set(key, []);
+                bySkuCycle.get(key).push(r);
+            }
+            for (const [key, rows] of bySkuCycle) {
+                const impact = window.AuditBookImpact?.computeSkuImpact(rows, recLineByCycleSku.get(key) || null);
+                if (!impact || !impact.overlapLocations.length) continue;   // เก็บเฉพาะที่มีอะไรให้เตือน
+                impactByCycleSku.set(key, impact);
+                for (const ov of impact.overlapLocations) {
+                    for (const r of ov.rows) overlapRowIndex.set(String(r.id), { key, location: ov.location });
+                }
+            }
+        }
+
+        /** คีย์ของกลุ่มที่ยืนยันได้ = รอบ + SKU + ตำแหน่ง (ตรงกับ unique index ใน docs/sql/019) */
+        function acceptanceKey(cycleId, sku, location) {
+            return `${cycleKeyOf(cycleId)}|${norm(sku)}|${norm(location)}`;
+        }
+
+        /**
+         * ดึงรายการ "ตรวจแล้วยืนยันว่าปกติ" ของรอบที่เกี่ยวข้อง
+         * ตารางอาจยังไม่ถูกสร้าง (ยังไม่ได้รัน docs/sql/019) → ปิดฟีเจอร์อย่างสุภาพ ไม่ทำให้ทั้งหน้าพัง
+         */
+        async function fetchAcceptances(cycleIds, includeNoCycle = false) {
+            acceptanceByKey.clear();
+            acceptanceTableMissing = false;
+            const ids = [...new Set((cycleIds || []).filter(id => id != null && id !== ''))];
+            if (!ids.length && !includeNoCycle) return;
+
+            // ดึงทีละส่วนตามเงื่อนไข — แถวที่ยังไม่ผูกรอบ (cycle_id IS NULL) ต้องดึงแยก
+            // เพราะ `.in('cycle_id', ids)` ไม่มีวันคืนแถว null (เคยพลาดจน "ยืนยันแล้วก็เตือนซ้ำ")
+            const fetchPart = async (applyFilter) => {
+                let from = 0;
+                const PAGE = 1000;
+                while (true) {
+                    let q = supabaseClient
+                        .from('inventory_count_acceptances')
+                        .select('id, cycle_id, warehouse, sku_id, location, row_count, total_qty, note, accepted_at, accepted_by')
+                        .order('id', { ascending: true })
+                        .range(from, from + PAGE - 1);
+                    q = applyFilter(q);
+                    const { data, error } = await q;
+                    if (error) throw error;
+                    const batch = data || [];
+                    for (const a of batch) {
+                        acceptanceByKey.set(acceptanceKey(a.cycle_id, a.sku_id, a.location), a);
+                    }
+                    if (batch.length < PAGE) break;
+                    from += PAGE;
+                }
+            };
+
+            try {
+                if (ids.length) await fetchPart(q => q.in('cycle_id', ids));
+                if (includeNoCycle) await fetchPart(q => q.is('cycle_id', null));
+            } catch (err) {
+                // "ตารางไม่มี" (ยังไม่รัน 019) เท่านั้นที่ปิดฟีเจอร์ — error ชั่วคราว (network ฯลฯ)
+                // ห้ามขึ้นข้อความหลอกว่าให้ไปรัน SQL ทั้งที่ตารางมีอยู่แล้ว
+                const msg = String(err?.message || '');
+                acceptanceTableMissing = err?.code === '42P01' || /relation .* does not exist|schema cache/i.test(msg);
+                console.warn('[Acceptance] อ่านตารางไม่ได้:', msg || err);
+            }
+        }
+
+        /**
+         * กลุ่มนี้ถูกยืนยันว่าปกติแล้วหรือยัง — เทียบกับสภาพข้อมูลปัจจุบัน
+         * @returns {{state:'none'|'accepted'|'stale', ...}}
+         */
+        function getAcceptanceState(cycleId, sku, location, rowCount, totalQty) {
+            const saved = acceptanceByKey.get(acceptanceKey(cycleId, sku, location)) || null;
+            return window.AuditBookImpact?.classifyAcceptance({ rowCount, totalQty }, saved)
+                || { state: 'none', acceptedBy: '', acceptedAt: null, note: '', wasRowCount: null, wasTotalQty: null };
+        }
+
+        /**
+         * แถวนี้อยู่ในตำแหน่งที่มีหลายแถวหรือเปล่า (และผลกระทบต่อ Match เป็นยังไง)
+         * @param {object|null} exact entry จาก refBySkuLoc (ใช้ตอนแถวไม่มี record id — ผู้ใช้พิมพ์เอง)
+         */
+        function getOverlapContext(exact, recordId) {
+            let hit = recordId ? overlapRowIndex.get(String(recordId)) : null;
+            if (!hit && !recordId && exact) {
+                // แถวที่พิมพ์เอง — เดาจากรอบของแถวแรกใน entry
+                const first = (exact.rawRows || [])[0];
+                if (!first) return null;
+                const key = `${cycleKeyOf(first.cycle_id)}|${norm(exact.sku_id)}`;
+                if (impactByCycleSku.has(key)) hit = { key, location: norm(exact.location) };
+            }
+            if (!hit) return null;
+            const impact = impactByCycleSku.get(hit.key);
+            if (!impact) return null;
+            const overlap = impact.overlapLocations.find(o => o.location === hit.location);
+            if (!overlap) return null;
+            const sep = hit.key.indexOf('|');
+            const cycleId = hit.key.slice(0, sep);
+            const sku = hit.key.slice(sep + 1);
+            const ack = getAcceptanceState(cycleId, sku, overlap.location, overlap.rows.length, overlap.sum);
+            return { impact, overlap, cycleId, sku, ack };
+        }
+
+        /** ข้อความ "ยืนยันแล้วว่าปกติ" — เข้า innerHTML จึงต้อง escape ค่าที่มาจาก DB */
+        function formatAcceptanceNote(ack) {
+            const who = ack.acceptedBy ? escapeHtml(ack.acceptedBy) : 'ไม่ระบุผู้ตรวจ';
+            const when = ack.acceptedAt ? formatRowDateTime(ack.acceptedAt) : '-';
+            const note = ack.note ? ` · หมายเหตุ: ${escapeHtml(ack.note)}` : '';
+            return `<strong>ตรวจแล้ว ยืนยันว่าปกติ</strong> โดย ${who} เมื่อ ${when}${note}`;
+        }
+
         function collectZonesFromTable() {
             const zones = new Set();
             sheetBody.querySelectorAll('tr').forEach(tr => {
@@ -1811,6 +2167,7 @@
             if (!rowHasData(tr)) return null;
             if (tr.classList.contains('row-ok')) return 'ok';
             if (tr.classList.contains('row-warn')) return 'warn';
+            if (tr.classList.contains('row-overlap')) return 'overlap';
             if (tr.classList.contains('row-error')) return 'err';
             return 'pending';
         }
@@ -1831,8 +2188,58 @@
             ok: 'ถูกต้อง',
             err: 'ผิดพลาด',
             warn: 'ตำแหน่งน่าจะผิด',
-            pending: 'รอตรวจ'
+            overlap: 'ทับซ้อน',
+            pending: 'รอตรวจ',
+            impact: 'ผลกระทบต่อ Match'
         };
+
+        /**
+         * แถบสรุป: กลุ่มที่ระบบชี้ไว้ ตรวจไปแล้วกี่กลุ่ม เหลือรอตรวจกี่กลุ่ม
+         * ไม่สรุปว่า "ผิดกี่ชิ้น" — นับแยกถุงเป็นเรื่องปกติ ระบบตัดสินแทนคนไม่ได้
+         */
+        function computeImpactSummary() {
+            let groups = 0, accepted = 0, stale = 0, pending = 0, mismatchPending = 0, noMatchData = 0;
+            for (const [key, impact] of impactByCycleSku) {
+                const sep = key.indexOf('|');
+                const cycleId = key.slice(0, sep);
+                const sku = key.slice(sep + 1);
+                for (const ov of impact.overlapLocations) {
+                    groups++;
+                    const ack = getAcceptanceState(cycleId, sku, ov.location, ov.rows.length, ov.sum);
+                    if (ack.state === 'accepted') { accepted++; continue; }
+                    if (ack.state === 'stale') stale++;
+                    pending++;
+                    if (!impact.hasMatchData) noMatchData++;
+                    else if (Number(impact.variance) !== 0) mismatchPending++;
+                }
+            }
+            return { groups, accepted, stale, pending, mismatchPending, noMatchData };
+        }
+
+        function updateImpactBar() {
+            const bar = document.getElementById('auditImpactBar');
+            const textEl = document.getElementById('auditImpactText');
+            if (!bar || !textEl) return;
+
+            const s = computeImpactSummary();
+            if (!s.groups) {
+                bar.style.display = 'none';
+                return;
+            }
+
+            const bits = [`ขอบเขตนี้มี <strong>${s.groups.toLocaleString()} กลุ่ม</strong> ที่ตำแหน่งเดียวกันมีหลายแถว (ปกติถ้านับแยกถุง)`];
+            if (s.pending) {
+                bits.push(`<strong>รอตรวจ ${s.pending.toLocaleString()} กลุ่ม</strong>`);
+                if (s.mismatchPending) bits.push(`ในนั้น ${s.mismatchPending.toLocaleString()} กลุ่มยอดรวมยังไม่ตรง Book`);
+                if (s.noMatchData) bits.push(`${s.noMatchData.toLocaleString()} กลุ่มยังไม่ได้คำนวณ Match`);
+            }
+            if (s.accepted) bits.push(`ยืนยันว่าปกติแล้ว ${s.accepted.toLocaleString()} กลุ่ม`);
+            if (s.stale) bits.push(`⚠️ ${s.stale.toLocaleString()} กลุ่มข้อมูลเปลี่ยนหลังยืนยัน ต้องตรวจใหม่`);
+            if (acceptanceTableMissing) bits.push('<em>ยังใช้ปุ่ม "ยืนยันว่าปกติ" ไม่ได้ — ให้ admin รัน docs/sql/019 ก่อน</em>');
+
+            textEl.innerHTML = bits.join(' · ');
+            bar.style.display = 'flex';
+        }
 
         function applyTableView() {
             const filterVal = document.getElementById('filterLocation').value.trim();
@@ -1867,7 +2274,15 @@
                     if (!hasData) {
                         show = false;
                     } else {
-                        show = getRowStatus(tr) === activeStatusFilter;
+                        // กรอง "ผิดพลาด" ให้ลากแถวต้นฉบับของกลุ่มที่ซ้ำมาด้วย
+                        // (สถานะมันคือ ok แต่ถ้าไม่โชว์ ผู้ใช้จะเทียบไม่ได้ว่าซ้ำกับอะไร)
+                        // "ผลกระทบต่อ Match" = ทุกแถวที่อยู่ในกลุ่มทับซ้อน ไม่ว่าสถานะจะเป็นอะไร
+                        if (activeStatusFilter === 'impact') {
+                            show = !!tr.dataset.recordId && overlapRowIndex.has(String(tr.dataset.recordId));
+                        } else {
+                            show = getRowStatus(tr) === activeStatusFilter
+                                || (activeStatusFilter === 'err' && tr.dataset.dupPartner === '1');
+                        }
                     }
                 }
 
@@ -1884,8 +2299,10 @@
             document.getElementById('statVisible').textContent = visible;
             document.getElementById('statTotal').textContent = totalData;
 
+            const dupPartnerShown = activeStatusFilter === 'err'
+                && sheetBody.querySelector('tr[data-dup-partner="1"]:not(.row-filtered-out)');
             const statusPart = activeStatusFilter
-                ? ` · กรองสถานะ: ${STATUS_FILTER_LABELS[activeStatusFilter]}`
+                ? ` · กรองสถานะ: ${STATUS_FILTER_LABELS[activeStatusFilter]}${dupPartnerShown ? ' (+ แถวต้นฉบับของกลุ่มที่ซ้ำ)' : ''}`
                 : '';
 
             let hint;
@@ -1954,7 +2371,7 @@
                     const loc = tr.querySelector('[data-field="loc"]').value.trim();
                     const qty = tr.querySelector('[data-field="qty"]').value.trim();
                     const whHint = tr.dataset.warehouse || '';
-                    const result = verifyRow(sku, loc, qty, whHint);
+                    const result = verifyRow(sku, loc, qty, whHint, tr.dataset.recordId || '');
                     applyResult(tr, result);
                 });
                 setLoadingProgress(Math.min(i + VERIFY_BATCH_SIZE, rows.length), rows.length, 'กำลังตรวจสอบทั้งหมด...');
@@ -2008,6 +2425,17 @@
                     || { suspicious: true, reason: '' };
                 entry.duplicate = cls.suspicious;
                 entry.dupReason = cls.reason;
+
+                // H10 — คนละคำถามกับข้างบน: "บวกซ้ำในรอบเดียวกันไหม" (Match ใช้ SUM ต่อรอบ)
+                // ต่อให้ลบอัตโนมัติไม่ได้ (คนละผู้นับ/ชุดเดียวกัน) ก็ยังต้องเตือนให้คนมาตัดสิน
+                const cyc = window.AuditDedupe?.classifyCycleDuplicate(entry.rawRows)
+                    || { duplicate: false, extraCount: 0, dupIds: [], counters: [], reason: '' };
+                entry.cycleDup = cyc.duplicate;
+                entry.cycleDupIds = new Set(cyc.dupIds || []);
+                entry.cycleDupExtra = cyc.extraCount || 0;
+                entry.cycleDupReason = cyc.reason || '';
+                entry.cycleDupSiblings = cyc.siblings || {};
+                entry.counterNames = cyc.counters || [];
             }
         }
 
@@ -2018,6 +2446,18 @@
                 if (!refBySku.has(sku)) refBySku.set(sku, []);
                 refBySku.get(sku).push(entry);
             }
+        }
+
+        /** รอบนับของแถวหนึ่ง ๆ — คู่กับ getWarehouseForRecordId · ใช้ตัดสินการชนปลายทาง (M26) */
+        function getCycleForRecordId(recordId) {
+            if (!recordId) return null;
+            const id = String(recordId);
+            for (const entry of refBySkuLoc.values()) {
+                for (const r of entry.rawRows || []) {
+                    if (String(r.id) === id) return r.cycle_id ?? null;
+                }
+            }
+            return null;
         }
 
         function getWarehouseForRecordId(recordId) {
@@ -2032,9 +2472,16 @@
 
         /**
          * ตรวจว่าปลายทาง (sku + ตำแหน่ง + คลัง + จำนวน) มีแถวอื่นใน inventory_counts แล้วหรือไม่
+         *
+         * M26: บล็อกเฉพาะเมื่อจะกลายเป็น "ซ้ำในรอบนับเดียวกัน" (ทำให้ Match บวกซ้ำ)
+         * ถ้าปลายทางมีแต่แถวคนละรอบ = ข้อมูลถูกต้องตาม migration 011 → ปล่อยผ่านพร้อมเตือน
+         * กติกาอยู่ใน Js/audit-dedupe.js (`classifyDestinationCollision`) เพื่อให้เขียนเทสได้
+         *
          * @param {Iterable<string>} excludeRecordIds แถวที่ไม่นับเป็นชน (เช่น ทั้งชุดที่กำลังย้ายพร้อมกัน)
+         * @param {string|null} movingCycleId รอบนับของแถวที่กำลังย้าย
+         * @returns {null|{blocked:boolean, message?:string, warning?:string}} null = ไม่ชนเลย
          */
-        function getDestinationCollision(sku, loc, warehouse, qty, excludeRecordIds) {
+        function getDestinationCollision(sku, loc, warehouse, qty, excludeRecordIds, movingCycleId) {
             const skuN = norm(sku);
             const locN = norm(loc);
             const qtyN = qty === undefined || qty === null || qty === '' ? NaN : Number(qty);
@@ -2071,14 +2518,16 @@
 
             if (!entry) return null;
 
-            const others = (entry.record_ids || []).filter(rid => rid && !exclude.has(String(rid)));
-            if (!others.length) return null;
+            const destRows = (entry.rawRows || []).filter(r => r && r.id && !exclude.has(String(r.id)));
+            if (!destRows.length) return null;
 
-            const n = entry.record_count || others.length;
-            return {
-                blocked: true,
-                message: `ปลายทางซ้ำในระบบ (มี ${n} แถวที่ SKU+ตำแหน่ง+คลัง+จำนวนเดียวกันอยู่แล้ว)`
-            };
+            const cls = window.AuditDedupe?.classifyDestinationCollision({ destRows, movingCycleId });
+            if (!cls) {
+                // ไม่มีโมดูล = ไม่กล้าปล่อยผ่าน (พฤติกรรมเดิม)
+                return { blocked: true, message: `ปลายทางมีแถวค่าเดียวกันอยู่แล้ว ${destRows.length} แถว` };
+            }
+            if (!cls.blocked && !cls.warning) return null;
+            return cls;
         }
 
         function resolveDestQty(update) {
@@ -2099,12 +2548,16 @@
             return NaN;
         }
 
-        /** แยกรายการที่อัปเดตได้ vs ชนปลายทาง (DB หรือภายในชุดเดียวกัน) */
+        /**
+         * แยกรายการที่อัปเดตได้ vs ชนปลายทาง (DB หรือภายในชุดเดียวกัน)
+         * M26: `warned` = ปลายทางมีแถวค่าเหมือนกันแต่คนละรอบ — ทำได้ แต่ต้องให้ผู้ใช้เห็นก่อน
+         */
         function validateDestUpdateBatch(updates) {
             const batchIds = new Set(updates.map(u => String(u.recordId)));
             const pendingDest = new Set();
             const ok = [];
             const blocked = [];
+            const warned = [];
 
             for (const u of updates) {
                 const wh = u.warehouse != null && u.warehouse !== ''
@@ -2113,8 +2566,8 @@
                 const qty = resolveDestQty(u);
                 const key = refEntryKey(u.destSku, u.destLoc, wh, qty);
 
-                const coll = getDestinationCollision(u.destSku, u.destLoc, wh, qty, batchIds);
-                if (coll) {
+                const coll = getDestinationCollision(u.destSku, u.destLoc, wh, qty, batchIds, getCycleForRecordId(u.recordId));
+                if (coll && coll.blocked) {
                     blocked.push({ ...u, message: coll.message });
                     continue;
                 }
@@ -2122,10 +2575,11 @@
                     blocked.push({ ...u, message: 'ชนกับรายการอื่นในชุดที่กำลังบันทึก' });
                     continue;
                 }
+                if (coll && coll.warning) warned.push({ ...u, message: coll.warning });
                 pendingDest.add(key);
                 ok.push(u);
             }
-            return { ok, blocked };
+            return { ok, blocked, warned };
         }
 
         function formatBlockedDestLines(blocked, max = 5) {
@@ -2140,7 +2594,20 @@
             return false;
         }
 
-        async function confirmDestUpdatesWithSkips(title, toApply, blocked) {
+        async function confirmDestUpdatesWithSkips(title, toApply, blocked, warned = []) {
+            // ไม่มีอะไรถูกข้าม แต่มีรายการที่ปลายทางมีแถวคนละรอบอยู่ — ต้องให้เห็นก่อนบันทึก (M26)
+            if (!blocked.length && warned.length) {
+                return uiConfirm.show({
+                    title: 'ปลายทางมีแถวค่าเหมือนกัน (คนละรอบนับ)',
+                    variant: 'amber',
+                    intro: `${title}: บันทึกได้ ${toApply.length} รายการ · มี ${warned.length} รายการที่ปลายทางมีแถวค่าเหมือนกันอยู่แล้วแต่เป็นคนละรอบนับ`,
+                    bullets: formatBlockedDestLines(warned, 8),
+                    note: 'คนละรอบนับถือเป็นข้อมูลถูกต้อง (migration 011) จึงบันทึกได้ — ตรวจดูก่อนยืนยัน',
+                    noteVariant: 'safe',
+                    confirmLabel: `บันทึก ${toApply.length} รายการ`,
+                    cancelLabel: 'ยกเลิก'
+                });
+            }
             if (!blocked.length) return true;
             if (!toApply.length) {
                 showToast(
@@ -2153,8 +2620,9 @@
             return uiConfirm.show({
                 title: 'ข้ามรายการที่ปลายทางซ้ำ',
                 variant: 'amber',
-                intro: `${title}: บันทึกได้ ${toApply.length} รายการ · ข้าม ${blocked.length} รายการ`,
-                bullets: formatBlockedDestLines(blocked, 8),
+                intro: `${title}: บันทึกได้ ${toApply.length} รายการ · ข้าม ${blocked.length} รายการ`
+                    + (warned.length ? ` · อีก ${warned.length} รายการปลายทางมีแถวคนละรอบ (บันทึกได้)` : ''),
+                bullets: formatBlockedDestLines(blocked, 8).concat(formatBlockedDestLines(warned, 4)),
                 note: 'รายการที่ข้ามยังไม่ถูกแก้ใน Supabase',
                 noteVariant: 'safe',
                 confirmLabel: `บันทึก ${toApply.length} รายการ`,
@@ -2168,6 +2636,9 @@
             setLoading(true, 'กำลังโหลดข้อมูลอ้างอิง...', formatAuditScopeLabel(filters));
             refBySkuLoc.clear();
             refBySku.clear();
+            recLineByCycleSku.clear();
+            impactByCycleSku.clear();
+            cyclesWithoutMatch.clear();
 
             try {
                 // ต้องดึง cycle_id + counter_name มาด้วย — ใช้ตัดสินว่าแถวที่ค่าเหมือนกัน
@@ -2196,6 +2667,28 @@
                 classifyRefDuplicates();
                 rebuildRefBySku();
 
+                // ผล Match ที่คำนวณไว้ — ใช้บอกว่าแถวทับซ้อนทำให้ยอดเพี้ยนกี่ชิ้น
+                // ล้มเหลวได้โดยไม่ทำให้ทั้งหน้าพัง (การตรวจข้อมูลนับยังทำงานได้ไม่ต้องพึ่ง Book)
+                const cycleIds = [...new Set(allRows.map(r => r.cycle_id).filter(Boolean))];
+                try {
+                    setLoadingMessage('กำลังโหลดผล Match ที่คำนวณไว้...', `${cycleIds.length} รอบนับ`);
+                    const recLines = await fetchReconciliationLines(cycleIds);
+                    const cyclesWithLines = new Set();
+                    for (const l of recLines) {
+                        recLineByCycleSku.set(`${cycleKeyOf(l.cycle_id)}|${norm(l.sku_id)}`, l);
+                        cyclesWithLines.add(String(l.cycle_id));
+                    }
+                    for (const id of cycleIds) {
+                        if (!cyclesWithLines.has(String(id))) cyclesWithoutMatch.add(String(id));
+                    }
+                } catch (recErr) {
+                    console.error(recErr);
+                    showToast(`โหลดผล Match ไม่สำเร็จ — ตรวจข้อมูลนับได้ตามปกติ แต่จะไม่มีตัวเลขเทียบ Book (${recErr.message})`, 'error');
+                    for (const id of cycleIds) cyclesWithoutMatch.add(String(id));
+                }
+                await fetchAcceptances(cycleIds, allRows.some(r => r.cycle_id == null));
+                buildImpactMap(allRows);
+
                 const totalRows = allRows.length;
                 const scope = formatAuditScopeLabel(filters);
                 document.getElementById('refBadge').innerHTML =
@@ -2209,15 +2702,113 @@
             }
         }
 
+        /** เลขแถวในตารางของ record id หนึ่ง ๆ — ไว้ชี้ว่า "ซ้ำกับแถวไหน" (null ถ้าไม่ได้อยู่ในหน้านี้) */
+        function findSheetRowNumber(recordId) {
+            if (!recordId) return null;
+            const safe = String(recordId).replace(/["\\]/g, '\\$&');
+            const tr = sheetBody.querySelector(`tr[data-record-id="${safe}"]`);
+            const num = tr?.querySelector('.col-row-num')?.textContent?.trim();
+            return num || null;
+        }
+
+        /**
+         * อธิบายว่าแถวนี้ซ้ำกับแถวไหนบ้าง — ผู้ใช้ต้องตามไปดูตัวจริงได้ ไม่ใช่แค่รู้ว่าซ้ำ
+         * ผลลัพธ์เข้า innerHTML จึงต้อง escape ค่าที่มาจาก DB (ชื่อผู้นับ)
+         */
+        function describeDuplicatePartners(entry, recordId) {
+            const map = entry.cycleDupSiblings || {};
+            let list = recordId ? map[String(recordId)] : null;
+            if (!list && !recordId) {
+                // แถวที่ผู้ใช้พิมพ์เอง (ไม่มี record id) — อ้างทุกแถวในกลุ่มที่ซ้ำ
+                const seen = new Set();
+                list = [];
+                for (const arr of Object.values(map)) {
+                    for (const s of arr || []) {
+                        if (seen.has(s.id)) continue;
+                        seen.add(s.id);
+                        list.push(s);
+                    }
+                }
+            }
+            if (!list || !list.length) return '';
+            return list.map(s => {
+                const num = findSheetRowNumber(s.id);
+                const bits = [formatRowDateTime(s.created_at)];
+                if (s.counter_name) bits.push(`ผู้นับ ${escapeHtml(s.counter_name)}`);
+                const label = num ? `แถว #${escapeHtml(num)}` : `ID ${escapeHtml(String(s.id).slice(0, 8))}…`;
+                return `${label} (${bits.join(' · ')})`;
+            }).join(' , ');
+        }
+
+        /**
+         * หมายเหตุของแถวทับซ้อน — บอก 3 อย่าง: ซ้ำกับแถวไหน · Match ได้เท่าไหร่ · แก้ยังไงถึงตรง
+         * เข้า innerHTML จึงต้อง escape ทุกค่าที่มาจาก DB (invariant 7)
+         */
+        function formatOverlapNote(ctx, recordId, entry) {
+            const { impact, overlap } = ctx;
+            const parts = [];
+
+            const qtyList = overlap.rows.map(r => Number(r.qty)).join(' , ');
+            parts.push(
+                `<strong>ตำแหน่ง ${escapeHtml(overlap.location)} มี ${overlap.rows.length} แถว จำนวนต่างกัน (${escapeHtml(qtyList)})</strong>`
+            );
+
+            const others = overlap.rows.filter(r => String(r.id) !== String(recordId || ''));
+            if (others.length) {
+                const list = others.map(r => {
+                    const num = findSheetRowNumber(r.id);
+                    const label = num ? `แถว #${escapeHtml(num)}` : `ID ${escapeHtml(String(r.id).slice(0, 8))}…`;
+                    const bits = [`${Number(r.qty)} ชิ้น`, formatRowDateTime(r.created_at)];
+                    if (r.counter_name) bits.push(`ผู้นับ ${escapeHtml(r.counter_name)}`);
+                    return `${label} (${bits.join(' · ')})`;
+                }).join(' , ');
+                parts.push(`คู่กับ ${list}`);
+            }
+
+            if (!impact.hasMatchData) {
+                parts.push(`Match รวมทั้ง SKU นี้ = ${Number(impact.totalCounted)} ชิ้น · <em>รอบนี้ยังไม่ได้กด "คำนวณ Match" จึงยังเทียบยอด Book ไม่ได้</em>`);
+            } else {
+                const diff = Number(impact.variance);
+                const diffText = diff === 0 ? 'ตรงพอดี' : (diff > 0 ? `เกิน +${diff}` : `ขาด ${diff}`);
+                let bookText = `Book ${Number(impact.effectiveBookQty)}`;
+                if (impact.bookQty !== null && Number(impact.bookQty) !== Number(impact.effectiveBookQty)) {
+                    bookText += ` (Book ก่อนปรับยอด ${Number(impact.bookQty)})`;
+                }
+                parts.push(`Match รวมทั้ง SKU นี้ = ${Number(impact.totalCounted)} ชิ้น · ${bookText} · ${diffText}`);
+
+                if (impact.staleMatch) {
+                    parts.push('⚠️ ผล Match ที่เก็บไว้คำนวณก่อนข้อมูลชุดนี้ — กด "คำนวณ Match" ใหม่');
+                }
+            }
+
+            // ห้ามชวนให้ลบเด็ดขาด — นับแยกถุงคือการทำงานปกติ ข้อมูลนับเป็นหลักฐาน
+            // หน้าที่ของหน้านี้คือ "ชี้ให้ดู แล้วให้คนยืนยันว่าปกติ" เท่านั้น
+            if (ctx.ack.state === 'stale') {
+                parts.push(
+                    `⚠️ <strong>เคยยืนยันว่าปกติไว้แล้ว แต่ข้อมูลเปลี่ยน</strong> (ตอนยืนยัน ${Number(ctx.ack.wasRowCount)} แถว รวม ${Number(ctx.ack.wasTotalQty)} ชิ้น) — ตรวจแล้วกดยืนยันใหม่`
+                );
+            } else {
+                parts.push('นับแยกถุง/แยกกล่องเป็นเรื่องปกติ — ตรวจแล้วติ๊กแถวนี้แล้วกด "ยืนยันว่าปกติ" เพื่อปิดรายการ');
+            }
+            if (entry) parts.push(`inventory_counts: ${formatRefNote(entry)}`);
+            return parts.join(' · ');
+        }
+
         /** หมายเหตุอ้างอิง — ผลลัพธ์ถูกใส่ผ่าน innerHTML (applyResult) จึงต้อง escape ทุกค่าที่มาจาก DB */
         function formatRefNote(entry) {
             const parts = [
                 `${escapeHtml(entry.sku_id)} @ ${escapeHtml(entry.location)} = ${Number(entry.counted_qty)} ชิ้น`
             ];
             if (entry.warehouse) parts.push(escapeHtml(entry.warehouse));
-            if (entry.counter_name) parts.push(`ผู้นับ: ${escapeHtml(entry.counter_name)}`);
-            if (entry.duplicate) {
-                parts.push(`น่าจะกดบันทึกซ้ำ ${entry.record_count} แถว — ตรวจแล้วลบได้ที่ปุ่ม "ลบแถวที่กดบันทึกซ้ำ"`);
+            // แสดงผู้นับ "ทุกคน" ในกลุ่ม — เดิมโชว์ชื่อแถวใหม่สุดชื่อเดียว
+            // แล้วบอกว่า "ผู้นับหลายคน" ทำให้อ่านแล้วขัดกัน
+            const counterLabel = (entry.counterNames && entry.counterNames.length)
+                ? entry.counterNames.join(', ')
+                : entry.counter_name;
+            if (counterLabel) parts.push(`ผู้นับ: ${escapeHtml(counterLabel)}`);
+            if (entry.cycleDup) {
+                parts.push(`มี ${entry.record_count} แถวที่ค่าเหมือนกันในรอบนับเดียวกัน — Match บวกเกินมา ${Number(entry.counted_qty) * entry.cycleDupExtra} ชิ้น`);
+                if (entry.cycleDupReason) parts.push(escapeHtml(entry.cycleDupReason));
             } else if (entry.record_count > 1) {
                 parts.push(`มี ${entry.record_count} แถวที่ค่าเหมือนกัน (${escapeHtml(entry.dupReason || 'การนับที่ถูกต้อง')}) — ไม่ต้องแก้`);
             }
@@ -2272,7 +2863,7 @@
             }));
         }
 
-        function verifyRow(sku, loc, qtyStr, warehouseHint) {
+        function verifyRow(sku, loc, qtyStr, warehouseHint, recordId) {
             const skuN = norm(sku);
             const locN = norm(loc);
             const qty = qtyStr === '' ? NaN : Number(qtyStr);
@@ -2310,16 +2901,57 @@
             }
 
             if (exact) {
-                // เตือนเฉพาะที่น่าจะกดบันทึกซ้ำจริง — ค่าเหมือนกันเพราะคนละรอบ/คนละผู้นับ/คนละเวลา
-                // เป็นข้อมูลที่ถูกต้องตาม docs/sql/011 จึงไม่ควรขึ้น error
-                if (exact.duplicate) {
+                // ตรวจแล้วยืนยันว่าปกติ → เงียบทันที ไม่ว่าจะเป็นเคสไหน
+                // (ถ้าข้อมูลเปลี่ยนหลังยืนยัน classifyAcceptance จะคืน 'stale' แล้วกลับมาเตือนเอง)
+                const ctx = getOverlapContext(exact, recordId);
+                if (ctx && ctx.ack.state === 'accepted') {
                     return {
-                        status: 'warn',
-                        message: 'น่าจะกดบันทึกซ้ำ',
-                        note: `มี ${exact.record_count} แถวที่ค่าเหมือนกันและบันทึกห่างกันไม่กี่วินาที โดยผู้นับคนเดียวกันในรอบเดียวกัน — ตรวจแล้วลบได้ที่ปุ่ม "ลบแถวที่กดบันทึกซ้ำ" · ${formatRefNote(exact)}`,
-                        rowClass: 'row-warn'
+                        status: 'ok',
+                        message: 'ยืนยันแล้วว่าปกติ',
+                        note: `${formatAcceptanceNote(ctx.ack)} · ตำแหน่ง ${escapeHtml(ctx.overlap.location)} มี ${ctx.overlap.rows.length} แถว รวม ${Number(ctx.overlap.sum)} ชิ้น · ${formatRefNote(exact)}`,
+                        rowClass: 'row-ok',
+                        accepted: true
                     };
                 }
+
+                // H10 — ซ้ำในรอบนับเดียวกัน (คลัง+SKU+ตำแหน่ง+จำนวน เท่ากันหมด)
+                // refresh_reconciliation_for_cycle ใช้ SUM(counted_qty) ต่อรอบ → ยอดนี้ถูกบวกซ้ำ
+                // ไม่ว่าใครนับหรือห่างกันกี่ชั่วโมง จึงต้องขึ้นแดงให้คนมาตัดสินเสมอ
+                //
+                // ทำเครื่องหมายเฉพาะ "แถวส่วนเกิน" — แถวเก่าสุดของกลุ่มยังถือว่าถูกต้อง
+                // (2 แถวซ้ำ → ผิดพลาด 1 · 3 แถว → ผิดพลาด 2)
+                if (exact.cycleDup) {
+                    const id = recordId ? String(recordId) : '';
+                    const isExtra = id ? exact.cycleDupIds?.has(id) : true;
+                    const partners = describeDuplicatePartners(exact, id);
+                    if (isExtra) {
+                        return {
+                            status: 'error',
+                            message: 'ซ้ำในรอบเดียวกัน',
+                            note: `<strong>ซ้ำกับ ${partners || 'แถวที่นับไว้ก่อนหน้า'}</strong> — ค่าเหมือนกันทุกช่อง ยอดใน Match จะบวกซ้ำ · ตรวจแล้วลบได้ที่ปุ่ม "ลบแถวที่กดบันทึกซ้ำ" (ยืนยัน 2 ขั้น + สำรอง CSV + บันทึกประวัติ) หรือกด "ยืนยันว่าปกติ" ถ้าตรวจแล้วว่าถูกต้อง · ${formatRefNote(exact)}`,
+                            rowClass: 'row-error'
+                        };
+                    }
+                    return {
+                        status: 'ok',
+                        message: 'ข้อมูลถูกต้อง',
+                        note: `<strong>แถวหลักของกลุ่มที่ซ้ำ (ต้นฉบับ)</strong> — มีอีก ${exact.cycleDupExtra} แถวที่ค่าเหมือนกัน: ${partners || '—'} · inventory_counts: ${formatRefNote(exact)}`,
+                        rowClass: 'row-ok',
+                        dupPartner: true
+                    };
+                }
+                // H11 — ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน · Match บวกรวมทุกแถว (SUM ต่อ SKU ต่อรอบ)
+                // อาจถูก (ทยอยนับทีละกล่อง) หรือผิด (คีย์ผิดแล้วคีย์ใหม่ แถวเก่าค้าง) → ให้คนตัดสิน
+                // มาทีหลัง exact.cycleDup เสมอ เพราะเคสค่าเท่ากันเป๊ะร้ายแรงกว่า (แดง)
+                if (ctx && !ctx.overlap.sameQty) {
+                    return {
+                        status: 'overlap',
+                        message: ctx.ack.state === 'stale' ? 'ข้อมูลเปลี่ยนหลังยืนยัน' : 'ตำแหน่งเดียวกันหลายแถว',
+                        note: formatOverlapNote(ctx, recordId, exact),
+                        rowClass: 'row-overlap'
+                    };
+                }
+
                 const expected = Number(exact.counted_qty);
                 if (expected === qty) {
                     return {
@@ -2383,11 +3015,20 @@
 
         function applyResult(tr, result) {
             tr.className = result.rowClass || '';
+            // แถวหลักของกลุ่มที่ซ้ำ — สถานะยัง "ถูกต้อง" แต่ต้องโผล่มาด้วยตอนกรอง "ผิดพลาด"
+            // ผู้ใช้จะได้เห็นทั้งต้นฉบับและตัวซ้ำคู่กัน ไม่ใช่เห็นแค่ตัวซ้ำลอย ๆ
+            if (result.dupPartner) {
+                tr.dataset.dupPartner = '1';
+                tr.classList.add('row-dup-partner');
+            } else {
+                tr.removeAttribute('data-dup-partner');
+            }
             const statusTd = tr.querySelector('.col-status');
             const noteTd = tr.querySelector('.col-note');
             statusTd.className = 'col-status status-cell ' + (
                 result.status === 'ok' ? 'status-ok' :
                 result.status === 'warn' ? 'status-warn' :
+                result.status === 'overlap' ? 'status-overlap' :
                 result.status === 'error' ? 'status-error' : 'status-empty'
             );
             statusTd.textContent = result.message;
@@ -2401,14 +3042,14 @@
             const loc = tr.querySelector('[data-field="loc"]').value;
             const qty = tr.querySelector('[data-field="qty"]').value;
             const whHint = tr.dataset.warehouse || '';
-            const result = verifyRow(sku, loc, qty, whHint);
+            const result = verifyRow(sku, loc, qty, whHint, tr.dataset.recordId || '');
             applyResult(tr, result);
             if (activeStatusFilter) applyTableView();
             return result;
         }
 
         function updateStats() {
-            let ok = 0, err = 0, warn = 0, pending = 0;
+            let ok = 0, err = 0, warn = 0, overlap = 0, pending = 0;
             sheetBody.querySelectorAll('tr').forEach(tr => {
                 const sku = tr.querySelector('[data-field="sku"]').value.trim();
                 const loc = tr.querySelector('[data-field="loc"]').value.trim();
@@ -2417,13 +3058,16 @@
 
                 if (tr.classList.contains('row-ok')) ok++;
                 else if (tr.classList.contains('row-warn')) warn++;
+                else if (tr.classList.contains('row-overlap')) overlap++;
                 else if (tr.classList.contains('row-error')) err++;
                 else pending++;
             });
             document.getElementById('statOk').textContent = ok;
             document.getElementById('statErr').textContent = err;
             document.getElementById('statWarn').textContent = warn;
+            document.getElementById('statOverlap').textContent = overlap;
             document.getElementById('statPending').textContent = pending;
+            updateImpactBar();
         }
 
         async function verifyAll() {
@@ -2482,6 +3126,13 @@
 
             if (countEl) countEl.textContent = count;
             if (btn) btn.disabled = count === 0 || swapSkuLocMode;
+
+            // "ยืนยันว่าปกติ" ใช้ได้เฉพาะแถวที่อยู่ในกลุ่มที่ระบบเตือน (มีอยู่ใน overlapRowIndex)
+            const btnAccept = document.getElementById('btnAcceptNormal');
+            if (btnAccept) {
+                const acceptable = withDb.filter(tr => overlapRowIndex.has(String(tr.dataset.recordId)));
+                btnAccept.disabled = acceptable.length === 0 || swapSkuLocMode || editLocationMode;
+            }
             if (swapCountEl) swapCountEl.textContent = withDb.length;
             if (btnSwapApply) btnSwapApply.disabled = withDb.length === 0;
 
@@ -2695,7 +3346,8 @@
         }
 
         function clearRowAuditUI(tr) {
-            tr.classList.remove('row-ok', 'row-warn', 'row-error', 'loc-dirty');
+            tr.classList.remove('row-ok', 'row-warn', 'row-error', 'row-overlap', 'row-dup-partner', 'loc-dirty');
+            tr.removeAttribute('data-dup-partner');
             const statusTd = tr.querySelector('.col-status');
             const noteTd = tr.querySelector('.col-note');
             if (statusTd) {
@@ -2874,8 +3526,8 @@
                     newSkuId
                 };
             });
-            const { ok: toApply, blocked } = validateDestUpdateBatch(planned);
-            const proceedSwap = await confirmDestUpdatesWithSkips('สลับ SKU↔ตำแหน่ง', toApply, blocked);
+            const { ok: toApply, blocked, warned } = validateDestUpdateBatch(planned);
+            const proceedSwap = await confirmDestUpdatesWithSkips('สลับ SKU↔ตำแหน่ง', toApply, blocked, warned);
             if (!proceedSwap) return;
 
             const btnApply = document.getElementById('btnApplySwapSkuLoc');
@@ -3049,8 +3701,8 @@
                     newLoc
                 };
             });
-            const { ok: toApply, blocked } = validateDestUpdateBatch(planned);
-            const proceedLoc = await confirmDestUpdatesWithSkips('บันทึกตำแหน่ง', toApply, blocked);
+            const { ok: toApply, blocked, warned } = validateDestUpdateBatch(planned);
+            const proceedLoc = await confirmDestUpdatesWithSkips('บันทึกตำแหน่ง', toApply, blocked, warned);
             if (!proceedLoc) return;
 
             const btnSave = document.getElementById('btnSaveLocChanges');
@@ -3236,7 +3888,8 @@
                 if (!tr) continue;
                 tr.removeAttribute('data-record-id');
                 tr.removeAttribute('data-original-loc');
-                tr.classList.remove('loc-dirty', 'row-ok', 'row-warn', 'row-error');
+                tr.classList.remove('loc-dirty', 'row-ok', 'row-warn', 'row-error', 'row-overlap', 'row-dup-partner');
+                tr.removeAttribute('data-dup-partner');
                 const skuIn = tr.querySelector('[data-field="sku"]');
                 const locIn = tr.querySelector('[data-field="loc"]');
                 const qtyIn = tr.querySelector('[data-field="qty"]');
@@ -3839,8 +4492,8 @@
                 label: `${item.sku}: ${item.dbLocation} → ${item.newLocation}`,
                 item
             }));
-            const { ok: toApply, blocked } = validateDestUpdateBatch(planned);
-            const proceedCmp = await confirmDestUpdatesWithSkips('แก้ตำแหน่งจาก Excel', toApply, blocked);
+            const { ok: toApply, blocked, warned } = validateDestUpdateBatch(planned);
+            const proceedCmp = await confirmDestUpdatesWithSkips('แก้ตำแหน่งจาก Excel', toApply, blocked, warned);
             if (!proceedCmp) return;
 
             if (applyBtn) applyBtn.disabled = true;
@@ -3994,6 +4647,20 @@
         document.getElementById('btnExport').addEventListener('click', exportTableToExcel);
         document.getElementById('btnReloadRef').addEventListener('click', () => runFullAuditLoad());
 
+        document.getElementById('btnHistory')?.addEventListener('click', openAuditHistory);
+        document.getElementById('btnHistoryClose')?.addEventListener('click', closeAuditHistory);
+        document.getElementById('btnHistoryCancel')?.addEventListener('click', closeAuditHistory);
+        document.getElementById('btnHistoryReload')?.addEventListener('click', loadAuditHistory);
+        document.getElementById('btnHistoryExport')?.addEventListener('click', exportAuditHistoryToExcel);
+        document.getElementById('historyAction')?.addEventListener('change', loadAuditHistory);
+        document.getElementById('historySku')?.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') loadAuditHistory();
+        });
+        document.getElementById('historyBackdrop')?.addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeAuditHistory();
+        });
+
+        document.getElementById('btnAcceptNormal')?.addEventListener('click', () => acceptSelectedAsNormal());
         document.getElementById('btnDedupeDb').addEventListener('click', () => dedupeInventoryCountsInDb());
 
         /**
@@ -4028,6 +4695,251 @@
             setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
         }
 
+        // =====================================================================
+        //  ประวัติการแก้ไข/ลบ — อ่านจาก inventory_audit_logs
+        //  invariant 1: ทุกการแก้/ลบเขียน log ไว้แล้ว หน้านี้แค่เอามาแสดงให้ดูย้อนหลังได้
+        // =====================================================================
+        const HISTORY_ACTION_LABELS = {
+            AUDIT_DEDUPE: 'ลบแถวซ้ำ',
+            AUDIT_DELETE: 'ลบที่เลือก',
+            AUDIT_EDIT_LOC: 'แก้ตำแหน่ง',
+            AUDIT_SWAP: 'สลับ SKU↔ตำแหน่ง',
+            AUDIT_LOC_COMPARE: 'แก้ตำแหน่งจาก Excel'
+        };
+        const HISTORY_LIMIT = 500;
+        let historyRows = [];
+
+        async function loadAuditHistory() {
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+            const body = document.getElementById('historyBody');
+            const countEl = document.getElementById('historyCount');
+            const action = document.getElementById('historyAction')?.value || '';
+            const skuTerm = norm(document.getElementById('historySku')?.value || '');
+            const filters = getAuditFilters();
+
+            body.innerHTML = `<tr><td colspan="7" class="audit-history-empty">กำลังโหลด...</td></tr>`;
+
+            try {
+                let query = supabaseClient
+                    .from('inventory_audit_logs')
+                    .select('id, action_type, record_id, sku_id, old_qty, new_qty, warehouse, location, counter_name, created_at')
+                    .in('action_type', Object.keys(HISTORY_ACTION_LABELS))
+                    .order('created_at', { ascending: false })
+                    .order('id', { ascending: false })
+                    .limit(HISTORY_LIMIT);
+
+                if (action) query = query.eq('action_type', action);
+                if (filters.warehouse) query = query.eq('warehouse', filters.warehouse);
+                if (skuTerm) query = query.ilike('sku_id', `%${skuTerm}%`);
+
+                const { data, error } = await query;
+                if (error) throw error;
+                historyRows = data || [];
+            } catch (err) {
+                console.error(err);
+                historyRows = [];
+                body.innerHTML = `<tr><td colspan="7" class="audit-history-empty">โหลดประวัติไม่สำเร็จ: ${escapeHtml(err.message)}</td></tr>`;
+                if (countEl) countEl.textContent = '';
+                return;
+            }
+
+            if (!historyRows.length) {
+                body.innerHTML = `<tr><td colspan="7" class="audit-history-empty">ยังไม่มีประวัติในเงื่อนไขนี้</td></tr>`;
+                if (countEl) countEl.textContent = '';
+                return;
+            }
+
+            // ทุกค่ามาจาก DB → escape ทุกช่อง (invariant 7)
+            body.innerHTML = historyRows.map(r => {
+                const isDelete = r.action_type === 'AUDIT_DELETE' || r.action_type === 'AUDIT_DEDUPE';
+                const label = HISTORY_ACTION_LABELS[r.action_type] || r.action_type;
+                const qty = r.old_qty == null ? '—' : Number(r.old_qty);
+                return `<tr class="${isDelete ? 'is-delete' : ''}">
+                    <td>${escapeHtml(formatRowDateTime(r.created_at))}</td>
+                    <td>${escapeHtml(label)}</td>
+                    <td>${escapeHtml(r.sku_id || '-')}</td>
+                    <td>${escapeHtml(r.location || '-')}</td>
+                    <td>${qty}</td>
+                    <td>${escapeHtml(r.warehouse || '-')}</td>
+                    <td>${escapeHtml(r.counter_name || '-')}</td>
+                </tr>`;
+            }).join('');
+
+            if (countEl) {
+                countEl.textContent = historyRows.length >= HISTORY_LIMIT
+                    ? `แสดง ${HISTORY_LIMIT.toLocaleString()} รายการล่าสุด (มีมากกว่านี้ — กรองเพิ่มเพื่อดูที่เหลือ)`
+                    : `${historyRows.length.toLocaleString()} รายการ`;
+            }
+        }
+
+        function exportAuditHistoryToExcel() {
+            if (!historyRows.length) {
+                showToast('ไม่มีประวัติให้ส่งออก', 'error');
+                return;
+            }
+            try {
+                const rows = historyRows.map(r => ({
+                    'วันที่-เวลา': formatRowDateTime(r.created_at),
+                    'ประเภท': HISTORY_ACTION_LABELS[r.action_type] || r.action_type,
+                    'รหัสสินค้า': r.sku_id || '',
+                    'ตำแหน่ง / รายละเอียด': r.location || '',
+                    'จำนวน': r.old_qty == null ? '' : Number(r.old_qty),
+                    'คลัง': r.warehouse || '',
+                    'ผู้ทำ': r.counter_name || '',
+                    'record_id': r.record_id || ''
+                }));
+                const ws = XLSX.utils.json_to_sheet(rows);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'ประวัติ');
+                XLSX.writeFile(wb, `audit-history-${new Date().toISOString().slice(0, 10)}.xlsx`);
+                showToast(`ส่งออกประวัติ ${rows.length.toLocaleString()} รายการ`);
+            } catch (err) {
+                showToast('ส่งออกล้มเหลว: ' + err.message, 'error');
+            }
+        }
+
+        function openAuditHistory() {
+            const bd = document.getElementById('historyBackdrop');
+            if (!bd) return;
+            bd.classList.add('open');
+            bd.setAttribute('aria-hidden', 'false');
+            loadAuditHistory();
+        }
+
+        function closeAuditHistory() {
+            const bd = document.getElementById('historyBackdrop');
+            if (!bd) return;
+            bd.classList.remove('open');
+            bd.setAttribute('aria-hidden', 'true');
+        }
+
+        /**
+         * "ตรวจแล้ว ยืนยันว่าปกติ" — บันทึกลง inventory_count_acceptances
+         * **ไม่แตะ inventory_counts เลย** ข้อมูลนับเป็นหลักฐาน นับมายังไงเก็บอย่างนั้น
+         * ระบบแค่จำว่าใครตรวจแล้วบอกว่ากลุ่มนี้ปกติ เพื่อเลิกเตือนซ้ำ
+         */
+        async function acceptSelectedAsNormal() {
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+            if (acceptanceTableMissing) {
+                showToast('ยังไม่มีตาราง inventory_count_acceptances — ให้ admin รัน docs/sql/019 ก่อน', 'error');
+                return;
+            }
+
+            // รวมแถวที่ติ๊กไว้เป็น "กลุ่ม" (รอบ + SKU + ตำแหน่ง) — ติ๊กแถวเดียวก็ยืนยันทั้งกลุ่ม
+            const groups = new Map();
+            for (const tr of getCheckedRows()) {
+                const id = tr.dataset.recordId;
+                if (!id) continue;
+                const hit = overlapRowIndex.get(String(id));
+                if (!hit) continue;
+                const impact = impactByCycleSku.get(hit.key);
+                const overlap = impact?.overlapLocations.find(o => o.location === hit.location);
+                if (!overlap) continue;
+                const sep = hit.key.indexOf('|');
+                const cycleId = hit.key.slice(0, sep);
+                const sku = hit.key.slice(sep + 1);
+                const key = acceptanceKey(cycleId, sku, overlap.location);
+                if (groups.has(key)) continue;
+                const existing = acceptanceByKey.get(key) || null;
+                groups.set(key, {
+                    cycleId: cycleId === '(no-cycle)' ? null : cycleId,
+                    sku,
+                    location: overlap.location,
+                    warehouse: tr.dataset.warehouse || '',
+                    rowCount: overlap.rows.length,
+                    totalQty: overlap.sum,
+                    existingId: existing?.id || null,
+                    alreadyAccepted: !!existing
+                });
+            }
+
+            if (!groups.size) {
+                showToast('เลือกแถวที่ระบบเตือนไว้ก่อน (สีแดง/สีส้ม)', 'error');
+                return;
+            }
+
+            const list = [...groups.values()];
+            const bullets = list.slice(0, 10).map(g =>
+                `${g.sku} @ ${g.location} — ${g.rowCount} แถว รวม ${g.totalQty} ชิ้น${g.alreadyAccepted ? ' (ยืนยันใหม่ทับของเดิม)' : ''}`
+            );
+            if (list.length > 10) bullets.push(`… และอีก ${(list.length - 10).toLocaleString()} กลุ่ม`);
+
+            const ok = await uiConfirm.show({
+                title: 'ยืนยันว่าปกติ',
+                variant: 'green',
+                intro: `จะบันทึกว่าตรวจแล้ว ${list.length.toLocaleString()} กลุ่มนี้เป็นข้อมูลปกติ`,
+                bullets,
+                note: 'ไม่แก้และไม่ลบข้อมูลผลนับใด ๆ — แค่จำไว้ว่าตรวจแล้ว เพื่อเลิกเตือนกลุ่มนี้ · ถ้าภายหลังมีแถวเพิ่มหรือจำนวนเปลี่ยน ระบบจะกลับมาเตือนใหม่เอง',
+                noteVariant: 'safe',
+                confirmLabel: `ยืนยัน ${list.length.toLocaleString()} กลุ่ม`,
+                confirmIcon: 'badge-check'
+            });
+            if (!ok) return;
+
+            const btn = document.getElementById('btnAcceptNormal');
+            if (btn) btn.disabled = true;
+            setLoading(true, 'กำลังบันทึกการยืนยัน...', `${list.length.toLocaleString()} กลุ่ม`);
+
+            try {
+                const actor = window.AuditLog.resolveActor('audit_check');
+                const now = new Date().toISOString();
+                const rowOf = g => ({
+                    cycle_id: g.cycleId,
+                    warehouse: g.warehouse,
+                    sku_id: g.sku,
+                    location: g.location,
+                    row_count: g.rowCount,
+                    total_qty: g.totalQty,
+                    accepted_by: actor,
+                    accepted_at: now
+                });
+
+                // unique index ของ 019 เป็นแบบ expression (coalesce/upper/btrim)
+                // → `ON CONFLICT (cycle_id, sku_id, location)` จับคู่ไม่ได้ (Postgres 42P10)
+                // จึงแยกเองเป็น "เพิ่มใหม่" กับ "อัปเดตทับด้วย id" โดยใช้ข้อมูลที่โหลดมาแล้ว
+                const toInsert = list.filter(g => !g.existingId).map(rowOf);
+                const toUpdate = list.filter(g => g.existingId);
+
+                if (toInsert.length) {
+                    const { error } = await supabaseClient
+                        .from('inventory_count_acceptances')
+                        .insert(toInsert);
+                    if (error) throw error;
+                }
+                for (const g of toUpdate) {
+                    const { error } = await supabaseClient
+                        .from('inventory_count_acceptances')
+                        .update(rowOf(g))
+                        .eq('id', g.existingId);
+                    if (error) throw error;
+                }
+
+                showToast(`ยืนยันแล้ว ${list.length.toLocaleString()} กลุ่ม — ระบบจะเลิกเตือนกลุ่มนี้`);
+                await loadReferenceData();
+                await verifyAll();
+            } catch (err) {
+                console.error(err);
+                // 23505 = ชน unique index — มีคนยืนยันกลุ่มเดียวกันจากเครื่องอื่นก่อนหน้าเรา
+                // ผลลัพธ์ที่ต้องการ (กลุ่มถูกยืนยัน) เกิดขึ้นแล้ว แค่ไม่ใช่มือเรา → โหลดสถานะล่าสุดมาแสดง
+                if (err?.code === '23505') {
+                    showToast('มีผู้อื่นยืนยันกลุ่มนี้ไปแล้ว — โหลดสถานะล่าสุดให้ใหม่', 'error');
+                    await loadReferenceData();
+                    await verifyAll();
+                } else {
+                    showToast(`บันทึกการยืนยันไม่สำเร็จ: ${err.message}`, 'error');
+                }
+            } finally {
+                setLoading(false);
+                updateSelectionUI();
+            }
+        }
+
         async function dedupeInventoryCountsInDb() {
             if (!supabaseClient) {
                 showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
@@ -4052,26 +4964,56 @@
                     );
                 }
 
-                // นิยาม "ซ้ำโดยไม่ตั้งใจ" อยู่ใน Js/audit-dedupe.js (มีเทสคุ้มกัน)
-                // กันไม่ให้ลบแถวที่ต่างรอบ / ต่างผู้นับ / นับซ้ำคนละเวลา ตาม docs/sql/011
-                const analysis = window.AuditDedupe.findAccidentalDuplicates(rows);
-                const { groups: dupGroups, toDelete, keptSeparate, stats } = analysis;
+                // เกณฑ์ลบอยู่ใน Js/audit-dedupe.js (มีเทสคุ้มกัน)
+                // ซ้ำ = รอบ+คลัง+SKU+ตำแหน่ง+จำนวน เหมือนกันหมด · เก็บแถวเก่าสุดเสมอ
+                // ⚠️ จำนวนต่างกัน = นับแยกถุง/แยกกล่อง เป็นผลนับจริง ไม่เข้าเกณฑ์นี้
+                const analysis = window.AuditDedupe.findSameCycleDuplicates(rows);
+
+                // กลุ่มที่คนตรวจแล้วกด "ยืนยันว่าปกติ" ต้องไม่ถูกลบ — คำยืนยันของคนชนะกฎของระบบ
+                // (1) โหลด acceptances ของ scope นี้สด ๆ เสมอ (รวมแถวที่ยังไม่ผูกรอบ) —
+                //     ปุ่มนี้ fetch แถวเองใหม่ จะพึ่ง acceptanceByKey ค้างจากการโหลดครั้งก่อนไม่ได้
+                await fetchAcceptances(
+                    [...new Set(rows.map(r => r.cycle_id).filter(Boolean))],
+                    rows.some(r => r.cycle_id == null)
+                );
+                // (2) เทียบด้วย shape ของ "ทั้งตำแหน่ง" (ทุกแถวทุกจำนวน) ให้ตรงกับตอนบันทึกการยืนยัน
+                //     ห้ามใช้แค่กลุ่มที่จำนวนเท่ากัน — เคส [5,5,9] ยืนยันเก็บ (3,19) ถ้าเทียบ (2,10) จะ stale ผิด ๆ
+                const locShapes = window.AuditDedupe.buildLocationShapes(rows);
+                const acceptedSkipped = [];
+                const dupGroups = analysis.groups.filter(g => {
+                    const shape = locShapes.get(window.AuditDedupe.locationShapeKey(g.keep)) || { rowCount: 0, totalQty: 0 };
+                    const ack = getAcceptanceState(
+                        g.keep.cycle_id, g.keep.sku_id, g.keep.location,
+                        shape.rowCount, shape.totalQty
+                    );
+                    if (ack.state === 'accepted') {
+                        acceptedSkipped.push(`${g.keep.sku_id} @ ${g.keep.location || '-'} = ${g.keep.counted_qty} ชิ้น`);
+                        return false;
+                    }
+                    return true;
+                });
+                const toDelete = dupGroups.flatMap(g => g.remove);
 
                 if (!toDelete.length) {
-                    const extra = stats.keptRowCount
-                        ? ` · มี ${stats.keptRowCount.toLocaleString()} แถวที่ค่าเหมือนกันแต่เป็นการนับที่ถูกต้อง (คนละรอบ/คนละผู้นับ/คนละเวลา) — ไม่ลบ`
+                    const extra = acceptedSkipped.length
+                        ? ` · ข้าม ${acceptedSkipped.length.toLocaleString()} กลุ่มที่ยืนยันว่าปกติไว้แล้ว`
                         : '';
-                    showToast(`ไม่พบการกดบันทึกซ้ำในขอบเขตที่กรอง${extra}`, 'success');
+                    showToast(`ไม่พบแถวซ้ำในขอบเขตที่กรอง (ซ้ำ = รอบ+คลัง+SKU+ตำแหน่ง+จำนวนเหมือนกันหมด)${extra}`, 'success');
                     return;
                 }
 
-                const preview = dupGroups.slice(0, 8).map(g => {
+                // แต่ละบรรทัดต้องอ่านออกว่า "จะลบอะไร" — SKU · ตำแหน่ง · จำนวน · เวลาที่บันทึก · ผู้นับ
+                const preview = dupGroups.slice(0, 10).map(g => {
                     const h = g.keep;
-                    return `${h.sku_id} @ ${h.location || '-'} = ${h.counted_qty} ชิ้น · ${h.counter_name || 'ไม่ระบุผู้นับ'} · ลบ ${g.remove.length} แถว`;
+                    const removed = g.remove
+                        .map(r => `${formatRowDateTime(r.created_at)} (${r.counter_name || 'ไม่ระบุผู้นับ'})`)
+                        .join(' , ');
+                    return `${h.sku_id} @ ${h.location || '-'} = ${h.counted_qty} ชิ้น · ลบ ${g.remove.length} แถว: ${removed}`
+                        + ` · เก็บแถว ${formatRowDateTime(h.created_at)} (${h.counter_name || 'ไม่ระบุผู้นับ'})`;
                 });
-                if (dupGroups.length > 8) preview.push(`… และอีก ${(dupGroups.length - 8).toLocaleString()} กลุ่ม`);
-                if (stats.keptRowCount) {
-                    preview.push(`✔ กันไว้ไม่ลบ ${stats.keptRowCount.toLocaleString()} แถว (ค่าเหมือนกันแต่คนละรอบ/คนละผู้นับ/คนละเวลา)`);
+                if (dupGroups.length > 10) preview.push(`… และอีก ${(dupGroups.length - 10).toLocaleString()} กลุ่ม`);
+                if (acceptedSkipped.length) {
+                    preview.push(`✔ ข้าม ${acceptedSkipped.length.toLocaleString()} กลุ่มที่ยืนยันว่าปกติไว้แล้ว: ${acceptedSkipped.slice(0, 3).join(' , ')}${acceptedSkipped.length > 3 ? ' …' : ''}`);
                 }
 
                 setLoading(false);
@@ -4080,14 +5022,17 @@
                     title: 'ลบแถวที่กดบันทึกซ้ำ',
                     variant: 'danger',
                     step1: {
-                        intro: `พบ ${dupGroups.length.toLocaleString()} กลุ่มที่น่าจะกดซ้ำ — จะลบ ${toDelete.length.toLocaleString()} แถว (เก็บแถวเก่าสุดของแต่ละกลุ่ม)`,
+                        intro: `พบแถวซ้ำ ${dupGroups.length.toLocaleString()} กลุ่ม — จะลบ ${toDelete.length.toLocaleString()} แถว และเก็บแถวเก่าสุดของแต่ละกลุ่มไว้`,
                         bullets: preview,
-                        note: `เกณฑ์ลบ (ต้องครบทุกข้อ): คลัง+SKU+ตำแหน่ง+จำนวนเหมือนกัน · รอบนับเดียวกัน · ผู้นับคนเดียวกัน · ห่างกันไม่เกิน ${stats.windowMinutes} นาที · ไม่ได้บันทึกมาในชุดเดียวกันหรือไฟล์นำเข้าเดียวกัน — แถวที่ไม่เข้าเกณฑ์จะไม่ถูกลบ (ตามนโยบาย docs/sql/011)`,
+                        note: 'เกณฑ์ลบ: รอบนับ + คลัง + SKU + ตำแหน่ง + จำนวน เหมือนกันหมด · ⚠️ แถวที่จำนวนต่างกันในตำแหน่งเดียวกัน (นับแยกถุง/แยกกล่อง) เป็นผลนับจริง ระบบจะไม่แตะเด็ดขาด',
                         confirmLabel: 'ดำเนินการต่อ'
                     },
                     step2: {
                         intro: `ยืนยันลบ ${toDelete.length.toLocaleString()} แถวถาวร`,
-                        note: 'ระบบจะดาวน์โหลดไฟล์สำรอง (CSV) ของแถวที่จะลบให้อัตโนมัติก่อน · ลบจาก Supabase โดยตรง กู้คืนจาก UI ไม่ได้',
+                        bullets: toDelete.slice(0, 10).map(r =>
+                            `${r.sku_id} @ ${r.location || '-'} = ${r.counted_qty} ชิ้น · ${r.warehouse || '-'} · บันทึก ${formatRowDateTime(r.created_at)} · ${r.counter_name || 'ไม่ระบุผู้นับ'}`
+                        ).concat(toDelete.length > 10 ? [`… และอีก ${(toDelete.length - 10).toLocaleString()} แถว`] : []),
+                        note: 'ระบบจะดาวน์โหลดไฟล์สำรอง (CSV) และบันทึกประวัติการลบ (SKU · ตำแหน่ง · จำนวน · วันเวลา · ผู้ทำ) ก่อนเสมอ — ดูย้อนหลังได้ที่ปุ่ม "ประวัติการแก้ไข/ลบ" · ลบจาก Supabase โดยตรง กู้คืนจาก UI ไม่ได้',
                         noteVariant: 'danger',
                         confirmLabel: 'ลบถาวร',
                         confirmIcon: 'trash-2'
@@ -4283,6 +5228,8 @@
         document.querySelectorAll('.audit-stat-filter').forEach(el => {
             el.addEventListener('click', () => toggleStatusFilter(el.dataset.filter));
         });
+
+        document.getElementById('btnImpactFilter')?.addEventListener('click', () => toggleStatusFilter('impact'));
 
         // Demo row hint
         function seedExample() {

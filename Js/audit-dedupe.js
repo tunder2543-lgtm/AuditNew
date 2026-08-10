@@ -168,12 +168,243 @@
             : { suspicious: false, reason: 'นับซ้ำเพื่อยืนยัน (คนละเวลา)' };
     }
 
+    /**
+     * "ซ้ำแล้วบวกซ้ำในรอบเดียวกัน" — คนละคำถามกับ "ลบอัตโนมัติได้ไหม"
+     *
+     * `refresh_reconciliation_for_cycle` ใช้ `SUM(counted_qty)` ต่อ SKU ต่อรอบ
+     * ดังนั้นถ้า (รอบ + คลัง + SKU + ตำแหน่ง + จำนวน) เหมือนกันหมด ยอดจะถูกบวกซ้ำใน Match
+     * **ไม่ว่าใครนับ หรือห่างกันกี่ชั่วโมง** → ต้องเตือนเสมอ
+     *
+     * ต่างจาก findAccidentalDuplicates ตรงที่อันนั้นตอบว่า "ลบให้เองได้ไหม" (กฎเข้ม กัน
+     * ไม่ให้ลบข้อมูลนับที่ถูกต้องตาม migration 011) ส่วนอันนี้ตอบว่า "ควรให้คนมาดูไหม"
+     *
+     * @param {Array} rowsInEntry แถวที่ค่าเหมือนกันทุกช่อง (มาจาก entry เดียวใน audit_check)
+     * @returns {{duplicate:boolean, extraCount:number, keepIds:string[], dupIds:string[],
+     *            counters:string[], reason:string, siblings:Object}}
+     *   keepIds  = แถวเก่าสุดของแต่ละรอบ (ถือว่าเป็นแถวหลัก) · dupIds = แถวส่วนเกินที่ควรเตือน
+     *   siblings = { [rowId]: [{id, created_at, counter_name}] } — "ซ้ำกับแถวไหนบ้าง"
+     *              ไว้ให้หน้าจอชี้ตัวจริงให้ผู้ใช้ตรวจได้ ไม่ใช่แค่บอกว่าซ้ำ
+     */
+    function classifyCycleDuplicate(rowsInEntry) {
+        const list = (rowsInEntry || []).filter(Boolean);
+        const empty = { duplicate: false, extraCount: 0, keepIds: [], dupIds: [], counters: [], reason: '', siblings: {} };
+        if (list.length < 2) return empty;
+
+        // รวมชื่อผู้นับตามลำดับที่เจอ (ไม่ normalize เพื่อให้แสดงชื่อจริงได้)
+        const counters = [];
+        const seenCounter = new Set();
+        for (const r of list) {
+            const name = (r.counter_name ?? '').toString().trim();
+            if (!name) continue;
+            const k = name.toUpperCase();
+            if (seenCounter.has(k)) continue;
+            seenCounter.add(k);
+            counters.push(name);
+        }
+
+        // แยกตามรอบ — คนละรอบไม่ถูกบวกรวมกันใน reconciliation_lines
+        const byCycle = new Map();
+        for (const r of list) {
+            const k = r.cycle_id == null ? '(no-cycle)' : String(r.cycle_id);
+            if (!byCycle.has(k)) byCycle.set(k, []);
+            byCycle.get(k).push(r);
+        }
+
+        const keepIds = [];
+        const dupIds = [];
+        const siblings = {};
+        let sameBatch = false;
+        let sameCounterOnly = true;
+        for (const group of byCycle.values()) {
+            if (group.length < 2) continue;
+            const sorted = [...group].sort((a, b) => {
+                const ta = timeOf(a), tb = timeOf(b);
+                if (ta != null && tb != null && ta !== tb) return ta - tb;
+                if (ta == null && tb != null) return 1;
+                if (tb == null && ta != null) return -1;
+                return String(a.id).localeCompare(String(b.id));
+            });
+            keepIds.push(String(sorted[0].id));
+            for (let i = 1; i < sorted.length; i++) {
+                dupIds.push(String(sorted[i].id));
+                if (timeOf(sorted[i]) === timeOf(sorted[0]) || sameImportBatch(sorted[0], sorted[i])) sameBatch = true;
+            }
+            if (new Set(group.map(r => norm(r.counter_name))).size > 1) sameCounterOnly = false;
+
+            // แต่ละแถวซ้ำกับแถวไหนบ้าง — เรียงเก่า→ใหม่เหมือนที่แสดงในตาราง
+            for (const r of sorted) {
+                siblings[String(r.id)] = sorted
+                    .filter(o => String(o.id) !== String(r.id))
+                    .map(o => ({
+                        id: String(o.id),
+                        created_at: o.created_at || null,
+                        counter_name: (o.counter_name ?? '').toString().trim()
+                    }));
+            }
+        }
+
+        if (!dupIds.length) return { ...empty, counters };
+
+        const reasons = [];
+        if (!sameCounterOnly) reasons.push(`นับโดยคนละคน (${counters.join(', ')})`);
+        else if (counters.length) reasons.push(`ผู้นับ ${counters.join(', ')} บันทึกซ้ำ`);
+        if (sameBatch) reasons.push('บันทึกมาในชุดเดียวกัน');
+
+        return {
+            duplicate: true,
+            extraCount: dupIds.length,
+            keepIds,
+            dupIds,
+            counters,
+            reason: reasons.join(' · '),
+            siblings
+        };
+    }
+
+    function cycleKey(v) {
+        return v == null || v === '' ? '(no-cycle)' : String(v);
+    }
+
+    /**
+     * H12 — เกณฑ์ของปุ่ม "ลบแถวที่กดบันทึกซ้ำ" (admin ตัดสินใจ 2026-08-10)
+     *
+     * ซ้ำ = **รอบนับ + คลัง + SKU + ตำแหน่ง + จำนวน เหมือนกันหมด**
+     * ไม่สนว่าใครนับหรือห่างกันกี่ชั่วโมง เพราะยังไงก็ถูก SUM รวมกันใน Match
+     * เก็บ "แถวเก่าสุด" ของแต่ละกลุ่มไว้เสมอ ที่เหลือคือส่วนเกิน
+     *
+     * ⚠️ **จำนวนต่างกัน = การนับแยกถุง/แยกกล่อง เป็นผลนับจริง ห้ามแตะ**
+     * เงื่อนไข "จำนวนเท่ากัน" ในคีย์กลุ่มคือด่านที่กันเรื่องนี้ไว้ ห้ามถอดออก
+     *
+     * ต่างจาก findAccidentalDuplicates (กฎเข้มของ H2) ที่ยังใช้ตอบคำถาม
+     * "แถวไหนเข้าข่ายกดปุ่มบันทึกรัว ๆ" — เก็บไว้ใช้ในหมายเหตุ ไม่ใช่ตัวตัดสินการลบแล้ว
+     *
+     * @returns {{groups:Array<{keep:object, remove:Array}>, toDelete:Array, stats:object}}
+     */
+    function findSameCycleDuplicates(rows) {
+        const list = (rows || []).filter(Boolean);
+        const buckets = new Map();
+        for (const r of list) {
+            const k = [
+                cycleKey(r.cycle_id),
+                norm(r.warehouse),
+                norm(r.sku_id),
+                norm(r.location),
+                String(Number(r.counted_qty) || 0)
+            ].join('|');
+            if (!buckets.has(k)) buckets.set(k, []);
+            buckets.get(k).push(r);
+        }
+
+        const groups = [];
+        const toDelete = [];
+        for (const bucket of buckets.values()) {
+            if (bucket.length < 2) continue;
+            const sorted = [...bucket].sort((a, b) => {
+                const ta = timeOf(a), tb = timeOf(b);
+                if (ta != null && tb != null && ta !== tb) return ta - tb;
+                if (ta == null && tb != null) return 1;
+                if (tb == null && ta != null) return -1;
+                return String(a.id).localeCompare(String(b.id));
+            });
+            const keep = sorted[0];
+            const keepId = String(keep.id);
+            const remove = sorted.slice(1).filter(r => String(r.id) !== keepId);
+            if (!remove.length) continue;
+            groups.push({ keep, remove });
+            toDelete.push(...remove);
+        }
+
+        return {
+            groups,
+            toDelete,
+            stats: {
+                scanned: list.length,
+                groupCount: groups.length,
+                deleteCount: toDelete.length
+            }
+        };
+    }
+
+    /**
+     * คีย์ระดับ (รอบ, SKU, ตำแหน่ง) — รูปแบบเดียวกับ acceptanceKey ในหน้า audit_check
+     * และ unique index ของ docs/sql/019
+     */
+    function locationShapeKey(row) {
+        return [cycleKey(row.cycle_id), norm(row.sku_id), norm(row.location)].join('|');
+    }
+
+    /**
+     * shape ปัจจุบันของแต่ละ (รอบ, SKU, ตำแหน่ง) = จำนวนแถว + ผลรวมจำนวน **ทุกแถวในตำแหน่งนั้น**
+     *
+     * ใช้เทียบกับ inventory_count_acceptances (ซึ่งบันทึก row_count/total_qty ของทั้งตำแหน่ง
+     * ตอนกด "ยืนยันว่าปกติ") — ห้ามนับเฉพาะแถวที่จำนวนเท่ากัน ไม่งั้น shape จะไม่ตรงกับ
+     * ตอนบันทึก แล้ว guard ของปุ่มลบจะมองว่า stale ทั้งที่คนยืนยันไปแล้ว
+     * (เคยพลาดจริง: ตำแหน่งมีแถว [5,5,9] ยืนยันเก็บ (3, 19) แต่ guard เทียบ (2, 10) → แถวถูกลบ)
+     *
+     * @returns {Map<string, {rowCount:number, totalQty:number}>}
+     */
+    function buildLocationShapes(rows) {
+        const map = new Map();
+        for (const r of (rows || []).filter(Boolean)) {
+            const k = locationShapeKey(r);
+            const cur = map.get(k) || { rowCount: 0, totalQty: 0 };
+            cur.rowCount += 1;
+            cur.totalQty += Number(r.counted_qty) || 0;
+            map.set(k, cur);
+        }
+        return map;
+    }
+
+    /**
+     * M26 — ย้ายตำแหน่ง/สลับ SKU แล้วปลายทางมีแถวค่าเหมือนกันอยู่แล้ว ควรบล็อกไหม?
+     *
+     * เดิมบล็อกทุกกรณี ซึ่งขัด invariant 3 — แถวจากคนละรอบนับเป็นข้อมูลที่ถูกต้อง
+     * กติกาใหม่: บล็อกเฉพาะเมื่อจะกลายเป็น "ซ้ำในรอบเดียวกัน" (เคส H10 ที่ Match บวกซ้ำ)
+     * คนละรอบ → ปล่อยผ่าน แต่คืน warning ให้หน้าจอเอาไปโชว์ในกล่องยืนยัน
+     *
+     * @param {{destRows?:Array, movingCycleId?:string|null}} input
+     *        destRows = แถวที่อยู่ปลายทางแล้ว (ตัดแถวที่กำลังย้ายออกไปก่อน)
+     * @returns {{blocked:boolean, message:string, warning:string, sameCycleCount:number, otherCycleCount:number}}
+     */
+    function classifyDestinationCollision(input) {
+        const destRows = (input?.destRows || []).filter(Boolean);
+        const moving = cycleKey(input?.movingCycleId);
+        const empty = { blocked: false, message: '', warning: '', sameCycleCount: 0, otherCycleCount: 0 };
+        if (!destRows.length) return empty;
+
+        const sameCycle = destRows.filter(r => cycleKey(r.cycle_id) === moving);
+        const otherCycle = destRows.length - sameCycle.length;
+
+        if (sameCycle.length) {
+            return {
+                blocked: true,
+                message: `ปลายทางมีแถวค่าเดียวกันในรอบนับเดียวกันอยู่แล้ว ${sameCycle.length} แถว — ย้ายไปจะทำให้ Match บวกยอดนี้ซ้ำ`,
+                warning: '',
+                sameCycleCount: sameCycle.length,
+                otherCycleCount: otherCycle
+            };
+        }
+
+        return {
+            blocked: false,
+            message: '',
+            warning: `ปลายทางมีแถวค่าเหมือนกันอยู่ ${otherCycle} แถว แต่เป็นคนละรอบนับ — ถือเป็นข้อมูลถูกต้อง จึงย้ายได้`,
+            sameCycleCount: 0,
+            otherCycleCount: otherCycle
+        };
+    }
+
     const api = {
         DEFAULT_WINDOW_MINUTES,
         groupKey,
         sameImportBatch,
         findAccidentalDuplicates,
-        classifyRefDuplicate
+        classifyRefDuplicate,
+        classifyCycleDuplicate,
+        classifyDestinationCollision,
+        findSameCycleDuplicates,
+        locationShapeKey,
+        buildLocationShapes
     };
 
     if (typeof window !== 'undefined') window.AuditDedupe = api;

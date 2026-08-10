@@ -29,13 +29,11 @@
 - `reconciliation_lines` — ผลคำนวณ match
 - `stock_adjustments` — รายการปรับยอดฝั่ง Reconcile
 - `inventory_audit_logs` — audit log การเปลี่ยนแปลงบางส่วน
+- `reconciliation_match_acceptances` — กลุ่มที่คนยืนยันว่า Match ปกติ (ฝั่ง reconcile)
+- `inventory_count_acceptances` — กลุ่มผลนับที่คนกด "ยืนยันว่าปกติ" (ฝั่ง audit_check)
+- `chat_messages` — แชททีม (ไฟล์แนบเก็บเป็นคอลัมน์ `file_*` ในตารางนี้ + Supabase Storage bucket `chat-attachments` ไม่ใช่ตารางแยก)
 
-SQL ที่เกี่ยวข้อง (จากเอกสารใน `docs/sql`):
-
-- `002_reconciliation_schema.sql`
-- `003_cycle_all_warehouses_date_range.sql`
-- `004_dashboard_submission_buckets.sql` (optional)
-- `014_warehouses_registry.sql`
+SQL: ดูรายการ migration ครบทุกไฟล์พร้อมสถานะรายไฟล์ที่ [DATABASE.md](DATABASE.md) — ปัจจุบันมี 20 ไฟล์ใน `docs/sql/` (เอกสารนี้เคยลิสต์ไว้แค่ 4)
 
 ## 3) ลำดับการใช้งานระบบ (แนะนำ)
 
@@ -73,7 +71,7 @@ SQL ที่เกี่ยวข้อง (จากเอกสารใน `
 
 ผลกระทบ:
 
-- KPI บางตัวใน `index.html` อิง SKU Master (เช่น ยังไม่ได้นับ, % ใน Master)
+- **ปัจจุบันแทบไม่ผูกกับหน้าอื่นเลย** — `index.html` / `Js/script.js` ไม่แตะ `sku_master` (autocomplete และ KPI ใช้ `book_stock_lines` ล้วน) · ผู้ใช้เดียวที่เหลือคือ `reconcile.html` ตอนกด "สร้างลง Book" จากรายการ count_only ซึ่งเรียก `fetchSkuMasterNamesBySkus` เพื่อเติมชื่อสินค้า และมี fallback อยู่แล้ว
 
 ---
 
@@ -139,7 +137,8 @@ SQL ที่เกี่ยวข้อง (จากเอกสารใน `
 
 ความสามารถ:
 
-- ฟิลเตอร์ตามคลัง, สถานะ qty, คำค้น, ช่วงวันที่
+- ฟิลเตอร์: ปี (Book) → เดือน → รอบ → สถานะจำนวน (`ทั้งหมด` / `qty > 0` / `qty = 0`) → คำค้น (SKU / Location / ชื่อสินค้า) → จำนวนต่อหน้า
+- **ไม่มี dropdown คลัง และไม่มีฟิลเตอร์ช่วงวันที่** (การกรองรอบทำผ่านปี-เดือน-รอบ)
 - KPI สรุป, ตาราง, sort, pagination
 
 ---
@@ -152,9 +151,8 @@ SQL ที่เกี่ยวข้อง (จากเอกสารใน `
 
 ## 5) ฟิลเตอร์และ KPI ที่ควรรู้
 
-- KPI ในหน้านับบางตัวสัมพันธ์กับ `sku_master` ไม่ใช่เฉพาะจำนวนที่สแกน
+- KPI ในหน้านับเทียบกับ **BOOK ของรอบที่เลือก** (`book_stock_lines`) ไม่ใช่ `sku_master`
 - `book_explorer.html` ใช้ `book_stock_lines` เป็นหลัก และ join metadata รอบจาก `count_cycles`
-- ฟิลเตอร์วันที่ใน `book_explorer.html` ใช้ช่วงวันแบบ local-day logic
 
 ## 6) Troubleshooting (ปัญหาพบบ่อย)
 
@@ -163,7 +161,7 @@ SQL ที่เกี่ยวข้อง (จากเอกสารใน `
 ตรวจ:
 
 - คลังที่เลือกตรงกับข้อมูลหรือไม่
-- SKU Master ของคลังนั้นมีข้อมูลหรือไม่
+- **รอบที่เลือกมี BOOK อัปโหลดแล้วหรือยัง** (KPI อิง `book_stock_lines` ของรอบนั้น ไม่ใช่ `sku_master`)
 - มี cache ค้างหรือไม่ (ลอง `Ctrl+F5`)
 
 ### 6.2 คลังใหม่ไม่ขึ้นทุกหน้า

@@ -1,7 +1,7 @@
 # DATABASE — Schema ฐานข้อมูล Supabase (ตามจริงจาก docs/sql/* + โค้ด)
 
 > **โปรเจกต์ Supabase:** `DB_SKU&LOCATION` (`nfhfuybqhskzlllkgmyi`, ap-southeast-2)
-> ⚠️ **โปรเจกต์นี้ใช้ร่วมกับระบบอื่น** — จาก 40 ตารางใน `public` **AuditNew ใช้จริงแค่ 10 ตาราง + 1 view**
+> ⚠️ **โปรเจกต์นี้ใช้ร่วมกับระบบอื่น** — จาก 40 ตารางใน `public` **AuditNew ใช้จริงแค่ 11 ตาราง + 1 view**
 > ที่เหลือ 30 ตารางเป็นของระบบ QC / เอกสารจัดส่ง / Dashboard โรงงาน (`qc_*`, `delivery_*`, `check_location`,
 > `stock_audits`, `products`, `staff_list`, `login_D_1st` ฯลฯ) — **ห้ามแตะ** ดูรายการเต็มใน
 > [รายการตารางที่ใช้/ไม่ใช้](#ตารางในโปรเจกต์ที่-auditnew-ไม่ได้ใช้)
@@ -72,8 +72,12 @@ Partial unique: `uq_stock_adj_draft_per_sku (cycle_id, sku_id) WHERE status='dra
 ### `reconciliation_match_acceptances` (008) — ธง "ยืนยันถูกต้องโดยไม่ปรับยอด"
 PK `(cycle_id, sku_id)`, `note`, `accepted_at`, `accepted_by` — เป็นกลไกหลักที่ทำให้ KPI "ถูกต้อง" ขึ้นหลัง Excel import (⚠️ design doc ไม่พูดถึงตารางนี้เลย)
 
+### `inventory_count_acceptances` (019) — ธง "ยืนยันว่าผลนับกลุ่มนี้ปกติ"
+ใช้โดย `audit_check.html` 3 จุด — กลุ่ม (รอบ + คลัง + SKU + ตำแหน่ง) ที่คนกด "ยืนยันว่าปกติ" จะไม่ถูกเตือนซ้ำและไม่ถูกปุ่มลบเลือก จนกว่าข้อมูลจะเปลี่ยน
+⚠️ unique index เป็น **expression index** จึงใช้ `ON CONFLICT` ไม่ได้ (42P10) — โค้ดแยก insert/update by id เอง **ห้ามเปลี่ยนกลับไปใช้ upsert**
+
 ### อื่น ๆ
-`chat_messages`, `chat_attachments` (Storage bucket `chat-attachments`), `inventory_audit_logs` — action_type ที่ใช้จริง:
+`chat_messages` (ไฟล์แนบเก็บเป็นคอลัมน์ `file_*` **ในตารางเดียวกัน** + Supabase Storage bucket `chat-attachments` — **`chat_attachments` ไม่ใช่ตาราง** migration 006 ทำแค่ `ALTER TABLE chat_messages ADD COLUMN` + สร้าง bucket/policy), `inventory_audit_logs` — action_type ที่ใช้จริง:
 | action_type | เขียนโดย | หมายเหตุ |
 |---|---|---|
 | `INSERT` / `GROUP_INSERT` / `UPDATE` / `DELETE` | `index.html` | นับ/แก้/ลบรายแถว |
@@ -91,7 +95,7 @@ PK `(cycle_id, sku_id)`, `note`, `accepted_at`, `accepted_by` — เป็น�
 | `apply_all_drafts_for_cycle(uuid, text)` | 013 §A11 | apply ทุก draft ใน 1 RPC |
 | `import_book_stock_lines_atomic(uuid, jsonb, text, text)` | 012 | import Book แบบ atomic (replace/merge) + UPPER/TRIM sku |
 | `get_inventory_count_months(text)` | 013 §A16 | รายการเดือนที่มีข้อมูล — ⚠️ audit_check ใช้ แต่ cycle_config ยังดึงแถวดิบ |
-| `get_active_warehouses()` | 014 | รายชื่อคลัง active |
+| `get_active_warehouses()` | 014 | 💀 **ไม่มีโค้ดเรียกเลย** — `Js/warehouses-shared.js:74` ดึงตารางตรงแทนเพราะต้องการแถว inactive ด้วย |
 | `submission_rate_buckets(...)` | 004 | bucket อัตราส่งงาน (Bangkok, รองรับ multi-warehouse) |
 
 ## ความสัมพันธ์
@@ -130,6 +134,37 @@ sku_master.sku_name ~(soft)~ inventory_counts.sku_id ~(soft)~ book_stock_lines.s
 | `016_rls_policies.sql` | RLS policy สำหรับ anon/publishable key | ✅ รันแล้ว 2026-08-09 |
 | `017_drop_skunorm_backup_tables.sql` | ลบตารางสำรอง `_bk_*` จาก 010 | ✅ รันแล้ว 2026-08-09 |
 | `018_refresh_reconciliation_security_definer.sql` | `refresh_reconciliation_for_cycle` → SECURITY DEFINER (แก้ 401 ตอนกด "คำนวณ Match") | ✅ รันแล้ว 2026-08-09 |
+| `019_inventory_count_acceptances.sql` | ตาราง "ยืนยันว่าผลนับปกติ" + RLS policy | ✅ รันแล้ว 2026-08-10 |
+
+> **เลข migration ที่ชนกัน — อย่าเปลี่ยนชื่อไฟล์** (รันไปแล้วในฐานจริง เปลี่ยนชื่อแล้วสืบย้อนไม่ได้):
+> `003` ×2 · `004` ×2 (`004_chat_messages.sql` กับ `004_dashboard_submission_buckets.sql`)
+> 🔴 **ห้ามรัน `003_reconciliation_book_only_with_zero_count.sql` เด็ดขาด** — ถือ `refresh_reconciliation_for_cycle` เวอร์ชันเก่า ถ้ารันจะทับ 013 + 018 → Match พังทั้งระบบ และหายเป็น SECURITY DEFINER ทำให้กลับไป 401
+
+## DB objects ที่ไม่มีโค้ดใช้ (บันทึกไว้ — **ไม่ลบ**)
+
+สแกน `.from()` / `.rpc()` / `.select()` ทั้งโปรเจกต์เทียบกับ schema เมื่อ 2026-08-10 · การลบคอลัมน์/enum ต้อง admin อนุมัติ + สำรอง + วางแผน downtime จึงบันทึกไว้เฉย ๆ
+
+**RPC:** `get_active_warehouses()` — 0 caller (ดูตาราง RPC ข้างบน)
+
+**คอลัมน์ที่ไม่มีใครอ่าน:**
+
+| คอลัมน์ | สภาพ |
+|---|---|
+| `stock_adjustments.exported_at` | 💀 ไม่มีใครเขียน ไม่มีใครอ่าน — RPC ก็ไม่แตะ |
+| `stock_adjustments.applied_at` / `.created_by` | write-only (RPC เขียน client ไม่เคย select) |
+| `stock_adjustments.variance_before` | write-only (`reconcile-shared.js:2523,2589` เขียน ไม่มีจุดอ่าน) |
+| `book_stock_lines.adjusted_book_qty` | write-only (RPC 013 เขียนทุกครั้ง client ไม่เคยอ่าน) |
+| `book_stock_lines.row_no` | write-only |
+| `book_stock_lines.location` | null เสมอ + ไม่เคยถูก filter |
+| `count_cycles.notes` | null เสมอ — `createCycle` รับ param แต่ผู้เรียกเดียว (`cycle_config.html`) ไม่ส่ง |
+| `warehouses.created_at` | ไม่เคยถูก select |
+
+**enum value ที่ไม่มีโค้ดผลิต:**
+- `stock_adjustments.reason` — โค้ดผลิตแค่ `manual` / `reconcile` · `damage` `found` `other` **`accept_count`** ไม่เคยถูกใช้ (⚠️ migration 007 **ไร้ผลถาวร** เพราะ `Js/reconcile-shared.js:39` map `accept_count` → `manual`)
+- `stock_adjustments.status` — client ตั้งได้แค่ `draft`, RPC ตั้ง `applied` · `exported` `cancelled` ไม่เคยถูกใช้
+- `count_cycles.status` — dropdown ให้แค่ `open|counting|reconciling|closed` · `draft` `archived` ไม่เคยถูกใช้ (และ `updateCycleStatus` ไม่มีผู้เรียก → สถานะแก้ไม่ได้หลังสร้าง)
+
+**index ที่โค้ดไม่ได้ใช้ประโยชน์ (เป็น guard เฉย ๆ):** `idx_count_cycles_wh_ym` (ไม่มี `.eq('warehouse')` บน `count_cycles` เลย — `fetchCycles` ดึงทั้งตารางแล้วกรองฝั่ง JS) · `uq_book_stock_cycle_sku_loc` · `uq_stock_adj_draft_per_sku` · `uq_chat_msg_client_id` · `uq_inventory_count_acceptances_key`
 
 ## ตารางในโปรเจกต์ที่ AuditNew ไม่ได้ใช้
 

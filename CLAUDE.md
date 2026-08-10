@@ -47,9 +47,9 @@ Static HTML + vanilla JS + Supabase (UI ภาษาไทย) — ไม่ม�
 | `Html/live_count_wall.html` | [docs/pages/live_count_wall.md](docs/pages/live_count_wall.md) | จอแสดงผลนับสด (realtime) |
 | `Html/user_manual.html` | [docs/pages/user_manual.md](docs/pages/user_manual.md) | คู่มือแก้ไขได้ในเบราว์เซอร์ (localStorage ล้วน) |
 
-### เอกสารเดิม (มีส่วนล้าสมัย — ดูรายละเอียดใน ISSUES.md ข้อ L8)
-- [docs/SYSTEM_GUIDE.md](docs/SYSTEM_GUIDE.md) — คู่มือระบบฉบับเดิม (⚠️ ส่วน book_explorer อธิบายฟิลเตอร์ที่ไม่มีจริง)
-- [docs/RECONCILIATION_DESIGN.md](docs/RECONCILIATION_DESIGN.md) — แนวคิด reconcile ฉบับเดิม (⚠️ Phase 3 ระบุ "รอทำ" ทั้งที่เสร็จแล้ว, รายการ SQL ขาด 007-015, ไม่พูดถึง `reconciliation_match_acceptances`)
+### เอกสารเดิม (แก้ให้ตรงโค้ดแล้ว 2026-08-10 — เหลือ 1 จุดใน ISSUES.md ข้อ L8)
+- [docs/SYSTEM_GUIDE.md](docs/SYSTEM_GUIDE.md) — คู่มือระบบฉบับเดิม
+- [docs/RECONCILIATION_DESIGN.md](docs/RECONCILIATION_DESIGN.md) — แนวคิด reconcile ฉบับเดิม (⚠️ ยังต้อง verify ทิศทางเครื่องหมาย adjustment)
 - `docs/sql/*.sql` — migrations (ดูสถานะรายไฟล์ใน [docs/DATABASE.md](docs/DATABASE.md))
 
 ## ระบบเทส (Dry Run 100% — ห้ามแตะ DB จริงในการเทสเด็ดขาด)

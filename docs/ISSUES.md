@@ -308,8 +308,9 @@ import_counts ไฟล์ = Loc, SKU, Qty แต่ audit_check paste = SKU, Lo
 ### - [ ] L7. นโยบายแถวซ้ำในไฟล์ import ไม่ตรงกัน
 sku_master เก็บแถวสุดท้าย vs Book import บวกรวม
 
-### - [ ] L8. เอกสารเดิมล้าสมัย
-`docs/SYSTEM_GUIDE.md` (book_explorer มีฟิลเตอร์ที่ไม่มีจริง), `docs/RECONCILIATION_DESIGN.md` (Phase 3 "รอทำ" ที่เสร็จแล้ว, รายการ SQL ขาด 007-015, ทิศทางเครื่องหมาย adjustment ขัดกับโค้ด, ไม่พูดถึง `reconciliation_match_acceptances` เลย)
+### - [ ] L8. เอกสารเดิมล้าสมัย — **แก้แล้วเกือบหมด 2026-08-10**
+✅ แก้แล้ว: `docs/SYSTEM_GUIDE.md` (ฟิลเตอร์ book_explorer ที่ไม่มีจริง, ตารางหลักขาด 5 ตัว, รายการ SQL, KPI อิง sku_master) · `docs/RECONCILIATION_DESIGN.md` (Phase 3 "รอทำ", รายการ SQL, `reconciliation_match_acceptances`, "ไฟล์เสนอ" ที่สร้างแล้ว) · `docs/DATABASE.md` (ขาด `inventory_count_acceptances` จาก 019, ลิสต์ `chat_attachments` เป็นตารางทั้งที่ไม่มีจริง) · `docs/ARCHITECTURE.md` + `docs/pages/sku_master.md` (อ้างว่า index อิง sku_master)
+⬜ ยังเหลือ: **ทิศทางเครื่องหมาย adjustment ใน RECONCILIATION_DESIGN.md ขัดกับโค้ด** — ยังไม่ได้ verify
 
 ### - [ ] L9. SQL hygiene
 ไฟล์ `003_reconciliation_book_only_with_zero_count.sql` เลขซ้ำ+เนื้อหา no-op (ควรลบ); `010` ปน DDL ทำลายล้างกับ diagnostics ใน script เดียว; `007` สร้าง reason ที่ client ไม่เคยใช้

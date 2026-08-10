@@ -43,5 +43,3 @@ export async function runAll({ filter } = {}) {
     }
     return results;
 }
-
-export function clearRegistry() { registry.length = 0; }

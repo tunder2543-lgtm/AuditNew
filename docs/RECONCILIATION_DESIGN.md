@@ -76,13 +76,12 @@ count_cycles          รอบนับ 1 ชุด = คลัง + ปี-เ
 
 ---
 
-## หน้า HTML ที่ควรมี (แยกจาก audit_check)
+## หน้า HTML (สร้างครบแล้ว)
 
-| หน้า | ไฟล์เสนอ | หน้าที่ |
-|------|----------|---------|
-| Config รอบนับ | `Html/cycle_config.html` | สร้างรอบ, เลือกคลัง, ปี-เดือน, อัปโหลด Book Excel, กำหนดช่วงวันนับ |
-| Match / Reconcile | `Html/reconcile.html` | สรุป KPI, ตาราง ตรง/ขาด/เกิน, %, ปรับยอด, Export |
-| (ทางเลือก) รวมใน reconcile | แท็บ "ตั้งค่ารอบ" | ถ้าไม่ต้องการหน้าแยก |
+| หน้า | ไฟล์ | หน้าที่ |
+|------|------|---------|
+| Config รอบนับ | `Html/cycle_config.html` ✅ | สร้างรอบ, เลือกคลัง, ปี-เดือน, อัปโหลด Book Excel, กำหนดช่วงวันนับ |
+| Match / Reconcile | `Html/reconcile.html` ✅ | สรุป KPI, ตาราง ตรง/ขาด/เกิน, %, ปรับยอด, Export |
 
 **เมนู sidebar:** `Match ยอด` อยู่หลัง Import นับ
 
@@ -172,13 +171,21 @@ variance           = counted_qty - effective_book
 | 1 | SQL tables + `cycle_config.html` + อัปโหลด Book + ผูก cycle_id | **ทำแล้ว** — รัน SQL 002 + 003 |
 | 1b | คลังทั้งหมด + ช่วงวันที่ + หลายรอบ/เดือน | **ทำแล้ว (โค้ด)** |
 | 2 | `reconcile.html` — KPI, ตาราง Match, Export | **ทำแล้ว (พื้นฐาน)** |
-| 3 | `stock_adjustments` + Apply (Book เท่านั้น) + audit | รอทำ |
+| 3 | `stock_adjustments` + Apply (Book เท่านั้น) + audit | **ทำแล้ว** — `Js/reconcile-shared.js` อ้าง `stock_adjustments` 12 จุด, RPC `apply_stock_adjustment` + `apply_all_drafts_for_cycle`, SQL 002 + 007 |
 | 4 | ผูก cycle filter กับ dashboard + KPI Match + กราฟเส้นอัตราส่งงาน | **ทำแล้ว** — `dashboard.html`, `dashboard-shared.js`, SQL 004 (optional RPC) |
+| 5 | "ยืนยันว่า Match ปกติ" — `reconciliation_match_acceptances` | **ทำแล้ว** (ไม่ได้อยู่ในแผนเดิม) — SQL 008, `reconcile-shared.js` 3 จุด · กลุ่มที่คนยืนยันแล้วจะไม่ถูกเตือนซ้ำจนกว่าข้อมูลจะเปลี่ยน |
 
 ---
 
 ## ไฟล์ SQL
 
-- `docs/sql/002_reconciliation_schema.sql` — schema หลัก
-- `docs/sql/003_cycle_all_warehouses_date_range.sql` — คลังทั้งหมด + ช่วงวันที่ + unique index
-- `docs/sql/004_dashboard_submission_buckets.sql` — RPC aggregate อัตราส่งงานสำหรับ Dashboard (optional)
+รายการครบทุกไฟล์พร้อมสถานะรายไฟล์อยู่ที่ [DATABASE.md](DATABASE.md) — ปัจจุบันมี 20 ไฟล์ใน `docs/sql/` เอกสารนี้เคยลิสต์ไว้แค่ 3 ไฟล์แรก ที่เกี่ยวข้องกับ reconcile โดยตรงคือ:
+
+- `002_reconciliation_schema.sql` — schema หลัก
+- `003_cycle_all_warehouses_date_range.sql` — คลังทั้งหมด + ช่วงวันที่ + unique index
+- `004_dashboard_submission_buckets.sql` — RPC aggregate อัตราส่งงานสำหรับ Dashboard (optional)
+- `007_stock_adjustments_reason_accept.sql` — เพิ่ม reason `accept_count` (⚠️ ไร้ผลถาวร โค้ด map เป็น `manual`)
+- `008_reconciliation_match_acceptances.sql` — ตาราง "ยืนยันว่า Match ปกติ"
+- `012_import_book_stock_atomic.sql` · `013_audit_warnings.sql` · `018_refresh_reconciliation_security_definer.sql` — RPC ที่ reconcile เรียกใช้จริง
+
+⚠️ **ห้ามรัน `003_reconciliation_book_only_with_zero_count.sql`** (เลข 003 ชนกัน) — ไฟล์นั้นถือ `refresh_reconciliation_for_cycle` เวอร์ชันเก่า ถ้ารันจะทับ 013 + 018 ทำให้ Match พังทั้งระบบ

@@ -48,8 +48,9 @@
 
 ## ความสัมพันธ์กับหน้าอื่น
 
-- `index.html` ใช้เทียบ KPI "% ใน Master" (ผ่าน Book — โดยอ้อม)
-- `reconcile.html` lookup ชื่อสินค้า (`fetchSkuMasterNamesBySkus`) ตอนสร้างแถว Book ใหม่จาก count_only
+- **`reconcile.html` เป็นหน้าเดียวที่ใช้** — lookup ชื่อสินค้า (`fetchSkuMasterNamesBySkus`) ตอนสร้างแถว Book ใหม่จาก count_only และมี fallback (`skuNameMap[sku] || null`) อยู่แล้ว
+- ⚠️ **`index.html` ไม่ได้ใช้ `sku_master` เลย** — grep คำว่า "master" ใน `index.html` + `Js/script.js` = 0 hit · autocomplete และ KPI ทุกตัวอิง `book_stock_lines` ของรอบที่เลือก (`script.js:358`) · เอกสารเดิมที่บอกว่า KPI "% ใน Master" อิงตารางนี้ **ผิด**
+- 🐛 `fetchSkuMasterNamesBySkus` ([reconcile-shared.js:1467](../../Js/reconcile-shared.js:1467)) query ด้วย `.in('sku_name', chunk)` **โดยไม่กรอง `warehouse`** ทั้งที่ตารางแยกต่อคลัง (unique index = `sku_name + warehouse`) → SKU เดียวกันที่มีชื่อต่างกันคนละคลัง จะได้ชื่อจากคลังไหนก็แล้วแต่ลำดับที่ DB คืนมา
 
 ## ข้อสังเกต / จุดเปราะบาง (ดู [ISSUES.md](../ISSUES.md))
 

@@ -10,7 +10,8 @@
 settings.html ──► localStorage SB_URL/SB_KEY ──► Js/api.js getClient() ──► ทุกหน้า
 settings.html ──► ตาราง warehouses ──► Js/warehouses-shared.js ──► ทุกหน้าที่มี dropdown คลัง
 
-sku_master.html ──► sku_master ─────────────► reconcile (lookup ชื่อ), index (KPI โดยอ้อม)
+sku_master.html ──► sku_master ─────────────► reconcile เท่านั้น (lookup ชื่อตอน "สร้างลง Book")
+                                              ⚠️ index ไม่ได้ใช้ — KPI/autocomplete อิง book_stock_lines
 
 cycle_config.html
   ├─ สร้างรอบ ──────────────► count_cycles

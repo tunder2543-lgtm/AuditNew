@@ -26,6 +26,7 @@ Static HTML + vanilla JS + Supabase (UI ภาษาไทย) — ไม่ม�
 ## เอกสารระบบ (จัดทำ 2026-08-09 จากการวิเคราะห์โค้ดจริงทั้งระบบ)
 
 ### ภาพรวม
+- [docs/PURPOSE.md](docs/PURPOSE.md) — **จุดประสงค์ระบบ + workflow 7 ขั้นตามที่ admin ใช้จริง + ตารางความสอดคล้อง + ข้อเสนอ UX/UI 10 ข้อ** (จัดทำ 2026-08-10 จากคำอธิบาย admin โดยตรง — อ่านก่อนตัดสินใจเชิงฟีเจอร์เสมอ)
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — สถาปัตยกรรม, data flow, shared JS layer 13 ไฟล์, matrix การโหลดต่อหน้า, localStorage keys ทั้งหมด, เมนู sidebar
 - [docs/DATABASE.md](docs/DATABASE.md) — schema 8 ตาราง + views + RPC 8 ตัว, ความสัมพันธ์, รายการ migration, จุดที่โค้ดกับ DB ไม่ตรงกัน
 - [docs/ISSUES.md](docs/ISSUES.md) — **รายการสิ่งที่ควรแก้ทั้งหมด (Critical 2 / High 8 / Medium 23 / Low 11 กลุ่ม)** พร้อมช่องติ๊กให้ admin เลือก — Critical/High ผ่านการ verify กับโค้ดจริงครบทุกข้อ
@@ -63,6 +64,7 @@ node tests/run.mjs
 
 ## Subagent
 
+- `.claude/agents/system-expert.md` — **ผู้เชี่ยวชาญระบบ** (ใหม่ 2026-08-10): รู้จุดประสงค์+workflow+invariants ใช้ตอบคำถามการใช้งาน/วิเคราะห์ผลกระทบ/สอนพนักงานใหม่ — เทสแล้วตอบถูกพร้อม path:line
 - `.claude/agents/code-reviewer.md` — agent ตรวจสอบโค้ดประจำโปรเจกต์ (อ่านอย่างเดียว) รู้ invariants และโครงสร้างระบบ — ใช้ review การแก้ไข / verify findings / หาบัคเพิ่ม
 
 ## สถานะงาน
@@ -94,4 +96,5 @@ node tests/run.mjs
   - ⚠️ **ต้องทำมือในเครื่องที่เคยเข้าโหมดแก้ไขคู่มือ**: `manual-editor.js` restore `innerHTML` จาก localStorage ทับ source ⇒ กด "สำรอง" แล้ว "รีเซ็ตคู่มือ" ใน `user_manual.html` ไม่งั้นยังเห็น section F1 SKU Master
 - ✅ **M4 เสร็จ** (2026-08-10): `parseBookExcelRows` เลิกใช้ `normalizeSku` กับ **ชื่อสินค้า** (invariant ข้อ 2 เป็นมาตรฐานของ *รหัส SKU* เท่านั้น) — คอลัมน์ SKU ยัง UPPERCASE เหมือนเดิม มีเทสบังคับ · เทสย้ายจาก knownIssue → ถาวร 3 ข้อ · **267 PASS / 2 KNOWN-OPEN**
   - ⚠️ **แก้โค้ดไม่ได้แก้ข้อมูลเก่า** — แถว `book_stock_lines.name_pro` ที่นำเข้าไปแล้วยังเป็น ALL CAPS · จะล้างต้องอัปโหลดไฟล์ Book ทับ (โหมด replace) หรือ UPDATE ใน DB
+- ✅ **PURPOSE.md + system-expert agent + Note ส่งมอบ** (2026-08-10 เย็น): เทสระบบ 267 PASS + smoke ผ่าน · งานถัดไป (ถอดคู่มือ + checkbox "ทุกช่วงเวลา" + dead code ชุด 6-9) **แผน+impact ครบแล้ว**ที่ [docs/notes/2026-08-10_handoff.md](docs/notes/2026-08-10_handoff.md)
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

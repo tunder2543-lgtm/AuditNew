@@ -86,7 +86,6 @@ test('[C2-guard] ห้ามมี onclick/onchange ที่ต่อค่า
 test('[C2-guard] จุดที่รู้ว่าเคยเป็นช่องโหว่ ต้อง escape แล้ว', () => {
     const checks = [
         ['Js/script.js', /toast\.innerHTML = `<i data-lucide="\$\{iconName\}"><\/i><span>\$\{escapeHtml\(message\)\}/, 'showToast ต้อง escape message'],
-        ['Html/sku_master.html', /<span>\$\{escapeHtml\(message\)\}/, 'sku_master showToast ต้อง escape'],
         ['Html/audit_check.html', /<span>\$\{escapeHtml\(message\)\}/, 'audit_check showToast ต้อง escape'],
         ['Html/settings.html', /<span class="warehouse-name">\$\{escapeHtml\(name\)\}/, 'ชื่อคลังต้อง escape'],
         ['Html/import_counts.html', /<td>\$\{escHtml\(r\.sku \|\| '-'\)\}/, 'preview import ต้อง escape'],
@@ -98,8 +97,11 @@ test('[C2-guard] จุดที่รู้ว่าเคยเป็นช่
         ['Html/audit_check.html', /ไม่มีข้อมูลการนับ \(\$\{escapeHtml\(whLabel\)\}\)/, 'ตัวเลือกเดือนต้อง escape ชื่อคลัง'],
     ];
     for (const [file, re, msg] of checks) {
-        const src = fs.readFileSync(path.join(PROJECT_ROOT, file), 'utf8');
-        assert.ok(re.test(src), `${file}: ${msg}`);
+        const full = path.join(PROJECT_ROOT, file);
+        // ⚠️ ต้องเช็คก่อนอ่าน — ถ้าไฟล์ถูกลบ readFileSync จะโยน ENOENT ซึ่ง harness
+        //    รายงานเป็น FAIL ที่ข้อความไม่บอกอะไรเลย เสียเวลาไล่หาสาเหตุ
+        assert.ok(fs.existsSync(full), `${file}: ไม่มีไฟล์นี้แล้ว — ลบรายการนี้ออกจาก checks ด้วย`);
+        assert.ok(re.test(fs.readFileSync(full, 'utf8')), `${file}: ${msg}`);
     }
 });
 

@@ -230,3 +230,74 @@ test('[asset-ver] ไฟล์ Js/ Css/ ในเครื่องที่อ�
     }
     assert.equal(bad.length, 0, `ไฟล์ในเครื่องที่ยังไม่มี cache-buster: ${bad.join(' · ')}`);
 });
+
+// =============================================================================
+// [menu-guard] โครงเมนูต้องสอดคล้องกับไฟล์ที่มีอยู่จริง
+//
+// ที่มา: ตอนถอดฟีเจอร์ SKU Master (2026-08-10) กลุ่ม `database` มี item เดียวพอดี
+// ถ้าลบแค่ item จะเหลือ items: [] แล้ว sidebar-shared.js:149 มี special-case
+// `if (group.items.length === 1)` ที่จะไม่เข้าเงื่อนไข ตกไปสาขากลุ่มพับ →
+// เรนเดอร์หัวข้อ "ฐานข้อมูล" ที่กดแล้วว่างเปล่า **ทุกหน้าพร้อมกัน**
+// =============================================================================
+
+/** ดึง object/array literal จาก source โดยนับวงเล็บให้สมดุล (แม่นกว่า regex) */
+function literalAfter(decl, openChar) {
+    const at = SIDEBAR_JS.indexOf(decl);
+    assert.ok(at >= 0, `หา ${decl} ใน sidebar-shared.js ไม่เจอ`);
+    const closeChar = openChar === '[' ? ']' : '}';
+    const open = SIDEBAR_JS.indexOf(openChar, at);
+    let depth = 0;
+    for (let i = open; i < SIDEBAR_JS.length; i++) {
+        if (SIDEBAR_JS[i] === openChar) depth++;
+        else if (SIDEBAR_JS[i] === closeChar) {
+            depth--;
+            if (depth === 0) return new Function('return ' + SIDEBAR_JS.slice(open, i + 1))();
+        }
+    }
+    throw new Error(`วงเล็บของ ${decl} ไม่สมดุล`);
+}
+
+const GROUPS = literalAfter('const GROUPS =', '[');
+const PAGE_FILES = literalAfter('const PAGE_FILES =', '{');
+
+/** ไฟล์ HTML ของ pageId อยู่ที่ไหน — index อยู่ราก ที่เหลืออยู่ Html/ */
+function pageFilePath(file) {
+    return file === 'index.html'
+        ? path.join(PROJECT_ROOT, file)
+        : path.join(PROJECT_ROOT, 'Html', file);
+}
+
+test('[menu-guard] ทุกกลุ่มในเมนูต้องมีอย่างน้อย 1 รายการ (กันหัวข้อพับที่กดแล้วว่าง)', () => {
+    const empty = GROUPS.filter(g => !g.items || g.items.length === 0).map(g => `${g.id} (${g.label})`);
+    assert.equal(empty.length, 0,
+        `กลุ่มเมนูที่ไม่มีรายการ: ${empty.join(' · ')} — ถ้าเอารายการสุดท้ายออก ต้องลบทั้งกลุ่มด้วย`);
+});
+
+test('[menu-guard] ทุกรายการในเมนูต้องมีใน PAGE_FILES และไฟล์นั้นต้องมีอยู่จริง', () => {
+    const bad = [];
+    for (const g of GROUPS) {
+        for (const item of g.items) {
+            const file = PAGE_FILES[item.id];
+            if (!file) { bad.push(`${item.id}: ไม่มีใน PAGE_FILES`); continue; }
+            if (!fs.existsSync(pageFilePath(file))) bad.push(`${item.id} → ${file} (ไม่มีไฟล์)`);
+        }
+    }
+    assert.equal(bad.length, 0, `เมนูชี้ไปที่หน้าที่ไม่มีอยู่: ${bad.join(' · ')}`);
+});
+
+test('[menu-guard] ทุก entry ใน PAGE_FILES ต้องชี้ไฟล์ที่มีจริง และมีรายการเมนูใช้งาน', () => {
+    const inMenu = new Set(GROUPS.flatMap(g => g.items.map(i => i.id)));
+    const bad = [];
+    for (const [pageId, file] of Object.entries(PAGE_FILES)) {
+        if (!fs.existsSync(pageFilePath(file))) bad.push(`${pageId} → ${file} (ไม่มีไฟล์)`);
+        else if (!inMenu.has(pageId)) bad.push(`${pageId}: มีใน PAGE_FILES แต่ไม่มีในเมนู (entry ค้าง)`);
+    }
+    assert.equal(bad.length, 0, `PAGE_FILES ไม่ตรงกับความจริง: ${bad.join(' · ')}`);
+});
+
+test('[menu-guard] FLAT_PAGES ต้องอ้างเฉพาะหน้าที่มีในเมนูจริง', () => {
+    const flat = literalAfter('const FLAT_PAGES = new Set(', '[');
+    const inMenu = new Set(GROUPS.flatMap(g => g.items.map(i => i.id)));
+    const bad = flat.filter(id => !inMenu.has(id));
+    assert.equal(bad.length, 0, `FLAT_PAGES มีหน้าที่ไม่อยู่ในเมนูแล้ว: ${bad.join(' · ')}`);
+});

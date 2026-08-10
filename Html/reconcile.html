@@ -1100,13 +1100,6 @@
         return { ok: false, delta: 0, noAdjustment: false, message: 'ไม่ต้องปรับยอด' };
     }
 
-    function resolveAdjustmentQtyFromInput(line) {
-        if (!line) return null;
-        const target = parseAdjInput();
-        if (target == null) return null;
-        return computeDeltaFromTarget(line, target);
-    }
-
     function resetAcceptApplyBtn() {
         acceptApplyArmed = false;
         acceptApplyArmSku = null;

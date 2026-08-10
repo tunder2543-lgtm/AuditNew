@@ -53,7 +53,6 @@
         }
         @media (max-width: 768px) { .cc-form-row { grid-template-columns: 1fr; } }
 
-        .cc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.75rem; }
         .cc-field > label { display: block; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.35rem; letter-spacing: 0.02em; }
         .cc-field > label .req { color: #f87171; margin-left: 0.15rem; }
         .cc-field input, .cc-field select {
@@ -599,7 +598,7 @@
                 <div class="cc-panel-body">
                     <div class="cc-stats" id="detailStats"></div>
 
-                    <div class="cc-wh-edit-card" id="editWarehouseCard">
+                    <div class="cc-wh-edit-card">
                         <div class="cc-wh-edit-head">
                             <i data-lucide="building-2"></i>
                             <span>แก้ไขคลังของรอบ</span>
@@ -618,7 +617,7 @@
                         <p class="cc-note">เปลี่ยนคลังมีผลต่อการผูกผลนับครั้งถัดไป — ไม่ลบ Book/ผลนับที่ผูกแล้ว</p>
                     </div>
 
-                    <div class="cc-wh-edit-card" id="editDateCard" style="border-color:rgba(59,130,246,0.28);background:rgba(59,130,246,0.06);">
+                    <div class="cc-wh-edit-card" style="border-color:rgba(59,130,246,0.28);background:rgba(59,130,246,0.06);">
                         <div class="cc-wh-edit-head" style="color:#93c5fd;">
                             <i data-lucide="calendar-range"></i>
                             <span>แก้ไขช่วงวันที่นับ</span>
@@ -675,7 +674,7 @@
                         </div>
                         <div class="cc-book-preview-body" id="bookInvalidBody">
                             <div class="cc-table-wrap" style="max-height:220px;">
-                                <table class="cc-table" id="bookInvalidTable">
+                                <table class="cc-table">
                                     <thead>
                                         <tr>
                                             <th style="width:52px;">แถว</th>
@@ -729,7 +728,7 @@
                                 แถวในช่วงวัน + คลังของรอบที่ <code>cycle_id</code> ยังว่าง — ไม่จำเป็นต้องเป็นรายการที่เพิ่งเข้ามาวันนี้
                             </p>
                             <div class="cc-table-wrap" style="max-height:260px;">
-                                <table class="cc-table" id="linkPendingTable">
+                                <table class="cc-table">
                                     <thead>
                                         <tr>
                                             <th>SKU</th>
@@ -826,7 +825,7 @@
         <p class="cc-link-modal-intro" id="linkConfirmIntro">ตรวจสอบรายละเอียดก่อนผูก cycle_id ให้ผลนับ</p>
         <div class="cc-link-modal-box" id="linkConfirmDetailBox">
             <h3><i data-lucide="clipboard-list"></i> จะผูกให้รอบนี้</h3>
-            <ul id="linkConfirmDetailList">
+            <ul>
                 <li><i data-lucide="warehouse"></i><span id="linkConfirmWh">—</span></li>
                 <li><i data-lucide="calendar-range"></i><span id="linkConfirmRange">—</span></li>
                 <li><i data-lucide="list-todo"></i><span>รอผูก <strong id="linkConfirmPendingN">0</strong> แถว</span></li>

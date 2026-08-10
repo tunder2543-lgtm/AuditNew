@@ -596,12 +596,6 @@
             border-color: rgba(255,176,32,.18);
         }
 
-        .status-chip.bad {
-            background: rgba(255,91,110,.10);
-            color: #ffb0ba;
-            border-color: rgba(255,91,110,.18);
-        }
-
         .card-foot {
             display: flex;
             justify-content: space-between;
@@ -1129,7 +1123,7 @@
             </div>
         </header>
 
-        <section class="panel panel-compact" id="warehouseScopeSection">
+        <section class="panel panel-compact">
             <div class="panel-header">
                 <div>
                     <div class="panel-title">
@@ -1716,10 +1710,6 @@
             return String(value || '').trim();
         }
 
-        function getSkuWarehouse(row) {
-            return normalizeWarehouse(row?.warehouse || 'ตึกกันตนา');
-        }
-
         function getScopedRecords() {
             if (!scopeWarehouse) return allRecords;
             const wh = normalize(scopeWarehouse);
@@ -2036,15 +2026,6 @@
                     else render();
                 });
             });
-        }
-
-        function buildLookup(list, keyField, valueField) {
-            const map = new Map();
-            list.forEach(row => {
-                const key = normalize(row[keyField]);
-                if (key) map.set(key, row[valueField] || '');
-            });
-            return map;
         }
 
         function updateDashboardConnectionStatus(connected) {
@@ -2422,14 +2403,6 @@
                 ? `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU (${scopeWarehouse})`
                 : `${countedSku.toLocaleString()} / ${totalSku.toLocaleString()} SKU (ทุกคลังในรอบนี้)`;
             els.progressText.textContent = `${progressNote} | ความคืบหน้า ${progress}%`;
-        }
-
-        function renderFilters() {
-            const counters = [...new Set(allRecords.map(r => r.counter_name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
-            const warehouses = [...new Set(allRecords.map(r => r.warehouse).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'th'));
-
-            els.filterCounter.innerHTML = `<option value="">-- ผู้ส่งทั้งหมด --</option>` + counters.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
-            els.filterWarehouse.innerHTML = `<option value="">-- ทุกคลัง --</option>` + warehouses.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
         }
 
         function renderPieChart(rows) {

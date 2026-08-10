@@ -784,7 +784,6 @@
             panel.classList.remove('visible', 'partial', 'success-only');
 
             const hasFail = failedRows.length > 0;
-            const hasPartial = stats.ok > 0 && (hasFail || stats.duplicateSkipped > 0);
 
             if (!hasFail && stats.fail === 0 && stats.duplicateSkipped === 0) {
                 panel.innerHTML = '';

@@ -174,7 +174,9 @@
 `Html/reconcile.html:867, 974` (ขาด 5 แสดง `+5` สีแดง), `:2447` (บวก variance คนละเครื่องหมายรวมกัน) **[ยืนยันแล้ว]**
 
 ### - [ ] M4. Book import แปลงชื่อสินค้าเป็นตัวพิมพ์ใหญ่หมด
-`Js/reconcile-shared.js:1108` — ใช้ `normalizeSku` (UPPERCASE) กับ `name_pro` **[ยืนยันแล้ว]** — ควรเป็น `String(...).trim()`
+`Js/reconcile-shared.js:1141` (`parseBookExcelRows`) — ใช้ `normalizeSku` (UPPERCASE) กับ `name_pro` **[ยืนยันแล้ว]** — ควรเป็น `String(...).trim()`
+> ⚠️ **ขอบเขตกว้างขึ้นตั้งแต่ 2026-08-10** — เดิมกระทบเฉพาะชื่อที่มาจากไฟล์ Book · ตอนนี้ปุ่ม "สร้างลง Book" จากรายการ count_only ก็ดึงชื่อจาก `book_stock_lines` แล้ว (แทน `sku_master` ที่ถูกถอดออก ซึ่งเก็บชื่อโดยคงตัวพิมพ์) ⇒ **ชื่อสินค้าที่มีอักษรละตินจะเป็น ALL CAPS ทุกเส้นทาง** และระบบไม่มี UI แก้ `book_stock_lines.name_pro` รายแถว
+> แก้ที่ต้นทางบรรทัดเดียว (`:1141`) จะปิดทั้งสองเส้นทางพร้อมกัน — เทส KNOWN-OPEN คุมอยู่แล้ว
 
 ### - [ ] M5. Connection badge เสีย class หลังเช็คครั้งแรก
 `Js/settings-shared.js:22, 27` — `badge.className = ...` ทับ `connection-badge-status` ทิ้ง (style ที่ผูกอยู่หลุด) **[ยืนยันแล้ว]** — ใช้ classList.add/remove
@@ -298,7 +300,7 @@ drawer ดึง `inventory_audit_logs` แค่ 100 แถวล่าสุ�
 รวมเป็น util กลางชุดเดียว (เกี่ยวพันกับ C2)
 
 ### - [ ] L4. ป้าย/ข้อความผิด
-`dashboard.html:2443` "รวม 3 คลัง" hardcode; `live-count-wall.js:607` "วันนี้" (จริงคือรายเดือน); `sku_master.html:340` "อัปเดตล่าสุด" (จริงคือ created_at); `user_manual.html:220` "ภาคผนิ"→"ภาคผนวก", `:314` สอน anon key; `settings.html:192` ป้าย "(anon/public)" ขัดค่าจริง
+`dashboard.html:2443` "รวม 3 คลัง" hardcode; `live-count-wall.js:607` "วันนี้" (จริงคือรายเดือน); `user_manual.html:220` "ภาคผนิ"→"ภาคผนวก", `:314` สอน anon key; `settings.html:192` ป้าย "(anon/public)" ขัดค่าจริง
 
 ### - [ ] L5. `readAsBinaryString` deprecated 3 จุด
 `import_counts.html:954`, `audit_check.html:3844`, `cycle_config.html:1781` — เปลี่ยนเป็น arrayBuffer (reconcile ใช้แล้ว)
@@ -307,7 +309,7 @@ drawer ดึง `inventory_audit_logs` แค่ 100 แถวล่าสุ�
 import_counts ไฟล์ = Loc, SKU, Qty แต่ audit_check paste = SKU, Loc, Qty — ตึกเดียวกัน 2 กติกา
 
 ### - [ ] L7. นโยบายแถวซ้ำในไฟล์ import ไม่ตรงกัน
-sku_master เก็บแถวสุดท้าย vs Book import บวกรวม
+🚫 **ตกไป 2026-08-10** — ฟีเจอร์ SKU Master ถูกถอดออกจากเว็บ เหลือ importer ตัวเดียวคือ Book (cycle_config)
 
 ### - [ ] L8. เอกสารเดิมล้าสมัย — **แก้แล้วเกือบหมด 2026-08-10**
 ✅ แก้แล้ว: `docs/SYSTEM_GUIDE.md` (ฟิลเตอร์ book_explorer ที่ไม่มีจริง, ตารางหลักขาด 5 ตัว, รายการ SQL, KPI อิง sku_master) · `docs/RECONCILIATION_DESIGN.md` (Phase 3 "รอทำ", รายการ SQL, `reconciliation_match_acceptances`, "ไฟล์เสนอ" ที่สร้างแล้ว) · `docs/DATABASE.md` (ขาด `inventory_count_acceptances` จาก 019, ลิสต์ `chat_attachments` เป็นตารางทั้งที่ไม่มีจริง) · `docs/ARCHITECTURE.md` + `docs/pages/sku_master.md` (อ้างว่า index อิง sku_master)
@@ -320,7 +322,7 @@ sku_master เก็บแถวสุดท้าย vs Book import บวก�
 เลือกไม่ได้ในหน้า import/count_search/audit_check จนกว่าจะเพิ่มเองใน settings
 
 ### - [ ] L11. เบ็ดเตล็ด
-count_search `cycle_id` โหลดมาแต่ไม่ใช้; precedence คลังสลับกันระหว่าง import_counts กับ count_search; cycle_config confirm 2 ระบบปนกัน + N+1 รายการรอบ + timezone 2 วิธี; `ui-confirm-modal.js:184` expression `hideBulletsBox` กลับค่าเอง; `warehouses-shared.js:52-60` update ทีละแถวทุกครั้งที่แตะ registry; `book_explorer` reuse query builder ข้าม await; sku_master ผูก event แบบ inline onclick ทั้งหน้า; loadImportHistory เรียกซ้ำ 2 ครั้งตอนบูต
+count_search `cycle_id` โหลดมาแต่ไม่ใช้; precedence คลังสลับกันระหว่าง import_counts กับ count_search; cycle_config confirm 2 ระบบปนกัน + N+1 รายการรอบ + timezone 2 วิธี; `ui-confirm-modal.js:184` expression `hideBulletsBox` กลับค่าเอง; `warehouses-shared.js:52-60` update ทีละแถวทุกครั้งที่แตะ registry; `book_explorer` reuse query builder ข้าม await; loadImportHistory เรียกซ้ำ 2 ครั้งตอนบูต
 
 ---
 

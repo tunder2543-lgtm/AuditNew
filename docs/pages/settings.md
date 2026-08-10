@@ -30,8 +30,8 @@
 ## ความสัมพันธ์กับหน้าอื่น
 
 - **ทุกหน้า**อ่าน `SB_URL`/`SB_KEY` ผ่าน `api.js` — แก้ที่นี่มีผลทั้งระบบ (ต่อเครื่อง)
-- Registry คลังถูกใช้โดย index, import_counts, count_search, audit_check, cycle_config, sku_master, dashboard, live_count_wall ผ่าน `warehouseService`
-- การลบคลังใน registry **ไม่ลบข้อมูล** `inventory_counts`/`sku_master` ของคลังนั้น — แค่หายจาก dropdown
+- Registry คลังถูกใช้โดย index, import_counts, count_search, audit_check, cycle_config, dashboard, live_count_wall ผ่าน `warehouseService`
+- การลบคลังใน registry **ไม่ลบข้อมูล** `inventory_counts` ของคลังนั้น — แค่หายจาก dropdown
 
 ## ข้อสังเกต / จุดเปราะบาง (ดู [ISSUES.md](../ISSUES.md))
 

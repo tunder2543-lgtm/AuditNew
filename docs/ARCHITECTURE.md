@@ -10,8 +10,6 @@
 settings.html ──► localStorage SB_URL/SB_KEY ──► Js/api.js getClient() ──► ทุกหน้า
 settings.html ──► ตาราง warehouses ──► Js/warehouses-shared.js ──► ทุกหน้าที่มี dropdown คลัง
 
-sku_master.html ──► sku_master ─────────────► reconcile เท่านั้น (lookup ชื่อตอน "สร้างลง Book")
-                                              ⚠️ index ไม่ได้ใช้ — KPI/autocomplete อิง book_stock_lines
 
 cycle_config.html
   ├─ สร้างรอบ ──────────────► count_cycles
@@ -40,13 +38,12 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 ## ลำดับการใช้งานที่ระบบออกแบบไว้
 
 1. `settings.html` — ตั้งค่า Supabase + จัดการคลัง
-2. `sku_master.html` — นำเข้า SKU Master ต่อคลัง
-3. `cycle_config.html` — สร้างรอบ → อัปโหลด Book → ตั้ง active cycle
-4. `index.html` / `import_counts.html` — บันทึก/นำเข้าผลนับ (แนบ cycle_id อัตโนมัติ)
-5. `audit_check.html` / `count_search.html` — ตรวจคุณภาพ/ค้นหา
-6. `cycle_config.html` — ผูกผลนับที่ยังไม่มี cycle_id เข้ารอบ
-7. `reconcile.html` — กด "คำนวณ Match" → ปรับยอด/ยอมรับ → export
-8. `book_explorer.html` / `dashboard.html` / `live_count_wall.html` — ดูผล
+2. `cycle_config.html` — สร้างรอบ → อัปโหลด Book → ตั้ง active cycle
+3. `index.html` / `import_counts.html` — บันทึก/นำเข้าผลนับ (แนบ cycle_id อัตโนมัติ)
+4. `audit_check.html` / `count_search.html` — ตรวจคุณภาพ/ค้นหา
+5. `cycle_config.html` — ผูกผลนับที่ยังไม่มี cycle_id เข้ารอบ
+6. `reconcile.html` — กด "คำนวณ Match" → ปรับยอด/ยอมรับ → export
+7. `book_explorer.html` / `dashboard.html` / `live_count_wall.html` — ดูผล
 
 ## Shared JS Layer (`Js/` — 13 ไฟล์)
 
@@ -84,7 +81,6 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | book_explorer | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | |
 | dashboard | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | dashboard-shared |
 | live_count_wall | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | live-count-wall.js |
-| sku_master | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | |
 | settings | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | |
 | cycle_config | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | |
 | chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | |
@@ -96,7 +92,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 
 จุดที่ drift:
 - ลำดับ `<script>` ไม่มีมาตรฐาน (6 หน้า sidebar มาก่อน api, 7 หน้ามาหลัง) — ทำงานได้เพราะ sidebar รอ DOMContentLoaded ยกเว้น `live-count-wall.js` ที่ลำดับสำคัญจริง
-- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 13 หน้าด้วย
+- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 12 หน้าด้วย
 - `reconcile` และ `book_explorer` โหลด `reconcile-shared.js` โดยไม่โหลด `warehouses-shared.js` — ไม่พัง เพราะ `refreshStandardWarehousesFromRegistry()` ถูกเรียกจาก `cycle_config` / `settings` เท่านั้น ซึ่งโหลดครบ · `book_explorer` ไม่โหลด `sku-utils.js` ก็ไม่พัง เพราะ `reconcile-shared.js:70` มี fallback normalize ที่เหมือน `SkuUtils.normalizeSku` เป๊ะ
 - `escapeHtml` มี **5 เวอร์ชัน** คนละชุดอักขระ (warehouses-shared, ui-confirm-modal, chat.html, dashboard.html, live-count-wall.js)
 - Connection badge มี 3 implementation (settings-shared กลาง, dashboard `#connectionPill`, live_count_wall id-based)
@@ -115,7 +111,6 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `import_counts_warehouse` | import_counts | import_counts, count_search |
 | `audit_check_year_month` / `audit_check_all_time` | audit_check | audit_check |
 | `audit_check_warehouse` | audit_check | ⚠️ ไม่มีใครอ่าน |
-| `sku_master_warehouse` | sku_master | sku_master |
 | `dashboard_scope_warehouse` / `dashboard_cycle_id` | dashboard | dashboard |
 | `live_wall_warehouse` / `live_wall_cycle_id` | live_count_wall | live_count_wall |
 | `sidebar_groups_open_v1` | sidebar-shared | sidebar-shared |
@@ -131,10 +126,9 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 |---|---|
 | เมนูนับสต็อก | index (นับสต็อก), import_counts |
 | เมนูตรวจสอบ | audit_check, count_search, reconcile, book_explorer, dashboard, live_count_wall |
-| ฐานข้อมูล | sku_master |
 | ตั้งค่า | settings, cycle_config, chat, user_manual |
 
-ลิงก์ครบทั้ง 13 หน้า ไม่มีลิงก์เสีย
+ลิงก์ครบทั้ง 12 หน้า ไม่มีลิงก์เสีย (มีเทส `[menu-guard]` บังคับว่าทุกรายการต้องชี้ไฟล์ที่มีจริง และทุกกลุ่มต้องมีอย่างน้อย 1 รายการ)
 
 ## CSS
 

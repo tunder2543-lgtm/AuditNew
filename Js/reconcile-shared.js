@@ -1478,15 +1478,19 @@
 
      * แหล่งใหม่กว้างกว่าเดิม เป็นคอลัมน์ความหมายเดียวกัน (name_pro -> name_pro)
 
-     * และผูกกับรอบซึ่งผูกคลังอยู่แล้ว จึงไม่มีปัญหาชื่อปนข้ามคลังแบบของเดิม
+     *
+
+     * จงใจ **ไม่กรองคลังและไม่กรองรอบ** — ชื่อสินค้าไม่ขึ้นกับคลัง และเป้าหมายคือหาชื่อ
+
+     * จากรอบไหนก็ได้ที่เคยมี (SKU ที่กดปุ่มได้คือ SKU ที่ไม่อยู่ใน Book ของรอบปัจจุบัน)
+
+     * หมายเหตุ: `book_stock_lines` ไม่มีคอลัมน์ warehouse อยู่แล้ว — คลังผูกที่ `count_cycles`
 
      *
 
      * เรียง created_at DESC + id DESC แล้วเก็บตัวแรก = ชื่อจากรอบล่าสุดเสมอ
 
-     * ไม่ใช้ .range() โดยตั้งใจ — ถ้า PostgREST ตัดที่ default limit จะตัดแถวเก่าสุดทิ้ง
-
-     * ผลแย่สุดคือ "ไม่ได้ชื่อ" (null) ซึ่งเป็นพฤติกรรมเดิมอยู่แล้ว ไม่มีทางได้ชื่อผิด
+     * (`.order('id')` เป็น tiebreak บังคับตาม invariant ข้อ 13 เพราะมี `.range()`)
 
      */
 
@@ -1502,7 +1506,15 @@
 
         const unique = [...new Set(skus.map(s => normalizeSku(s)).filter(Boolean))];
 
-        const CHUNK = 100;
+        // chunk เล็กโดยตั้งใจ — SKU หนึ่งตัวมีได้หลายแถวข้ามรอบ ยิ่ง chunk ใหญ่
+
+        // ยิ่งเสี่ยงชน max-rows ของ PostgREST (ดีฟอลต์ 1,000) ตั้งแต่หน้าแรก
+
+        const CHUNK = 25;
+
+        const PAGE = 1000;
+
+        const MAX_PAGES = 5;   // กันลูปยาวเกินจำเป็น — ชื่อสินค้าไม่คุ้มกับการไล่ทั้งตาราง
 
 
 
@@ -1510,39 +1522,59 @@
 
             const chunk = unique.slice(i, i + CHUNK);
 
-            const { data, error } = await client
+            let from = 0;
 
-                .from('book_stock_lines')
 
-                .select('sku_id, name_pro')
 
-                .in('sku_id', chunk)
+            for (let page = 0; page < MAX_PAGES; page++) {
 
-                .not('name_pro', 'is', null)
+                const { data, error } = await client
 
-                .order('created_at', { ascending: false })
+                    .from('book_stock_lines')
 
-                .order('id', { ascending: false });
+                    .select('sku_id, name_pro')
 
-            if (error) {
+                    .in('sku_id', chunk)
 
-                // ชื่อสินค้าไม่ใช่ข้อมูลบังคับ — ห้ามบล็อกการสร้างแถว Book
+                    .not('name_pro', 'is', null)
 
-                console.warn('fetchBookNamesBySkusAnyCycle', error);
+                    .order('created_at', { ascending: false })
 
-                continue;
+                    .order('id', { ascending: false })
+
+                    .range(from, from + PAGE - 1);
+
+                if (error) {
+
+                    // ชื่อสินค้าไม่ใช่ข้อมูลบังคับ — ห้ามบล็อกการสร้างแถว Book
+
+                    console.warn('fetchBookNamesBySkusAnyCycle', error);
+
+                    break;
+
+                }
+
+
+
+                (data || []).forEach(r => {
+
+                    const sku = normalizeSku(r.sku_id);
+
+                    const nm = r.name_pro ? String(r.name_pro).trim() : '';
+
+                    if (sku && nm && !map[sku]) map[sku] = nm;   // first-wins = รอบล่าสุด
+
+                });
+
+
+
+                // ครบทุก SKU ในก้อนนี้แล้ว หรือข้อมูลหมด → ไม่ต้องดึงหน้าถัดไป
+
+                if (chunk.every(s => map[s]) || !data || data.length < PAGE) break;
+
+                from += PAGE;
 
             }
-
-            (data || []).forEach(r => {
-
-                const sku = normalizeSku(r.sku_id);
-
-                const nm = r.name_pro ? String(r.name_pro).trim() : '';
-
-                if (sku && nm && !map[sku]) map[sku] = nm;   // first-wins = รอบล่าสุด
-
-            });
 
         }
 

@@ -45,7 +45,7 @@
 
 ## localStorage keys
 
-เฉพาะ `active_count_cycle_v1` (ผ่าน reconcileService) — ฟิลเตอร์คลัง/เดือนที่เลือก**ไม่ถูกจำ** (ต่างจาก sku_master/audit_check)
+เฉพาะ `active_count_cycle_v1` (ผ่าน reconcileService) — ฟิลเตอร์คลัง/เดือนที่เลือก**ไม่ถูกจำ** (ต่างจาก audit_check)
 
 ## ความสัมพันธ์กับหน้าอื่น
 

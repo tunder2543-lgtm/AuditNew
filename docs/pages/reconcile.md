@@ -35,7 +35,7 @@
 | `inventory_counts` | **SELECT `sku_id` อย่างเดียว** (presence map) — ไม่มี UPDATE/DELETE |
 | `stock_adjustments` | SELECT; INSERT draft; DELETE draft; DELETE ตามชุด SKU |
 | `reconciliation_match_acceptances` | SELECT, UPSERT (`onConflict: cycle_id,sku_id`), DELETE |
-| `sku_master` | SELECT `sku_name,name_pro` (`.in` chunk 200) |
+| `book_stock_lines` (ข้ามรอบ) | SELECT `sku_id,name_pro` (`.in` chunk 100, เรียง `created_at` DESC) — lookup ชื่อสินค้าตอน "สร้างลง Book" · แทนที่ `sku_master` เดิมตั้งแต่ 2026-08-10 |
 | RPC `refresh_reconciliation_for_cycle` | คำนวณ match ใหม่ทั้งรอบ |
 | RPC `apply_stock_adjustment` / `apply_all_drafts_for_cycle` | apply draft |
 | RPC `import_book_stock_lines_atomic` | import Book แบบ atomic (fallback legacy ถ้าไม่มี) |

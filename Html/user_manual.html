@@ -165,7 +165,7 @@
 
                 <header class="manual-hero">
                     <h1>คู่มือการใช้งานระบบนับสต็อก</h1>
-                    <p>Stock Audit System — จัดตามลำดับ Data Flow · DFD Level 0–1 · ขั้นตอน F0–F7 ตั้งแต่ SKU Master การนับ Match Dashboard และ ER / Data Flow</p>
+                    <p>Stock Audit System — จัดตามลำดับ Data Flow · DFD Level 0–1 · ขั้นตอน F0–F7 ตั้งแต่การตั้งค่า การนับ Match Dashboard และ ER / Data Flow</p>
                     <div class="manual-meta">
                         <span>อัปเดต พ.ค. 2026</span>
                         <span>3 คลัง + คลังทั้งหมด</span>
@@ -194,7 +194,6 @@
                         <li><a href="#dfd-lv1">DFD Level 1</a></li>
                         <li><a href="#flow-sequence">ลำดับ Data Flow F0–F7</a></li>
                         <li><a href="#flow-f0">F0 ตั้งค่าระบบ</a></li>
-                        <li><a href="#flow-f1">F1 SKU Master</a></li>
                         <li><a href="#flow-f2">F2 รอบ + Book</a></li>
                         <li><a href="#flow-f3">F3 นับสต็อก</a></li>
                         <li><a href="#flow-f3-import">F3 Import นับ</a></li>
@@ -229,7 +228,7 @@
                     <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>สัญลักษณ์</th><th>ความหมาย</th></tr></thead><tbody>
                         <tr><td>E1 ผู้นับสต็อก</td><td data-editable>สแกน/Import ผลนับผ่านหน้าเว็บ</td></tr>
                         <tr><td>E2 ผู้ดูแล/ERP</td><td data-editable>ตั้งรอบ อัปโหลด Book ดู Match Export ไป ERP</td></tr>
-                        <tr><td>E3 ไฟล์ Excel</td><td data-editable>SKU Master · ผลนับ · ยอด Book ก่อนนับ</td></tr>
+                        <tr><td>E3 ไฟล์ Excel</td><td data-editable>ผลนับ · ยอด Book ก่อนนับ</td></tr>
                         <tr><td>E4 Supabase</td><td data-editable>ที่เก็บข้อมูลถาวรทุกตาราง</td></tr>
                         <tr><td>P0</td><td data-editable>เว็บแอป Stock Audit ทั้งหมด</td></tr>
                     </tbody></table></div>
@@ -248,12 +247,11 @@
                 <section id="dfd-lv1" class="manual-section">
                     <h2><span class="sec-num">DFD</span> DFD Level 1 — แตกกระบวนการ P0</h2>
                     <p class="dfd-built">✓ สร้างแผนภาพให้แล้ว — ไฟล์ <code>assets/manual/dfd-level1.svg</code></p>
-                    <p data-editable>แผนภาพ Level 1 แตก P0 เป็นกระบวนการย่อย <strong>P1–P6</strong> และคลังข้อมูล <strong>D1–D7</strong> สอดคล้องหน้าเว็บและลำดับ Flow F0–F7</p>
+                    <p data-editable>แผนภาพ Level 1 แตก P0 เป็นกระบวนการย่อย <strong>P2–P6</strong> และคลังข้อมูล <strong>D2–D7</strong> สอดคล้องหน้าเว็บและลำดับ Flow F0–F7</p>
                     <div class="flow-box dfd-wrap">
                         <img class="dfd-diagram-img" src="../assets/manual/dfd-level1.svg" alt="DFD Level 1" width="1100" height="680">
                     </div>
                     <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>กระบวนการ</th><th>หน้าเว็บ</th><th>คลังข้อมูล</th></tr></thead><tbody>
-                        <tr><td>P1 จัดการ SKU Master</td><td><code>sku_master.html</code></td><td>D1 <code>sku_master_data</code></td></tr>
                         <tr><td>P2 สร้างรอบ + อัปโหลด Book</td><td><code>cycle_config.html</code></td><td>D2 <code>count_cycles</code> · D3 <code>book_stock_lines</code></td></tr>
                         <tr><td>P3 บันทึกผลนับ</td><td><code>index.html</code> · <code>import_counts.html</code></td><td>D4 <code>inventory_counts</code></td></tr>
                         <tr><td>P4 ผูกรอบ + ตรวจสอบ</td><td><code>cycle_config</code> · <code>audit_check.html</code> · <code>count_search.html</code></td><td>D4 (อัปเดต cycle_id / แก้ตำแหน่ง)</td></tr>
@@ -272,7 +270,6 @@
                     </div>
                     <div class="manual-table-wrap"><table class="manual-table"><thead><tr><th>Flow</th><th>ขั้นตอน</th><th>DFD</th><th>หน้าเว็บ</th><th>ข้อมูลหลัก</th></tr></thead><tbody>
                         <tr><td><strong>F0</strong></td><td data-editable>ตั้งค่า Supabase + SQL</td><td>—</td><td><a href="#flow-f0">settings</a></td><td>การเชื่อมต่อ</td></tr>
-                        <tr><td><strong>F1</strong></td><td data-editable>นำเข้า SKU Master</td><td>P1</td><td><a href="#flow-f1">sku_master</a></td><td>D1</td></tr>
                         <tr><td><strong>F2</strong></td><td data-editable>สร้างรอบ + อัปโหลด Excel Book</td><td>P2</td><td><a href="#flow-f2">cycle_config</a></td><td>D2, D3</td></tr>
                         <tr><td><strong>F3</strong></td><td data-editable>บันทึกผลนับ (สแกน / Import)</td><td>P3</td><td><a href="#flow-f3">index</a> · <a href="#flow-f3-import">import</a></td><td>D4</td></tr>
                         <tr><td><strong>F4</strong></td><td data-editable>ผูก cycle_id + ตั้งรอบ active</td><td>P4</td><td><a href="#flow-f4">cycle_config</a></td><td>D4.cycle_id</td></tr>
@@ -308,39 +305,6 @@
                         <li data-editable><code>docs/sql/003_cycle_all_warehouses_date_range.sql</code> — คลังทั้งหมด + ช่วงวัน</li>
                         <li data-editable><code>docs/sql/004_dashboard_submission_buckets.sql</code> — (แนะนำ) RPC กราฟ Dashboard</li>
                     </ol>
-                </section>
-<hr class="manual-divider">
-
-<section id="flow-f1" class="manual-section flow-phase-section">
-                    <h2><span class="sec-num">F1</span> SKU Master (P1 → D1)</h2>
-                    <p data-editable>จัดการตาราง <code>sku_master_data</code> — รายการ SKU ที่คาดว่าจะนับในแต่ละคลัง ใช้คำนวณ KPI 「ยังไม่ได้นับ」「นับแล้วใน Master %」</p>
-                    <figure class="manual-figure-slot" data-slot="sku-master-1">
-                        <div class="slot-image-wrap">
-                            <img class="figure-img slot-empty" alt="" style="display:none">
-                            <div class="slot-placeholder">แนะนำ: ภาพหน้า SKU Master — dropdown คลัง, ปุ่มอัปโหลด, ตาราง preview</div>
-                            <div class="slot-browse-wrap"><label class="slot-browse-btn"><i data-lucide="image-plus"></i> Browse รูป<input class="slot-file-input" type="file" accept="image/*" hidden></label></div>
-                            <label class="slot-change-img" style="display:none">เปลี่ยนรูป<input class="slot-file-input-change" type="file" accept="image/*" hidden></label>
-                        </div>
-                        <figcaption data-editable>ภาพที่ 1 — หน้า SKU Master</figcaption>
-                    </figure>
-                    <h3>1.1 เครื่องมือบนหน้า</h3>
-                    <ul>
-                        <li data-editable><strong>เลือกคลัง</strong> — ตึกกันตนา / หน้าไลฟ์ / คลังอะไหล่ (Master แยกต่อคลัง)</li>
-                        <li data-editable><strong>อัปโหลด Excel</strong> — นำเข้ารายการ SKU (คอลัมน์หลักคือรหัส SKU)</li>
-                        <li data-editable><strong>Preview ก่อนยืนยัน</strong> — ตรวจจำนวนแถว / แถวซ้ำ / คอลัมน์ไม่ครบ</li>
-                        <li data-editable><strong>บันทึก (Upsert)</strong> — อัปเดตแถวเดิมหรือเพิ่มใหม่ตาม SKU+คลัง</li>
-                        <li data-editable><strong>ดู/ลบรายการในตาราง</strong> — จัดการ Master หลังนำเข้า</li>
-                    </ul>
-                    <h3>1.2 ขั้นตอนนำเข้า SKU</h3>
-                    <ol class="manual-steps">
-                        <li data-editable><strong>เลือกคลัง</strong> ที่ต้องการ</li>
-                        <li data-editable><strong>เลือกไฟล์ .xlsx</strong> ที่มีคอลัมน์ SKU</li>
-                        <li data-editable><strong>ตรวจ preview</strong> — แก้ไฟล์ถ้ามีแถว error</li>
-                        <li data-editable><strong>กดยืนยันนำเข้า</strong> — รอจนเสร็จ</li>
-                    </ol>
-                    <h3>1.3 สินค้าใหม่ (นอก Master)</h3>
-                    <p data-editable>SKU ที่นับแล้วแต่ไม่อยู่ใน Master จะ<strong>ไม่นับใน % ความคืบหน้า</strong> แต่แสดงที่หน้า <strong>นับสต็อก</strong> ในแบนเนอร์「สินค้าใหม่」— Export ไปเพิ่มใน Master ภายหลัง</p>
-                    <div class="manual-tip"><i data-lucide="lightbulb"></i><div data-editable>ควรอัปเดต Master <strong>ก่อนเริ่มรอบนับ</strong> ของเดือน เพื่อให้ KPI และรายการ「ยังไม่ได้นับ」ตรงกับของจริง</div></div>
                 </section>
 <hr class="manual-divider">
 
@@ -663,8 +627,6 @@ variance = ผลนับ − Excel ใช้เทียบ</pre></div>
   ├── inventory_counts     (FK cycle_id?, warehouse, sku_id, location, counted_qty)
   ├── reconciliation_lines (FK cycle_id, SKU)
   └── stock_adjustments    (FK cycle_id)
-
-sku_master_data (warehouse, sku_id) — อ้างอิงเป้าหมายนับ KPI</div>
                 </section>
                 <hr class="manual-divider">
 
@@ -678,8 +640,6 @@ sku_master_data (warehouse, sku_id) — อ้างอิงเป้าหม�
                     </tbody></table></div>
                     <h3>Book (cycle_config)</h3>
                     <p data-editable>SKU + จำนวน (book_qty) — แถวไม่ผ่านจะไม่นำเข้า</p>
-                    <h3>SKU Master</h3>
-                    <p data-editable>คอลัมน์หลัก SKU — แยกไฟล์ต่อคลัง</p>
                 </section>
 <hr class="manual-divider">
 

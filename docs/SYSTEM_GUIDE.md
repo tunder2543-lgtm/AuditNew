@@ -7,13 +7,12 @@
 ระบบนี้แบ่งงานเป็น 3 ส่วนหลัก:
 
 1. บันทึกผลนับจริง (`inventory_counts`)
-2. จัดการข้อมูลอ้างอิง (SKU Master / รอบนับ / BOOK)
+2. จัดการข้อมูลอ้างอิง (รอบนับ / BOOK)
 3. ตรวจสอบและสรุปผล (Audit, Reconcile, Dashboard, Book Explorer)
 
 หลักการสำคัญ:
 
 - `inventory_counts` คือหลักฐานผลนับจริง (ไม่ควรแก้ย้อนหลังใน flow Reconcile)
-- `sku_master` คือรายการ SKU เป้าหมายต่อคลัง
 - `book_stock_lines` คือยอดก่อนนับ (BOOK) ที่ผูกกับ `count_cycles`
 - ทุกหน้าต่อ Supabase ผ่านการตั้งค่าจากหน้า `settings.html`
 
@@ -22,7 +21,6 @@
 ตารางหลักที่ระบบใช้งาน:
 
 - `warehouses` — registry คลังที่ใช้ร่วมกันทุกหน้า
-- `sku_master` — SKU Master ต่อคลัง
 - `inventory_counts` — รายการนับจริง
 - `count_cycles` — รอบนับ
 - `book_stock_lines` — รายการ BOOK ต่อรอบ
@@ -39,7 +37,6 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 1. ตั้งค่า Supabase ที่ `settings.html`
 2. จัดการคลังที่ `settings.html` (เพิ่ม/ลบ/เปิด-ปิด)
-3. นำเข้า SKU Master ที่ `sku_master.html`
 4. สร้างรอบและอัปโหลด BOOK ที่ `cycle_config.html`
 5. บันทึกผลนับที่ `index.html` หรือ import ผ่าน `import_counts.html`
 6. ตรวจสอบข้อมูลที่ `audit_check.html` / `count_search.html`
@@ -63,19 +60,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.2 `sku_master.html`
-
-หน้าที่:
-
-- นำเข้า/จัดการ SKU Master ต่อคลัง
-
-ผลกระทบ:
-
-- **ปัจจุบันแทบไม่ผูกกับหน้าอื่นเลย** — `index.html` / `Js/script.js` ไม่แตะ `sku_master` (autocomplete และ KPI ใช้ `book_stock_lines` ล้วน) · ผู้ใช้เดียวที่เหลือคือ `reconcile.html` ตอนกด "สร้างลง Book" จากรายการ count_only ซึ่งเรียก `fetchSkuMasterNamesBySkus` เพื่อเติมชื่อสินค้า และมี fallback อยู่แล้ว
-
----
-
-### 4.3 `cycle_config.html`
+### 4.2 `cycle_config.html`
 
 หน้าที่:
 
@@ -85,7 +70,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.4 `index.html` (นับสต็อก)
+### 4.3 `index.html` (นับสต็อก)
 
 หน้าที่:
 
@@ -98,7 +83,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.5 `import_counts.html`
+### 4.4 `import_counts.html`
 
 หน้าที่:
 
@@ -107,7 +92,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.6 `audit_check.html` / `count_search.html`
+### 4.5 `audit_check.html` / `count_search.html`
 
 หน้าที่:
 
@@ -116,7 +101,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.7 `reconcile.html`
+### 4.6 `reconcile.html`
 
 หน้าที่:
 
@@ -129,7 +114,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.8 `book_explorer.html`
+### 4.7 `book_explorer.html`
 
 หน้าที่:
 
@@ -143,7 +128,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ---
 
-### 4.9 `dashboard.html`
+### 4.8 `dashboard.html`
 
 หน้าที่:
 
@@ -151,7 +136,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 
 ## 5) ฟิลเตอร์และ KPI ที่ควรรู้
 
-- KPI ในหน้านับเทียบกับ **BOOK ของรอบที่เลือก** (`book_stock_lines`) ไม่ใช่ `sku_master`
+- KPI ในหน้านับเทียบกับ **BOOK ของรอบที่เลือก** (`book_stock_lines`)
 - `book_explorer.html` ใช้ `book_stock_lines` เป็นหลัก และ join metadata รอบจาก `count_cycles`
 
 ## 6) Troubleshooting (ปัญหาพบบ่อย)
@@ -161,7 +146,7 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 ตรวจ:
 
 - คลังที่เลือกตรงกับข้อมูลหรือไม่
-- **รอบที่เลือกมี BOOK อัปโหลดแล้วหรือยัง** (KPI อิง `book_stock_lines` ของรอบนั้น ไม่ใช่ `sku_master`)
+- **รอบที่เลือกมี BOOK อัปโหลดแล้วหรือยัง** (KPI อิง `book_stock_lines` ของรอบนั้น)
 - มี cache ค้างหรือไม่ (ลอง `Ctrl+F5`)
 
 ### 6.2 คลังใหม่ไม่ขึ้นทุกหน้า

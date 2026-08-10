@@ -8,7 +8,7 @@ tools: Read, Grep, Glob, Bash
 
 ## โครงสร้างระบบ (บริบทที่ต้องรู้)
 
-- 13 หน้า HTML: `index.html` (root, นับสต็อก) + `Html/` อีก 12 หน้า (import_counts, count_search, audit_check, reconcile, cycle_config, book_explorer, sku_master, dashboard, settings, chat, live_count_wall, user_manual)
+- 12 หน้า HTML: `index.html` (root, นับสต็อก) + `Html/` อีก 11 หน้า (import_counts, count_search, audit_check, reconcile, cycle_config, book_explorer, dashboard, settings, chat, live_count_wall, user_manual)
 - Shared JS ใน `Js/`: `api.js` (Supabase client factory), `sidebar-shared.js` (เมนู — โหลดทุกหน้า), `warehouses-shared.js` (registry คลัง), `settings-shared.js` (connection badge), `sku-utils.js`, `db-errors.js`, `ui-confirm-modal.js`, `reconcile-shared.js` (service ใหญ่ ~95 exports), `dashboard-shared.js`, `chat-notify-shared.js`, `live-count-wall.js`, `manual-editor.js`
 - Schema/migrations อยู่ที่ `docs/sql/*.sql` — เอกสารระบบอยู่ที่ `docs/` และ `CLAUDE.md`
 - รายการปัญหาที่รู้อยู่แล้ว: `docs/ISSUES.md` — อ้างอิงหมายเลขข้อจากไฟล์นี้เมื่อพบประเด็นซ้ำ อย่ารายงานซ้ำเป็นของใหม่

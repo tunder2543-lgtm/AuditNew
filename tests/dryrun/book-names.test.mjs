@@ -80,7 +80,7 @@ test('[book-name] DB error → คืน {} ไม่ throw (ชื่อไม�
         getClient: () => ({
             from() {
                 const q = {
-                    select: () => q, in: () => q, not: () => q, order: () => q,
+                    select: () => q, in: () => q, not: () => q, order: () => q, range: () => q,
                     then: (res) => Promise.resolve({ data: null, error: { message: 'boom' } }).then(res),
                 };
                 return q;
@@ -107,8 +107,11 @@ test('[book-name] reconcile.html เลิกใช้ skuNameMap เป็น f
         const start = src.indexOf(fn);
         assert.ok(start > 0, `หาไม่เจอ: ${fn}`);
         const body = src.slice(start, start + 4000);
+        // ⚠️ อย่าเขียน pattern ให้แคบกว่านี้ — รุ่นแรกใช้ `[\w.]*` ก่อน `||` ซึ่งไม่ครอบ `[` `]`
+        //    จึงจับ `masterNames[sku] || skuNameMap[sku]` (รูปแบบจริงที่เคยมีในโค้ด) ไม่ได้เลย
+        //    พิสูจน์ด้วย mutation แล้วว่าเทสผ่านฉลุยทั้งที่ fallback ถูกใส่กลับเข้าไป
         assert.ok(
-            !/namePro:\s*[\w.]*\s*\|\|\s*skuNameMap\[/.test(body),
+            !/namePro:[^\n;]*skuNameMap/.test(body),
             `${fn}: ยังใช้ skuNameMap เป็น fallback ของ namePro — มันตายสนิท ` +
             `(canAddToBookLine บังคับว่า SKU นี้ยังไม่มีใน Book รอบนี้ ⇒ skuNameMap ไม่มีคีย์)`
         );
@@ -117,4 +120,43 @@ test('[book-name] reconcile.html เลิกใช้ skuNameMap เป็น f
             `${fn}: ต้องดึงชื่อจาก fetchBookNamesBySkusAnyCycle`
         );
     }
+});
+
+test('[book-name] มี .order("id") เป็น tiebreak (invariant ข้อ 13 — query นี้ใช้ .range())', async () => {
+    const { RS, mock } = setup([
+        { id: 1, sku_id: 'A1', name_pro: 'x', created_at: '2026-07-01T00:00:00Z' },
+    ]);
+    await RS.fetchBookNamesBySkusAnyCycle(['A1']);
+    const q = findOps(mock, { table: 'book_stock_lines', op: 'select' })[0];
+    const orders = q.modifiers.filter(m => m.type === 'order').map(m => m.col);
+    assert.deepEqual(orders, ['created_at', 'id'],
+        'ต้องเรียง created_at ก่อน แล้ว id เป็น tiebreak — created_at ซ้ำกันได้จาก bulk insert');
+    assert.ok(q.modifiers.some(m => m.type === 'range'), 'ต้องแบ่งหน้าด้วย .range()');
+});
+
+test('[book-name] แบ่งหน้าต่อจนกว่าจะได้ชื่อครบ — ไม่ปล่อยให้ max-rows ตัดแถวเก่าทิ้ง', async () => {
+    // จำลอง: SKU 'OLD' มีชื่ออยู่ในแถวที่ 1,001 เท่านั้น (หน้าแรกเต็มไปด้วยแถวของ SKU อื่น)
+    const rows = [];
+    for (let i = 0; i < 1000; i++) {
+        rows.push({ id: i + 1, sku_id: 'NEW', name_pro: 'ชื่อใหม่', created_at: '2026-07-01T00:00:00Z' });
+    }
+    rows.push({ id: 2000, sku_id: 'OLD', name_pro: 'ชื่อเก่า', created_at: '2026-01-01T00:00:00Z' });
+
+    const { RS, mock } = setup(rows);
+    const map = await RS.fetchBookNamesBySkusAnyCycle(['NEW', 'OLD']);
+    assert.equal(map.NEW, 'ชื่อใหม่');
+    assert.equal(map.OLD, 'ชื่อเก่า', 'ถ้าไม่ดึงหน้าที่ 2 SKU นี้จะไม่ได้ชื่อ');
+    assert.ok(findOps(mock, { table: 'book_stock_lines', op: 'select' }).length >= 2,
+        'ต้องยิง query มากกว่า 1 หน้า');
+});
+
+test('[book-name] หยุดดึงหน้าถัดไปทันทีที่ได้ชื่อครบทุก SKU (ไม่ไล่ทั้งตาราง)', async () => {
+    const rows = [];
+    for (let i = 0; i < 1500; i++) {
+        rows.push({ id: i + 1, sku_id: 'A1', name_pro: 'ชื่อ', created_at: '2026-07-01T00:00:00Z' });
+    }
+    const { RS, mock } = setup(rows);
+    await RS.fetchBookNamesBySkusAnyCycle(['A1']);
+    assert.equal(findOps(mock, { table: 'book_stock_lines', op: 'select' }).length, 1,
+        'ได้ชื่อครบตั้งแต่หน้าแรกแล้ว ต้องไม่ยิงหน้าที่ 2');
 });

@@ -18,12 +18,20 @@
 
 Registry กลางของทุกหน้า — seed 3 คลังไทย + sync จากข้อมูลเดิม; **ไม่มี** `'คลังทั้งหมด'` ในตาราง (เป็นค่าพิเศษฝั่ง client); helper `get_active_warehouses()`
 
-### `sku_master`
+### ~~`sku_master`~~ — 🚫 **เลิกใช้แล้ว 2026-08-10 (ตารางยังอยู่ในฐาน)**
 | คอลัมน์ | หมายเหตุ |
 |---|---|
-| `id`, `sku_name`, `name_pro`, `warehouse`, `created_at` | ไม่มี `updated_at` — UI แสดง created_at เป็น "อัปเดตล่าสุด" (ผิดความหมาย) |
+| `id`, `sku_name`, `name_pro`, `warehouse`, `created_at` | ไม่มี `updated_at` |
 
 Unique partial index: `uq_sku_master_name_warehouse (sku_name, warehouse) WHERE warehouse <> ''` (009 §3.2)
+
+**ฟีเจอร์ SKU Master ถูกถอดออกจากเว็บทั้งหมด** — ลบ `Html/sku_master.html` + เมนู + `fetchSkuMasterNamesBySkus`
+⇒ **ไม่มีโค้ดใดในระบบอ่านหรือเขียนตารางนี้อีกแล้ว** (มีเทส `dryrun/book-names` [book-name] บังคับว่าห้าม query กลับมา)
+
+⚠️ **เจตนาไม่ลบตารางออกจาก Supabase** (มติ admin) — 1,179 แถวยังอยู่ครบ พร้อม index และ RLS policy เดิม
+เหตุผลที่เก็บไว้: โปรเจกต์ Supabase นี้ใช้ร่วมกับระบบอื่นอีก 30 ตาราง จึงพิสูจน์ไม่ได้ว่าไม่มีแอปนอก repo นี้เรียกใช้ · และการเก็บไว้ทำให้ migration `009` / `010` / `014` / `016` ที่อ้างตารางนี้ยังรันได้ปกติ — สำคัญมากสำหรับ [016:77](sql/016_rls_policies.sql) ซึ่งถ้า error จะขวางไม่ให้ถึง policy `UPDATE`/`DELETE` ของ `inventory_counts` ที่ `:86` / `:88` (audit_check + cycle_config จะตายเงียบแบบ Regression C1)
+
+แหล่งชื่อสินค้าที่มาแทน: `book_stock_lines.name_pro` ข้ามรอบ (`fetchBookNamesBySkusAnyCycle` ใน `Js/reconcile-shared.js`)
 
 ### `inventory_counts` — หัวใจของระบบ (หลักฐานผลนับ, immutable)
 | คอลัมน์ | ที่มา |

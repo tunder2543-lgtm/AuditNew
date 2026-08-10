@@ -219,8 +219,18 @@
 ### - [ ] M21. chat: ล้าง Storage จำกัด 500 ไฟล์ไม่มี pagination + ไฟล์แนบเป็น public URL ถาวร
 `Html/chat.html:565, 386-390`
 
-### - [ ] M22. book_explorer: layout แตกแถวจากหน้าอื่น (ไม่มี `has-sidebar`)
+### - [x] M22. book_explorer: layout แตกแถวจากหน้าอื่น (ไม่มี `has-sidebar`)
 `Html/book_explorer.html:12, 113, 116` — ตรงกับอาการ "ตำแหน่งเพี้ยน" ใน SYSTEM_GUIDE §6.3
+> **✅ แก้แล้ว 2026-08-10** (พ่วงมากับงาน UI1) — ใส่ `class="has-sidebar"` ที่ `<body>` และย้ายระยะขอบมาไว้ที่ `.main-content` (`padding: 2rem 1.5rem 3rem` เท่า `.main-area`) เพราะ `has-sidebar` ตั้ง body padding เป็น 0 · ยืนยันในเบราว์เซอร์: sidebar อยู่ที่ x=0 กว้าง 220px เนื้อหาเริ่มที่ x=220 (เดิมลอยกลางจอ)
+
+### - [x] UI1. เมนูซ้ายแตกบนมือถือ / iPad แนวตั้ง / จอคอมแคบ
+`Css/style.css:1164-1194 (เดิม)` — บล็อก `@media (max-width:900px)` เขียนไว้ตอนเมนูยังเป็น "แถวไอคอนแบน" แต่ `Js/sidebar-shared.js` เปลี่ยนไปเรนเดอร์เป็น "กลุ่มพับได้" (column) แล้ว → CSS สั่ง `flex-direction: row` ทับ DOM แนวตั้ง ทำให้หัวข้อกลุ่ม (`width:100%`) ยืดเต็มความกว้างแล้วตกบรรทัดมั่ว · ชื่อกลุ่มไทย + chevron ยังโชว์เพราะกฎซ่อนข้อความจับแค่ `.sidebar-nav-item span` ไม่ครอบ `.sidebar-group-left span`
+> **✅ แก้แล้ว 2026-08-10** — เปลี่ยนเป็นลิ้นชักสไลด์ (off-canvas drawer) + ปุ่ม ☰ + ฉากมืด คงรูปทรงเมนูแนวตั้งเดิมไว้ทั้งหมด · เทส `tests/unit/sidebar-responsive.test.mjs` × 9 กันไม่ให้ CSS responsive หลุดจาก DOM จริงอีก (พิสูจน์ด้วย mutation แล้ว)
+
+### - [ ] UI2. ลิ้นชักเมนูจอเล็กยังไม่มี focus trap
+พบจาก review ของ UI1 — ตอนลิ้นชักเปิดบนจอเล็ก กด Tab ต่อจากเมนูตัวสุดท้ายแล้วโฟกัสวิ่งเข้าเนื้อหาหลังฉากมืดได้ (ยังไม่ตั้ง `inert` / `aria-hidden` ให้ `.app-layout`)
+**ผลกระทบจริงต่ำ**: ผู้ใช้บนมือถือใช้นิ้วแตะ ไม่ค่อยใช้ Tab · เมนูปิดสนิทเมื่อไม่เปิด (`visibility: hidden` ตัดออกจากลำดับ Tab แล้ว) — เหลือเฉพาะช่วงที่เปิดอยู่
+**แนวทางแก้:** ตั้ง `document.querySelector('.app-layout').inert = true` ตอนเปิด และคืนค่าตอนปิดใน `setDrawer()` (`Js/sidebar-shared.js`)
 
 ### - [x] M25. `getClient()` สร้าง Supabase client ใหม่ทุกครั้งที่ถูกเรียก
 พบจากที่ admin เห็น console เตือน `Multiple GoTrueClient instances detected` รัว ๆ — `Js/api.js` `getSupabaseClient()` เรียก `createClient()` ใหม่ทุกครั้ง ทำให้หนึ่งหน้าเว็บมี client 6+ ตัว แต่ละตัวมี GoTrueClient + timer refresh token ของตัวเอง ใช้ storage key เดียวกัน (เปลืองและพฤติกรรมไม่แน่นอน)

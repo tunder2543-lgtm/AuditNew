@@ -1054,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // เคลียร์ค่า input
         skuInput.value = '';
-        quantityInput.value = '1';
+        quantityInput.value = '';
         hideSkuInfo();
         closeDropdown();
         skuInput.focus();
@@ -1229,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`✓ บันทึกกลุ่มสำเร็จ ${itemCount} รายการ`, 'success');
 
                 skuInput.value = '';
-                quantityInput.value = '1';
+                quantityInput.value = '';
                 hideSkuInfo();
                 closeDropdown();
                 skuInput.focus();
@@ -1330,7 +1330,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // เคลียร์เฉพาะ SKU + qty
             skuInput.value      = '';
-            quantityInput.value = '1';
+            quantityInput.value = '';
             hideSkuInfo();
             closeDropdown();
             skuInput.focus();

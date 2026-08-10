@@ -34,6 +34,14 @@
     pointer-events: none;
 }
 
+/* จอเล็ก: toast เกือบเต็มความกว้าง ถ้าวางที่ top:1rem จะทับปุ่ม ☰ ของแถบเมนู
+   และ toast มี pointer-events:auto → กลืน tap ทำให้กดเปิดเมนูไม่ได้ จึงต้องดันลงมาใต้แถบ */
+@media (max-width: 900px) {
+    .chat-notify-stack {
+        top: calc(var(--sidebar-bar-h, 52px) + 0.5rem);
+    }
+}
+
 .chat-notify-toast {
     pointer-events: auto;
     display: flex;

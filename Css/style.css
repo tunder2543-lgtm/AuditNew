@@ -14,6 +14,8 @@
     --input-focus: #3b82f6;
     --success: #10b981;
     --danger: #ef4444;
+    /* ความสูงแถบเมนูบนของจอเล็ก (รวม safe-area ของเครื่องที่มีติ่ง) — ใช้ร่วมหลายที่ */
+    --sidebar-bar-h: calc(52px + env(safe-area-inset-top, 0px));
 }
 
 * { 
@@ -54,6 +56,10 @@ body.has-sidebar {
     top: 0;
     align-self: flex-start;
     height: 100vh;
+    height: 100dvh;              /* จอมือถือ: กันแถบ URL ที่ยุบ/ขยายกินพื้นที่ */
+    overflow-y: auto;            /* จอเตี้ย (1366×768) กางทุกกลุ่มแล้วยังเลื่อนถึงเมนูล่างสุด */
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
     padding: 1.5rem 0.85rem;
     background: rgba(9, 9, 11, 0.92);
     border-right: 1px solid var(--card-border);
@@ -77,6 +83,7 @@ body.has-sidebar {
     display: flex;
     flex-direction: column;
     gap: 0.35rem;
+    min-height: 0;               /* flex item ไม่ยุบต่ำกว่าเนื้อหาโดยดีฟอลต์ — ปลดล็อกให้ .sidebar เลื่อนได้ตามที่ตั้งใจ */
 }
 
 .sidebar-nav-item {
@@ -181,6 +188,84 @@ body.has-sidebar {
 .sidebar-nav-sub {
     padding: 0.55rem 0.75rem 0.55rem 1.65rem;
     font-size: 0.84rem;
+}
+
+/* ---------------------------------------------------------------------------
+   เมนูจอเล็ก — แถบบน + ปุ่ม ☰ + ฉากมืด
+   ซ่อนสนิทบนเดสก์ท็อป เปิดใช้ใน @media (max-width: 900px) ด้านล่าง
+
+   ⚠️ z-index (ค่าจริงในระบบ ตรวจแล้วด้วย grep — อย่าเดา):
+      เนื้อหา/แถบ sticky ของหน้าต่าง ๆ  1–20   ← แถบเมนูต้องอยู่เหนือกลุ่มนี้
+      .toast-container                  50
+      .name-modal (chat)                60
+      .cs-modal                        100
+      .export-menu                     180
+      .log-drawer-overlay / .log-drawer 200 / 210
+      modal/overlay รายหน้า      10000–16000
+      ui-confirm.css                 16500
+      chat-notify.css                10050
+   ⇒ เลือก 30/35/40 เพื่อให้ "ทุก dialog/overlay/toast เปิดทับแถบเมนูได้เสมอ"
+     ถ้าตั้งสูงกว่านี้ ปุ่มปิดของ drawer ประวัติในหน้า index จะถูกแถบบนทับจนกดไม่ได้บนมือถือ
+   --------------------------------------------------------------------------- */
+.sidebar-mobile-bar {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--sidebar-bar-h);
+    padding: env(safe-area-inset-top, 0px) 0.65rem 0;
+    align-items: center;
+    gap: 0.65rem;
+    background: rgba(9, 9, 11, 0.92);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--card-border);
+    z-index: 40;
+}
+
+.sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border: 1px solid var(--card-border);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.sidebar-toggle:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-toggle svg {
+    width: 20px;
+    height: 20px;
+}
+
+.sidebar-mobile-title {
+    font-size: 0.9rem;
+    font-weight: 500;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-scrim {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0s 0.25s;
+    z-index: 30;
 }
 
 /* เมนูแบน — หัวข้อกลุ่ม (ไม่พับ) + รายการย่อยโชว์ตลอด */
@@ -1161,35 +1246,64 @@ button.kpi-card {
     height: 20px;
 }
 
+/* ---------------------------------------------------------------------------
+   จอเล็ก (มือถือ / iPad แนวตั้ง / จอคอมแคบ) — เมนูซ้ายกลายเป็นลิ้นชักสไลด์
+   คงรูปทรงแนวตั้งเดิมไว้ทุกอย่าง (กลุ่มพับได้ ป้ายชื่อ สถานะ active) แค่ซ่อนไว้นอกจอ
+   ⚠️ ห้ามพับ .sidebar / .sidebar-nav เป็น flex-direction: row เด็ดขาด —
+      DOM ที่ Js/sidebar-shared.js สร้างเป็นกลุ่มพับได้ (column) จะแตกทันที
+      (บั๊กเดิมของบล็อกนี้ · มีเทส tests/unit/sidebar-responsive.test.mjs กันไว้แล้ว)
+   --------------------------------------------------------------------------- */
 @media (max-width: 900px) {
+    .sidebar-mobile-bar { display: flex; }
+    .sidebar-scrim { display: block; }
+
+    /* ดันเนื้อหาลงให้พ้นแถบบน — ใช้ .app-layout เพราะไม่มีหน้าไหน override
+       (ต่างจาก body / .main-area ที่ dashboard.html มี inline style ทับอยู่) */
     .app-layout {
-        flex-direction: column;
+        padding-top: var(--sidebar-bar-h);
     }
 
+    /* ลิ้นชักเริ่มใต้แถบบน ไม่ใช่ที่ y=0 — ไม่งั้นหัวเมนู ("เมนู" + กลุ่มแรก) ถูกแถบทับ
+       และแถบยังกดได้ตลอดเวลา ใช้ปุ่ม ☰ ปิดลิ้นชักได้ทันที */
     .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        padding: 0.85rem 1rem;
-        border-right: none;
-        border-bottom: 1px solid var(--card-border);
+        position: fixed;
+        top: var(--sidebar-bar-h);
+        left: 0;
+        height: calc(100dvh - var(--sidebar-bar-h));
+        width: min(84vw, 280px);
+        padding-left: max(0.85rem, env(safe-area-inset-left, 0px));
+        transform: translateX(-100%);
+        visibility: hidden;            /* ตัดออกจากลำดับ Tab ตอนปิด */
+        transition: transform 0.25s ease, visibility 0s 0.25s;
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+        z-index: 35;
     }
 
-    .sidebar-nav {
-        flex-direction: row;
-        flex-wrap: wrap;
-        flex: 1;
+    body.sidebar-open .sidebar {
+        transform: translateX(0);
+        visibility: visible;
+        transition: transform 0.25s ease;
     }
 
-    .sidebar-nav-item span {
-        display: none;
+    body.sidebar-open .sidebar-scrim {
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 0.25s ease;
     }
 
-    .sidebar-nav-item {
-        padding: 0.55rem 0.7rem;
+    body.sidebar-open {
+        overflow: hidden;              /* ล็อกไม่ให้พื้นหลังเลื่อนตอนลิ้นชักเปิด */
+    }
+
+    /* จอนับสดโหมดเต็มจอ — ซ่อนแถบบนด้วย (หน้านั้นซ่อน .sidebar อยู่แล้ว) */
+    body.wall-fullscreen .sidebar-mobile-bar { display: none; }
+    body.wall-fullscreen .app-layout { padding-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sidebar,
+    .sidebar-scrim {
+        transition: none !important;
     }
 }
 

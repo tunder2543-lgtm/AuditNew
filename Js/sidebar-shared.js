@@ -9,7 +9,10 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260809j';
+    const ASSET_VER = '20260810a';
+
+    /** จอที่แคบกว่านี้ เมนูซ้ายทำงานเป็นลิ้นชักสไลด์ — ต้องตรงกับ @media ใน Css/style.css */
+    const MOBILE_QUERY = '(max-width: 900px)';
 
     /** หน้าเหล่านี้: เปิดทุกกลุ่มเป็นค่าเริ่มต้น (ยังพับได้) — ไม่ซ่อนรายการย่อยแบบพับปิดตลอด */
     const FLAT_PAGES = new Set(['index', 'import_counts', 'sku_master', 'settings']);
@@ -190,11 +193,106 @@
             });
         });
 
+        // เลือกเมนูแล้วปิดลิ้นชักทันที (ไม่ต้องรอหน้าใหม่โหลด — จอเล็กจะได้ไม่ค้างมืด)
+        aside.querySelectorAll('.sidebar-nav-item').forEach(function (link) {
+            link.addEventListener('click', function () { setDrawer(false); });
+        });
+
         if (typeof lucide !== 'undefined') lucide.createIcons();
 
         if (window.chatNotifyShared) {
             window.chatNotifyShared.updateBadge();
         }
+    }
+
+    // -------------------------------------------------------------------------
+    //  ลิ้นชักเมนูสำหรับจอเล็ก — แถบบน + ปุ่ม ☰ + ฉากมืด
+    //  ไม่จำสถานะข้ามหน้า: เปิดหน้าใหม่ลิ้นชักต้องปิดเสมอ
+    // -------------------------------------------------------------------------
+    function pageLabel(pageId) {
+        for (const g of GROUPS) {
+            const found = g.items.find(function (it) { return it.id === pageId; });
+            if (found) return found.label;
+        }
+        return 'เมนู';
+    }
+
+    function isDrawerOpen() {
+        return document.body.classList.contains('sidebar-open');
+    }
+
+    function setDrawer(open) {
+        const btn = document.getElementById('sidebarToggle');
+        if (!open && !isDrawerOpen()) return;
+
+        document.body.classList.toggle('sidebar-open', open);
+
+        if (btn) {
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            btn.setAttribute('aria-label', open ? 'ปิดเมนู' : 'เปิดเมนู');
+        }
+
+        if (open) {
+            const aside = getSidebarEl();
+            const first = aside && aside.querySelector('.sidebar-group-head, .sidebar-nav-item');
+            if (first) first.focus();
+        } else if (btn && btn.offsetParent !== null) {
+            // คืนโฟกัสให้ปุ่ม ☰ เฉพาะตอนที่ปุ่มยังโชว์อยู่จริง —
+            // ถ้าปิดเพราะขยายจอพ้น 900px ปุ่มถูก display:none แล้ว การ focus จะทำให้โฟกัสหลุดไปที่ body
+            btn.focus();
+        }
+    }
+
+    function renderMobileChrome(activePage) {
+        let bar = document.querySelector('.sidebar-mobile-bar');
+
+        if (!bar) {
+            bar = document.createElement('div');
+            bar.className = 'sidebar-mobile-bar';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'sidebar-toggle';
+            btn.id = 'sidebarToggle';
+            btn.setAttribute('aria-label', 'เปิดเมนู');
+            btn.setAttribute('aria-controls', 'appSidebar');
+            btn.setAttribute('aria-expanded', 'false');
+            const icon = document.createElement('i');
+            icon.dataset.lucide = 'menu';
+            btn.appendChild(icon);
+
+            const title = document.createElement('span');
+            title.className = 'sidebar-mobile-title';
+
+            bar.appendChild(btn);
+            bar.appendChild(title);
+
+            const scrim = document.createElement('div');
+            scrim.className = 'sidebar-scrim';
+            scrim.id = 'sidebarScrim';
+
+            document.body.insertBefore(scrim, document.body.firstChild);
+            document.body.insertBefore(bar, document.body.firstChild);
+
+            btn.addEventListener('click', function () { setDrawer(!isDrawerOpen()); });
+            scrim.addEventListener('click', function () { setDrawer(false); });
+
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape' && isDrawerOpen()) setDrawer(false);
+            });
+
+            // ขยายหน้าต่าง/หมุนจอจนพ้นจอเล็ก → บังคับปิด กันฉากมืดกับ overflow:hidden ค้าง
+            if (window.matchMedia) {
+                const mq = window.matchMedia(MOBILE_QUERY);
+                const onChange = function (e) { if (!e.matches) setDrawer(false); };
+                if (mq.addEventListener) mq.addEventListener('change', onChange);
+                else if (mq.addListener) mq.addListener(onChange);
+            }
+        }
+
+        // ใช้ textContent (ไม่ใช่ innerHTML) ตามกฎ escape ของโปรเจกต์
+        const titleEl = bar.querySelector('.sidebar-mobile-title');
+        if (titleEl) titleEl.textContent = pageLabel(activePage);
     }
 
     function loadChatNotifyModule() {
@@ -277,6 +375,7 @@
 
         const activePage = getActivePage();
         const defaultOpenAll = usesFlatMenu(aside, activePage);
+        renderMobileChrome(activePage);   // ก่อน render เมนู เพื่อให้ lucide.createIcons() ท้ายฟังก์ชันวาดไอคอน ☰ ให้ด้วย
         renderGroupedSidebar(aside, activePage, { defaultOpenAll: defaultOpenAll });
     }
 

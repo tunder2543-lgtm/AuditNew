@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Explorer — Stock Audit</title>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../Css/style.css">
+    <link rel="stylesheet" href="../Css/style.css?v=20260810a">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -13,6 +13,8 @@
             flex: 1;
             min-width: 0;
             display: flex;
+            /* เท่ากับ .main-area ของหน้าอื่น — จำเป็นหลังใส่ has-sidebar (body padding กลายเป็น 0) */
+            padding: 2rem 1.5rem 3rem;
         }
         .content-area {
             flex: 1;
@@ -98,6 +100,8 @@
         .be-pager-btns { display: flex; gap: 0.45rem; align-items: center; }
         .be-loading { opacity: 0.6; pointer-events: none; }
 
+        /* จอเล็ก: แถบฟิลเตอร์ sticky ต้องหยุดใต้แถบเมนู ไม่ใช่ที่ y=0 (ไม่งั้นมุดหายใต้แถบ) */
+        @media (max-width: 900px) { .be-filter-wrap { top: var(--sidebar-bar-h, 52px); } }
         @media (max-width: 1200px) { .be-filter-grid { grid-template-columns: repeat(3, minmax(160px, 1fr)); } }
         @media (max-width: 860px) {
             .be-filter-grid { grid-template-columns: 1fr 1fr; }
@@ -110,7 +114,7 @@
         }
     </style>
 </head>
-<body>
+<body class="has-sidebar">
     <div class="app-layout">
         <aside class="sidebar" id="appSidebar" data-active-page="book_explorer" aria-label="เมนูหลัก"></aside>
         <div class="main-content">
@@ -219,7 +223,7 @@
 
     <script src="../Js/api.js?v=20260809k"></script>
     <script src="../Js/reconcile-shared.js?v=20260809k"></script>
-    <script src="../Js/sidebar-shared.js?v=20260809k"></script>
+    <script src="../Js/sidebar-shared.js?v=20260810a"></script>
     <script>
         (function () {
             const state = {

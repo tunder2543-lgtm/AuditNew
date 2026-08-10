@@ -504,38 +504,6 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
-    function buildExtraCountedItems(records) {
-        const bookSet = getBookSkuKeySet();
-        const map = new Map();
-
-        (records || []).forEach(row => {
-            const key = normalizeSkuKey(row.sku_id);
-            if (!key || bookSet.has(key)) return;
-
-            if (!map.has(key)) {
-                map.set(key, {
-                    sku: row.sku_id,
-                    totalQty: 0,
-                    recordCount: 0,
-                    locations: new Set(),
-                    lastAt: row.created_at || null
-                });
-            }
-
-            const item = map.get(key);
-            item.totalQty += Number(row.counted_qty) || 0;
-            item.recordCount += 1;
-            if (row.location) item.locations.add(String(row.location).trim());
-            if (row.created_at && (!item.lastAt || row.created_at > item.lastAt)) {
-                item.lastAt = row.created_at;
-            }
-        });
-
-        return Array.from(map.values()).sort((a, b) =>
-            String(a.sku || '').localeCompare(String(b.sku || ''), 'th')
-        );
-    }
-
     /**
      * escape สำหรับใส่ใน HTML และใน attribute (ครอบ ' และ " ด้วย)
      * ⚠️ ห้ามใช้ค่าที่ผู้ใช้กรอกไปต่อสตริงใน onclick="fn('...')" แม้ escape แล้ว —
@@ -659,7 +627,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const submitBtn        = document.getElementById('submitBtn');
     const recordList       = document.getElementById('recordList');
     const totalScannedEl   = document.getElementById('totalScanned');
-    const clearListBtn     = document.getElementById('clearList');
     const toastContainer   = document.getElementById('toastContainer');
     const skuDropdown      = document.getElementById('skuDropdown');
     const skuNameTag       = document.getElementById('skuNameTag');
@@ -1414,21 +1381,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const uncountedEl = document.getElementById('totalUncounted');
         const progressEl = document.getElementById('progressPercent');
-        const progressSubEl = document.getElementById('progressSubLabel');
-        const progressBarEl = document.getElementById('progressBarFill');
-        const extraBoxEl = document.getElementById('extraSkuStatBox');
-        const extraEl = document.getElementById('totalExtraSku');
-        const kpiPanelEl = document.getElementById('headerKpiPanel');
         const totalItems = isBookReady ? bookSkuList.length : 0;
 
         let countedInBook = 0;
         allCountedSkus.forEach(key => {
             if (bookKeys.has(key)) countedInBook += 1;
         });
-
-        const extraItems = buildExtraCountedItems(scopedRecords);
-        extraSkuItemsCache = extraItems;
-        const extraCount = extraItems.length;
 
         const uncountedCount = totalItems > 0
             ? bookSkuList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name))).length
@@ -1438,34 +1396,10 @@ document.addEventListener('DOMContentLoaded', () => {
             uncountedEl.textContent = uncountedCount.toLocaleString();
         }
 
-        if (extraBoxEl) {
-            extraBoxEl.style.display = extraCount > 0 ? '' : 'none';
-        }
-        if (kpiPanelEl) {
-            kpiPanelEl.classList.toggle('has-extra', extraCount > 0);
-        }
-        if (extraEl) {
-            extraEl.textContent = extraCount.toLocaleString();
-        }
-
-        let percent = 0;
         if (progressEl) {
-            if (totalItems === 0) {
-                progressEl.textContent = '0%';
-            } else {
-                percent = Math.min(100, Math.floor((countedInBook / totalItems) * 100));
-                progressEl.textContent = `${percent}%`;
-            }
-        }
-
-        if (progressSubEl) {
-            progressSubEl.textContent = totalItems > 0
-                ? `${countedInBook.toLocaleString()} / ${totalItems.toLocaleString()} SKU`
-                : '—';
-        }
-
-        if (progressBarEl) {
-            progressBarEl.style.width = `${percent}%`;
+            progressEl.textContent = totalItems === 0
+                ? '0%'
+                : `${Math.min(100, Math.floor((countedInBook / totalItems) * 100))}%`;
         }
 
         lucide.createIcons();
@@ -1487,21 +1421,6 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.addEventListener('animationend', () => toast.remove());
         }, 4000);
     }
-
-    // =============================================
-    //  SETTINGS MODAL (global scope)
-    // =============================================
-    window.toggleModal = function(id) {
-        const modal = document.getElementById(id);
-        if (!modal) return;
-        const isOpen = modal.classList.contains('open');
-        if (isOpen) {
-            modal.classList.remove('open');
-        } else {
-            modal.classList.add('open');
-            lucide.createIcons();
-        }
-    };
 
     // =============================================
     //  EDIT / DELETE 2-STEP CONFIRMATION MODAL
@@ -1996,82 +1915,6 @@ document.addEventListener('DOMContentLoaded', () => {
     //  UNCOUNTED DRAWER LOGIC
     // =============================================
     let uncountedItemsCache = [];
-    let extraSkuItemsCache = [];
-
-    window.openExtraSkuDrawer = function() {
-        document.getElementById('extraSkuDrawerOverlay').classList.add('open');
-        document.getElementById('extraSkuDrawer').classList.add('open');
-        refreshExtraSku();
-    };
-
-    window.closeExtraSkuDrawer = function() {
-        document.getElementById('extraSkuDrawerOverlay').classList.remove('open');
-        document.getElementById('extraSkuDrawer').classList.remove('open');
-    };
-
-    window.refreshExtraSku = function() {
-        const container = document.getElementById('extraSkuListContainer');
-        if (container) {
-            container.innerHTML = `<div class="empty-state"><i data-lucide="loader-2" class="spin"></i><p>กำลังคำนวณ...</p></div>`;
-            lucide.createIcons();
-        }
-
-        extraSkuItemsCache = buildExtraCountedItems(getWarehouseScopedRecords());
-
-        const extraBoxEl = document.getElementById('extraSkuStatBox');
-        const extraEl = document.getElementById('totalExtraSku');
-        if (extraBoxEl) extraBoxEl.style.display = extraSkuItemsCache.length > 0 ? '' : 'none';
-        if (extraEl) extraEl.textContent = extraSkuItemsCache.length.toLocaleString();
-
-        renderExtraSkuList(extraSkuItemsCache);
-    };
-
-    window.filterExtraSku = function() {
-        const query = (document.getElementById('extraSkuSearch')?.value || '').toLowerCase().trim();
-        if (!query) {
-            renderExtraSkuList(extraSkuItemsCache);
-            return;
-        }
-
-        const filtered = extraSkuItemsCache.filter(item =>
-            String(item.sku || '').toLowerCase().includes(query)
-        );
-        renderExtraSkuList(filtered);
-    };
-
-    function renderExtraSkuList(items) {
-        const container = document.getElementById('extraSkuListContainer');
-        if (!container) return;
-
-        if (items.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state">
-                    <i data-lucide="check-circle" style="color: var(--success); width: 32px; height: 32px; margin-bottom: 0.5rem;"></i>
-                    <p>ไม่พบ SKU ที่นับแล้วแต่อยู่นอก Book ของรอบนี้</p>
-                </div>`;
-            lucide.createIcons();
-            return;
-        }
-
-        const wh = getActiveWarehouse() || '-';
-        container.innerHTML = items.map(item => {
-            const locs = Array.from(item.locations || []).slice(0, 4);
-            const locText = locs.length
-                ? locs.join(', ') + (item.locations.size > 4 ? ` +${item.locations.size - 4}` : '')
-                : '-';
-            return `
-                <div class="log-item" style="border-left: 3px solid #fbbf24;">
-                    <div class="log-sku" style="color: #fde68a; margin-bottom: 0.25rem;">${escapeHtml(item.sku)}</div>
-                    <div class="log-details" style="font-size: 0.85rem;">
-                        คลัง: ${escapeHtml(wh)} · จำนวนรวม ${item.totalQty.toLocaleString()} ชิ้น · ${item.recordCount} แถวนับ
-                    </div>
-                    <div class="log-details" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.2rem;">
-                        ตำแหน่ง: ${escapeHtml(locText)}${item.lastAt ? ` · ล่าสุด ${formatThaiDateTime(item.lastAt)}` : ''}
-                    </div>
-                </div>`;
-        }).join('');
-        lucide.createIcons();
-    }
 
     window.openUncountedDrawer = function() {
         document.getElementById('uncountedDrawerOverlay').classList.add('open');
@@ -2533,52 +2376,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (err) {
             console.error('[Export Uncounted Items Error]', err);
-            showToast(`ส่งออกล้มเหลว: ${err.message}`, 'error');
-        }
-    };
-
-    window.exportExtraSkuExcel = function() {
-        if (!extraSkuItemsCache || extraSkuItemsCache.length === 0) {
-            showToast('ไม่มีรายการสินค้าใหม่นอก Book ให้ส่งออก', 'error');
-            return;
-        }
-
-        showToast('กำลังเตรียมข้อมูลสำหรับส่งออก Excel...');
-
-        try {
-            const wh = getActiveWarehouse() || '-';
-            const exportData = extraSkuItemsCache.map((item, index) => ({
-                '#': index + 1,
-                'รหัสสินค้า (SKU)': item.sku || '-',
-                'คลัง': wh,
-                'จำนวนรวม (ชิ้น)': item.totalQty,
-                'จำนวนแถวนับ': item.recordCount,
-                'ตำแหน่ง': Array.from(item.locations || []).join(', ') || '-',
-                'นับล่าสุด': item.lastAt ? formatThaiDateTime(item.lastAt) : '-',
-                'หมายเหตุ': 'ไม่มีใน Book ของรอบนี้'
-            }));
-
-            const ws = XLSX.utils.json_to_sheet(exportData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Extra_SKU');
-
-            ws['!cols'] = [
-                { wch: 8 },
-                { wch: 28 },
-                { wch: 18 },
-                { wch: 14 },
-                { wch: 12 },
-                { wch: 36 },
-                { wch: 22 },
-                { wch: 28 }
-            ];
-
-            const whSuffix = escapeFileName(getActiveWarehouse()) || 'all';
-            const dateStr = new Date().toISOString().split('T')[0];
-            XLSX.writeFile(wb, `Extra_SKU_Outside_Book_${whSuffix}_${dateStr}.xlsx`);
-            showToast(`ดาวน์โหลดไฟล์ Excel สำเร็จ (${extraSkuItemsCache.length} รายการ)`);
-        } catch (err) {
-            console.error('[Export Extra SKU Error]', err);
             showToast(`ส่งออกล้มเหลว: ${err.message}`, 'error');
         }
     };

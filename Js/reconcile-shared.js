@@ -1464,7 +1464,33 @@
 
 
 
-    async function fetchSkuMasterNamesBySkus(skus) {
+    /**
+
+     * ชื่อสินค้าจาก book_stock_lines ของ "ทุกรอบ" — ใช้เติม name_pro ตอนสร้างแถว Book
+
+     * จาก count_only (SKU ที่นับเจอแต่ไม่มีใน Book ของรอบนี้)
+
+     *
+
+     * แทนที่ fetchSkuMasterNamesBySkus เดิมที่อ่านจากตาราง sku_master — ถอดฟีเจอร์
+
+     * SKU Master ออกจากเว็บ 2026-08-10 (ตารางยังอยู่ในฐาน แต่ไม่มีโค้ดใดเรียกอีก)
+
+     * แหล่งใหม่กว้างกว่าเดิม เป็นคอลัมน์ความหมายเดียวกัน (name_pro -> name_pro)
+
+     * และผูกกับรอบซึ่งผูกคลังอยู่แล้ว จึงไม่มีปัญหาชื่อปนข้ามคลังแบบของเดิม
+
+     *
+
+     * เรียง created_at DESC + id DESC แล้วเก็บตัวแรก = ชื่อจากรอบล่าสุดเสมอ
+
+     * ไม่ใช้ .range() โดยตั้งใจ — ถ้า PostgREST ตัดที่ default limit จะตัดแถวเก่าสุดทิ้ง
+
+     * ผลแย่สุดคือ "ไม่ได้ชื่อ" (null) ซึ่งเป็นพฤติกรรมเดิมอยู่แล้ว ไม่มีทางได้ชื่อผิด
+
+     */
+
+    async function fetchBookNamesBySkusAnyCycle(skus) {
 
         const client = getClient();
 
@@ -1474,9 +1500,9 @@
 
 
 
-        const unique = [...new Set(skus.map(s => String(s).trim()).filter(Boolean))];
+        const unique = [...new Set(skus.map(s => normalizeSku(s)).filter(Boolean))];
 
-        const CHUNK = 200;
+        const CHUNK = 100;
 
 
 
@@ -1486,15 +1512,23 @@
 
             const { data, error } = await client
 
-                .from('sku_master')
+                .from('book_stock_lines')
 
-                .select('sku_name, name_pro')
+                .select('sku_id, name_pro')
 
-                .in('sku_name', chunk);
+                .in('sku_id', chunk)
+
+                .not('name_pro', 'is', null)
+
+                .order('created_at', { ascending: false })
+
+                .order('id', { ascending: false });
 
             if (error) {
 
-                console.warn('fetchSkuMasterNamesBySkus', error);
+                // ชื่อสินค้าไม่ใช่ข้อมูลบังคับ — ห้ามบล็อกการสร้างแถว Book
+
+                console.warn('fetchBookNamesBySkusAnyCycle', error);
 
                 continue;
 
@@ -1502,9 +1536,11 @@
 
             (data || []).forEach(r => {
 
-                const sku = normalizeSku(r.sku_name);
+                const sku = normalizeSku(r.sku_id);
 
-                if (sku && r.name_pro && !map[sku]) map[sku] = String(r.name_pro).trim();
+                const nm = r.name_pro ? String(r.name_pro).trim() : '';
+
+                if (sku && nm && !map[sku]) map[sku] = nm;   // first-wins = รอบล่าสุด
 
             });
 
@@ -3402,7 +3438,7 @@
 
         addBookFromCountOnlyBatch,
 
-        fetchSkuMasterNamesBySkus,
+        fetchBookNamesBySkusAnyCycle,
 
         countLinkedInventory,
 

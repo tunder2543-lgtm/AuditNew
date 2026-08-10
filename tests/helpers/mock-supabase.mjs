@@ -61,10 +61,23 @@ class MockQueryBuilder {
             else if (f.type === 'lt') out = out.filter(r => r[f.col] < f.val);
             // or / ilike / not — mock ไม่กรอง (คืนทั้งชุด) พอสำหรับ dry run
         }
+        // .order() หลายครั้ง = การเรียงแบบผสม (compound) ไม่ใช่เรียงใหม่ทับกัน
+        // ⚠️ ห้ามวนเรียงทีละตัวตามลำดับ — ตัวหลังจะล้างผลของตัวแรกทิ้ง ซึ่งตรงข้ามกับ
+        //    PostgREST จริง และจะทำให้เทสที่พึ่ง tiebreak (invariant ข้อ 13) ผ่านแบบหลอก
+        const orders = this._modifiers.filter(m => m.type === 'order');
+        let sorted = false;
         for (const m of this._modifiers) {
             if (m.type === 'order') {
-                const desc = m.opts && m.opts.ascending === false;
-                out = [...out].sort((a, b) => (a[m.col] < b[m.col] ? -1 : a[m.col] > b[m.col] ? 1 : 0) * (desc ? -1 : 1));
+                if (sorted) continue;
+                sorted = true;
+                out = [...out].sort((a, b) => {
+                    for (const o of orders) {
+                        const desc = o.opts && o.opts.ascending === false;
+                        const cmp = (a[o.col] < b[o.col] ? -1 : a[o.col] > b[o.col] ? 1 : 0) * (desc ? -1 : 1);
+                        if (cmp !== 0) return cmp;
+                    }
+                    return 0;
+                });
             } else if (m.type === 'limit') out = out.slice(0, m.n);
             else if (m.type === 'range') out = out.slice(m.from, m.to + 1);
         }

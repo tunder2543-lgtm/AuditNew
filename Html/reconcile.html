@@ -633,7 +633,7 @@
 <script src="../Js/api.js?v=20260809k"></script>
 <script src="../Js/sku-utils.js?v=20260809k"></script>
 <script src="../Js/settings-shared.js?v=20260809k"></script>
-<script src="../Js/reconcile-shared.js?v=20260809k"></script>
+<script src="../Js/reconcile-shared.js?v=20260810h"></script>
 <script src="../Js/ui-confirm-modal.js?v=20260809k"></script>
 <script>
     lucide.createIcons();
@@ -1986,7 +1986,16 @@
 
         const sku = line.sku_id;
         const countedQty = Number(line.counted_qty).toLocaleString();
-        const name = skuNameMap[sku] || '';
+
+        // ชื่อสินค้าต้องมาจาก Book ของ "รอบอื่น" — skuNameMap คือ Book ของรอบนี้
+        // ซึ่ง canAddToBookLine บังคับไว้แล้วว่า SKU นี้ยังไม่มีในนั้น จึงว่างเสมอ
+        let bookNames = {};
+        try {
+            bookNames = await RS.fetchBookNamesBySkusAnyCycle([sku]);
+        } catch (err) {
+            console.warn('[addBookLine] lookup ชื่อสินค้าไม่สำเร็จ:', err?.message || err);
+        }
+        const name = bookNames[sku] || '';
 
         const ok = await uiConfirm.twoStep({
             title: 'สร้างลง Book',
@@ -2017,10 +2026,9 @@
         loadingEl.classList.add('active');
         document.getElementById('loadingText').textContent = `กำลังสร้าง Book: ${sku}...`;
         try {
-            const masterNames = await RS.fetchSkuMasterNamesBySkus([sku]);
             await RS.addBookFromCountOnly(cycleId, {
                 skuId: sku,
-                namePro: masterNames[sku] || skuNameMap[sku] || null
+                namePro: name || null
             });
             await reloadMatchData();
             renderDraftList();
@@ -2074,10 +2082,11 @@
         document.getElementById('loadingText').textContent = `กำลังสร้าง Book ${targets.length.toLocaleString()} รายการ...`;
         try {
             const skus = targets.map(l => l.sku_id);
-            const masterNames = await RS.fetchSkuMasterNamesBySkus(skus);
+            // ชื่อจาก Book ของรอบอื่น — skuNameMap เป็นของรอบนี้ซึ่งไม่มี SKU กลุ่มนี้อยู่แล้ว
+            const bookNames = await RS.fetchBookNamesBySkusAnyCycle(skus);
             const items = targets.map(l => ({
                 skuId: l.sku_id,
-                namePro: masterNames[l.sku_id] || skuNameMap[l.sku_id] || null
+                namePro: bookNames[l.sku_id] || null
             }));
             const res = await RS.addBookFromCountOnlyBatch(cycleId, items);
             await reloadMatchData();

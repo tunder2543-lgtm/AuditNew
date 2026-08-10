@@ -285,6 +285,24 @@
     </div>
 </div>
 
+<!-- ด่านสุดท้ายก่อนล้างแชท: ต้องพิมพ์คำยืนยันเอง (กันกดพลาด — ห้องนี้ไม่มีระบบสิทธิ์ผู้ใช้) -->
+<div class="name-modal" id="clearConfirmModal" role="dialog" aria-modal="true" aria-labelledby="clearConfirmTitle">
+    <div class="name-card">
+        <h2 id="clearConfirmTitle" style="color:#fca5a5;">ยืนยันล้างแชท</h2>
+        <p id="clearConfirmDesc"></p>
+        <div class="name-field">
+            <label for="clearConfirmInput">พิมพ์คำว่า <b id="clearConfirmPhrase"></b> ให้ตรงกันเพื่อยืนยัน</label>
+            <input id="clearConfirmInput" type="text" maxlength="40" autocomplete="off" spellcheck="false">
+        </div>
+        <div style="display:flex;gap:0.6rem;justify-content:flex-end;margin-top:0.9rem;">
+            <button class="chat-btn" id="btnClearCancel" type="button">ยกเลิก</button>
+            <button class="chat-btn danger" id="btnClearConfirm" type="button" disabled>
+                <i data-lucide="trash-2" style="width:16px;height:16px;"></i> ล้างถาวร
+            </button>
+        </div>
+    </div>
+</div>
+
 <script src="../Js/sidebar-shared.js?v=20260810a"></script>
 <script src="../Js/api.js?v=20260809j"></script>
 <script src="../Js/ui-confirm-modal.js?v=20260809j"></script>
@@ -317,6 +335,10 @@
     const btnEnterChat = document.getElementById('btnEnterChat');
     const chatIdentity = document.getElementById('chatIdentity');
 
+    const clearConfirmModal = document.getElementById('clearConfirmModal');
+    const clearConfirmInput = document.getElementById('clearConfirmInput');
+    const btnClearConfirm = document.getElementById('btnClearConfirm');
+
     let supabaseClient = null;
     let realtimeChannel = null;
     let myName = '';
@@ -325,6 +347,12 @@
     let pendingFile = null;
     let nameModalMode = 'enter';
     let chatReady = false;
+    let clearConfirmResolve = null;
+    let clearInProgress = false;
+    let statusHoldUntil = 0;
+
+    /** ต้องพิมพ์ให้ตรงคำนี้ก่อนล้างแชท (ห้องนี้ไม่มีระบบ login — ใช้แรงเสียดทานแทน authorization) */
+    const CLEAR_CONFIRM_PHRASE = 'ล้างแชท';
 
     function escapeHtml(s) {
         return String(s ?? '')
@@ -522,58 +550,251 @@
         const total = messages.length;
         const meCount = messages.filter(m => m.client_session_id && clientSessionId && m.client_session_id === clientSessionId).length;
         const mode = supabaseClient ? 'Realtime: ON' : 'Realtime: OFF (local)';
-        hintBar.style.color = '';
         const who = getDisplayName() || '-';
+        updateIdentityUi();
+
+        // ข้อความสถานะที่ "ต้องให้ผู้ใช้อ่าน" ห้ามถูกทับ — ข้อความใหม่ที่ไหลเข้ามาทาง realtime
+        // เรียก updateHint ทุกครั้ง เคยทำให้คำเตือน (เช่น RLS ลบ 0 แถว) หายไปในไม่ถึงวินาที
+        if (Date.now() < statusHoldUntil) return;
+
+        hintBar.style.color = '';
         hintBar.textContent = total
             ? `${mode} · ทั้งหมด ${total.toLocaleString()} ข้อความ · คุณส่ง ${meCount.toLocaleString()} ข้อความ · ${who}`
             : `${mode} · ยังไม่มีข้อความ · ${who}`;
-        updateIdentityUi();
     }
 
-    function showChatStatus(msg, isError) {
+    /** @param {number} [holdMs] กันไม่ให้ updateHint เขียนทับนานเท่านี้ (สำหรับข้อความที่ต้องอ่านจริง ๆ) */
+    function showChatStatus(msg, isError, holdMs) {
         hintBar.style.color = isError ? '#fca5a5' : '#86efac';
         hintBar.textContent = msg;
+        statusHoldUntil = holdMs ? Date.now() + holdMs : 0;
+    }
+
+    // ---------------------------------------------------------------------
+    // สำรอง/ส่งออกแชท
+    // ---------------------------------------------------------------------
+
+    /**
+     * ดาวน์โหลดข้อความเป็น JSON — **โยน error เมื่อล้มเหลว** เพื่อให้ผู้เรียกยกเลิกการลบได้
+     * (แนวเดียวกับ downloadRowsBackupCsv ในหน้า audit_check)
+     * @returns {string} ชื่อไฟล์ที่ดาวน์โหลด
+     */
+    function downloadChatJson(messages, prefix, note) {
+        const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        const filename = `${prefix}_${stamp}.json`;
+        const payload = {
+            exportedAt: new Date().toISOString(),
+            roomId: ROOM_ID,
+            name: myName || null,
+            displayName: getDisplayName(),
+            station: normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '') || null,
+            clientSessionId,
+            messageCount: messages.length,
+            messages
+        };
+        if (note) payload.note = note;
+
+        const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' }));
+        try {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        } finally {
+            // revoke ทันทีทำให้บางเบราว์เซอร์ดาวน์โหลดไม่สำเร็จ — รอให้ browser เริ่มโหลดก่อน
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+        }
+        return filename;
+    }
+
+    /**
+     * อ่านข้อความ "ทั้งห้อง" จาก Supabase สำหรับสำรองก่อนลบ (mirror ในเครื่องเก็บแค่ 500 แถวล่าสุด)
+     * เลื่อน cursor ตามจำนวนแถวที่ได้จริง ไม่ใช่ตามขนาดหน้า — PostgREST คืนน้อยกว่าที่ขอได้
+     * (db-max-rows / statement timeout) ถ้าเลื่อนตายตัวจะข้ามแถวแล้วเลิกลูปเงียบ ๆ
+     * แล้วเทียบกับ count จริงก่อนคืนค่า — สำรองไม่ครบต้องไม่ปล่อยให้ลบต่อ
+     */
+    async function fetchAllRoomMessages(client) {
+        const PAGE = 1000;
+        const out = [];
+        let expected = null;
+        for (let from = 0; ;) {
+            const { data, error, count } = await client
+                .from('chat_messages')
+                .select('id,event_type,role,sender_name,message,created_at,client_session_id,session_id,file_path,file_name,file_size,file_mime',
+                    { count: 'exact' })
+                .eq('room_id', ROOM_ID)
+                .order('id', { ascending: true })
+                .range(from, from + PAGE - 1);
+            if (error) throw error;
+            if (expected === null && typeof count === 'number') expected = count;
+            if (!data?.length) break;
+            out.push(...data);
+            from += data.length;
+            if (expected !== null && out.length >= expected) break;
+        }
+        if (expected !== null && out.length !== expected) {
+            throw new Error(`อ่านข้อความได้ ${out.length} จาก ${expected} แถว — สำรองไม่ครบ`);
+        }
+        return out;
+    }
+
+    // ---------------------------------------------------------------------
+    // ล้างแชท — 3 ด่าน: ระบุตัวตน → ยืนยัน + สำรองอัตโนมัติ → พิมพ์คำยืนยัน
+    // ---------------------------------------------------------------------
+
+    /** ด่านพิมพ์คำยืนยัน — resolve(true) เมื่อพิมพ์ตรงแล้วกดยืนยัน */
+    function askClearPhrase(desc) {
+        // เปิดซ้อนได้ = โปรมิสตัวเก่าค้างตลอดอายุหน้า (คีย์บอร์ด tab กลับไปกดปุ่มล้างได้แม้มี overlay)
+        if (clearConfirmResolve) closeClearConfirm(false);
+        document.getElementById('clearConfirmDesc').textContent = desc;
+        document.getElementById('clearConfirmPhrase').textContent = CLEAR_CONFIRM_PHRASE;
+        clearConfirmInput.value = '';
+        clearConfirmInput.placeholder = '';   // ไม่โชว์คำยืนยันให้ก๊อป — ต้องพิมพ์เอง
+        btnClearConfirm.disabled = true;
+        clearConfirmModal.classList.add('show');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        setTimeout(() => clearConfirmInput.focus(), 0);
+        return new Promise((resolve) => { clearConfirmResolve = resolve; });
+    }
+
+    function closeClearConfirm(result) {
+        clearConfirmModal.classList.remove('show');
+        const resolve = clearConfirmResolve;
+        clearConfirmResolve = null;
+        if (resolve) resolve(result);
+    }
+
+    /** ทิ้งร่องรอยว่าใครล้างแชท — ไม่ใช่ authorization แต่ทำให้การลบตรวจสอบย้อนหลังได้ */
+    async function writeClearTrace(client, deletedCount) {
+        const payload = buildChatInsertPayload({
+            eventType: 'message',
+            text: `🧹 ${getDisplayName()} ล้างแชททั้งห้อง (${deletedCount.toLocaleString()} ข้อความ) เมื่อ ${nowLabel(Date.now())}`
+        });
+        const { error } = await client.from('chat_messages').insert([payload]);
+        if (error) throw error;
     }
 
     async function clearAllChat() {
+        if (clearInProgress) return;   // กดซ้ำระหว่างรอ = โปรมิสของรอบก่อนค้าง
+
+        // ด่าน 1: ต้องระบุตัวตนก่อน — ห้ามลบประวัติของทุกคนแบบไม่ระบุชื่อ
+        if (!normalizeText(myName)) {
+            showChatStatus('ตั้งชื่อก่อนจึงจะล้างแชทได้ — การลบต้องระบุว่าใครเป็นคนทำ', true);
+            openEnterModal();
+            return;
+        }
+
+        // อ่าน client ใหม่เสมอ: อาจยังไม่ได้ตั้งชื่อ (completeChatSetup ยังไม่รัน) หรือเพิ่งตั้งค่าในแท็บอื่น
+        const client = supabaseClient || getSupabase();
+        const roomWide = !!client;
+        const localCount = loadMessages().length;
+
         const ok = await window.uiConfirm.show({
-            title: 'ล้างแชททั้งหมด',
-            intro: 'ข้อความจะถูกลบจาก Supabase สำหรับทุกคนในกลุ่ม',
-            bullets: ['ลบประวัติแชททั้งหมด', 'ไม่สามารถกู้คืนได้'],
-            note: 'ยืนยันเพื่อล้างถาวร',
+            title: roomWide ? 'ล้างแชททั้งห้อง' : 'ล้างแชทในเครื่องนี้',
+            intro: roomWide
+                ? 'ข้อความและไฟล์แนบจะถูกลบจาก Supabase สำหรับทุกคนในกลุ่ม'
+                : 'ยังไม่ได้เชื่อมต่อ Supabase — ล้างได้เฉพาะสำเนาที่เก็บในเครื่องนี้',
+            bullets: roomWide
+                ? [`ลบข้อความทั้งหมดของห้อง "${ROOM_ID}"`, 'ลบไฟล์แนบใน Storage', 'ทุกคนในกลุ่มได้รับผลทันที', 'ไม่สามารถกู้คืนได้']
+                : [`ลบสำเนาในเครื่องนี้ ${localCount.toLocaleString()} ข้อความ`, 'ข้อมูลบนเซิร์ฟเวอร์ไม่ถูกแตะต้อง'],
+            note: `ระบบจะดาวน์โหลดไฟล์สำรอง (.json) ให้ก่อนลบ · ผู้ทำ: ${getDisplayName()}`,
+            noteVariant: roomWide ? 'danger' : 'warn',
             variant: 'danger',
-            okLabel: 'ล้างแชท',
+            confirmLabel: 'ดำเนินการต่อ',
             cancelLabel: 'ยกเลิก'
         });
         if (!ok) return;
 
         const btn = document.getElementById('btnClear');
-        btn.disabled = true;
-        showChatStatus('กำลังล้างแชท...', false);
-
+        clearInProgress = true;
         try {
-            if (supabaseClient) {
-                const { error } = await supabaseClient
+            // ด่าน 2: สำรองก่อน — สำรองไม่ได้ = ไม่ลบอะไรทั้งสิ้น
+            let backupName = '';
+            let backupCount = 0;
+            btn.disabled = true;
+            try {
+                showChatStatus('กำลังสำรองข้อมูลก่อนลบ...', false);
+                const toBackup = roomWide ? await fetchAllRoomMessages(client) : loadMessages();
+                backupCount = toBackup.length;
+                backupName = downloadChatJson(toBackup, 'chat_backup_before_clear',
+                    `สำรองอัตโนมัติก่อนล้างแชท โดย ${getDisplayName()}`);
+            } catch (err) {
+                showChatStatus('สำรองข้อมูลไม่สำเร็จ จึงยังไม่ได้ลบอะไรเลย: ' + (err?.message || String(err)), true, 15_000);
+                return;
+            } finally {
+                btn.disabled = false;
+            }
+
+            // ด่าน 3: พิมพ์คำยืนยันเอง (หลังสำรอง — ผู้ใช้ตรวจได้ว่าไฟล์ลงเครื่องจริงก่อนยืนยัน)
+            const confirmed = await askClearPhrase(
+                `สำรอง ${backupCount.toLocaleString()} ข้อความไว้ที่ไฟล์ ${backupName} แล้ว — ` +
+                'เปิดโฟลเดอร์ดาวน์โหลดตรวจว่ามีไฟล์นี้จริงก่อนยืนยัน · ' +
+                (roomWide ? `กำลังจะลบข้อความของทุกคนในห้อง "${ROOM_ID}"` : 'กำลังจะลบเฉพาะสำเนาในเครื่องนี้') +
+                ` · ผู้ทำ: ${getDisplayName()}`
+            );
+            if (!confirmed) {
+                showChatStatus('ยกเลิกการล้างแชท (ไฟล์สำรองยังอยู่ในเครื่อง)', false);
+                setTimeout(() => updateHint(loadMessages()), 2500);
+                return;
+            }
+
+            btn.disabled = true;
+            showChatStatus('กำลังล้างแชท...', false);
+
+            await runClearNow(client, roomWide ? backupCount : localCount);
+        } finally {
+            clearInProgress = false;
+            btn.disabled = false;
+            inputEl.focus();
+        }
+    }
+
+    /** ลบจริง — แยกออกมาเพื่อให้ clearAllChat คุมเฉพาะ "ด่าน" ต่าง ๆ */
+    async function runClearNow(client, knownCount) {
+        try {
+            if (client) {
+                // .select() บังคับให้ PostgREST คืนแถวที่ลบจริง — ถ้า RLS บล็อกจะได้ 0 แถวแบบไม่ error
+                const { data: deletedRows, error } = await client
                     .from('chat_messages')
                     .delete()
-                    .eq('room_id', ROOM_ID);
+                    .eq('room_id', ROOM_ID)
+                    .select('id');
                 if (error) throw error;
+                const deletedCount = Array.isArray(deletedRows) ? deletedRows.length : 0;
                 let storageWarn = '';
                 try {
-                    const { data: listed, error: listErr } = await supabaseClient.storage
-                        .from(CHAT_BUCKET)
-                        .list(ROOM_ID, { limit: 500 });
-                    if (listErr) {
-                        storageWarn = ' (ไฟล์แนบใน Storage อาจยังเหลือ)';
-                    } else if (listed?.length) {
+                    // เดิม list(limit 500) รอบเดียว — เกิน 500 ไฟล์จะเหลือ orphan เงียบ ๆ
+                    // ลบทีละหน้าแล้ว list ใหม่จาก offset 0 เสมอ (ของหน้าเดิมถูกลบไปแล้ว)
+                    const PAGE = 500;
+                    const MAX_ROUNDS = 40;   // เพดาน 20,000 ไฟล์ — กันวนไม่รู้จบถ้า remove ไม่มีผลจริง
+                    let round = 0;
+                    for (; round < MAX_ROUNDS; round++) {
+                        const { data: listed, error: listErr } = await client.storage
+                            .from(CHAT_BUCKET)
+                            .list(ROOM_ID, { limit: PAGE });
+                        if (listErr) {
+                            storageWarn = ' (ไฟล์แนบใน Storage อาจยังเหลือ)';
+                            break;
+                        }
+                        if (!listed?.length) break;
                         const paths = listed.map(f => ROOM_ID + '/' + f.name);
-                        const { error: removeErr } = await supabaseClient.storage
+                        const { data: removed, error: removeErr } = await client.storage
                             .from(CHAT_BUCKET)
                             .remove(paths);
                         if (removeErr) {
                             storageWarn = ' (ลบไฟล์แนบไม่ครบ: ' + removeErr.message + ')';
+                            break;
                         }
+                        // remove ที่โดน policy บล็อกคืน data:[] โดยไม่ error — ถ้าไม่เช็คจะวนซ้ำหน้าเดิมจนครบเพดาน
+                        if (!removed?.length) {
+                            storageWarn = ' (ลบไฟล์แนบไม่ได้ — ตรวจสิทธิ์ Storage ของ bucket ' + CHAT_BUCKET + ')';
+                            break;
+                        }
+                        if (listed.length < PAGE) break;
                     }
+                    if (round >= MAX_ROUNDS) storageWarn = ' (ไฟล์แนบเยอะมาก — อาจยังเหลือ ลองล้างซ้ำอีกครั้ง)';
                 } catch (storageErr) {
                     storageWarn = ' (ไฟล์แนบใน Storage อาจยังเหลือ)';
                     console.warn('[Chat] clear storage:', storageErr);
@@ -587,17 +808,49 @@
                     window.chatNotifyShared.markRead?.();
                 }
 
-                const messages = [];
-                updateHint(messages);
-                render(messages);
-                showChatStatus('ล้างแชทแล้ว' + storageWarn, !!storageWarn);
-                setTimeout(() => updateHint(messages), 2500);
+                render([]);
+
+                // ร่องรอยว่าใครล้าง — ล้มเหลวไม่ถือว่าการล้างล้มเหลว
+                // ต้องมา "ก่อน" สรุปผล: realtime จะ echo ข้อความนี้กลับมา แล้ว pushMessageLocal
+                // เรียก updateHint ซึ่งเขียนทับ hintBar — คำเตือน RLS/Storage จะหายไปใน < 1 วินาที
+                try {
+                    await writeClearTrace(client, deletedCount);
+                } catch (traceErr) {
+                    console.warn('[Chat] write clear trace:', traceErr);
+                }
+
+                // RLS บล็อก DELETE = PostgREST คืน 200 พร้อม 0 แถว (ไม่ error) — ต้องไม่รายงานว่าสำเร็จ
+                // เทียบกับจำนวนที่ "อ่านจากเซิร์ฟเวอร์ตอนสำรอง" ไม่ใช่ mirror ในเครื่อง (ซึ่งอาจว่างอยู่แล้ว)
+                if (deletedCount === 0 && knownCount > 0) {
+                    storageWarn += ' — เซิร์ฟเวอร์ลบ 0 แถว ตรวจสิทธิ์ RLS ของ chat_messages';
+                }
+                const holdMs = storageWarn ? 15_000 : 4_000;
+                showChatStatus(
+                    `ล้างแชทแล้ว ${deletedCount.toLocaleString()} ข้อความ` + storageWarn,
+                    !!storageWarn,
+                    holdMs
+                );
+                setTimeout(() => updateHint(loadMessages()), holdMs + 100);
+            } else {
+                // ไม่มี client = แชทโหมด local อย่างเดียว — เดิมไม่มี else จึงค้างที่ "กำลังล้างแชท..."
+                localStorage.removeItem(STORAGE_KEY);
+                sessionStorage.removeItem('join_sent_' + ROOM_ID);
+
+                if (window.chatNotifyShared) {
+                    window.chatNotifyShared.resetSeen?.();
+                    window.chatNotifyShared.markRead?.();
+                }
+
+                render([]);
+                showChatStatus(
+                    `ล้างสำเนาในเครื่องนี้แล้ว ${knownCount.toLocaleString()} ข้อความ — ข้อมูลบนเซิร์ฟเวอร์ยังอยู่ (ยังไม่ได้เชื่อมต่อ Supabase)`,
+                    false,
+                    8_000
+                );
+                setTimeout(() => updateHint(loadMessages()), 8_100);
             }
         } catch (err) {
-            showChatStatus('ล้างแชทไม่สำเร็จ: ' + (err?.message || String(err)), true);
-        } finally {
-            btn.disabled = false;
-            inputEl.focus();
+            showChatStatus('ล้างแชทไม่สำเร็จ: ' + (err?.message || String(err)), true, 15_000);
         }
     }
 
@@ -857,17 +1110,34 @@
 
     document.getElementById('btnClear').addEventListener('click', clearAllChat);
 
+    // ด่านพิมพ์คำยืนยันก่อนล้างแชท — ปุ่มยืนยันเปิดใช้ได้ต่อเมื่อพิมพ์ตรงคำเท่านั้น
+    clearConfirmInput.addEventListener('input', () => {
+        btnClearConfirm.disabled = normalizeText(clearConfirmInput.value) !== CLEAR_CONFIRM_PHRASE;
+    });
+    clearConfirmInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (normalizeText(clearConfirmInput.value) === CLEAR_CONFIRM_PHRASE) closeClearConfirm(true);
+    });
+    btnClearConfirm.addEventListener('click', () => {
+        if (normalizeText(clearConfirmInput.value) === CLEAR_CONFIRM_PHRASE) closeClearConfirm(true);
+    });
+    document.getElementById('btnClearCancel').addEventListener('click', () => closeClearConfirm(false));
+    clearConfirmModal.addEventListener('click', (e) => {
+        if (e.target === clearConfirmModal) closeClearConfirm(false);
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && clearConfirmModal.classList.contains('show')) closeClearConfirm(false);
+    });
+
     document.getElementById('btnExport').addEventListener('click', () => {
-        const messages = loadMessages();
-        const payload = { exportedAt: new Date().toISOString(), roomId: ROOM_ID, name: myName || null, displayName: getDisplayName(), station: normalizeText(clientStation || localStorage.getItem(STATION_KEY) || '') || null, clientSessionId, messages };
-        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `chat_export_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
+        try {
+            const name = downloadChatJson(loadMessages(), 'chat_export', null);
+            showChatStatus('ส่งออกแล้ว: ' + name, false);
+            setTimeout(() => updateHint(loadMessages()), 2500);
+        } catch (err) {
+            showChatStatus('ส่งออกไม่สำเร็จ: ' + (err?.message || String(err)), true);
+        }
     });
 
     // init

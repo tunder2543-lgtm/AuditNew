@@ -72,27 +72,32 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 
 ## Matrix การโหลด Shared JS ต่อหน้า
 
-| หน้า | api | sku-utils | warehouses | db-errors | settings | reconcile | sidebar | ui-confirm |
-|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|
-| index | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| import_counts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| audit_check | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ |
-| count_search | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| reconcile | ✅ | ✅ | ❌ | ✅* | ✅ | ✅ (`?v=`) | ✅ | ✅ |
-| book_explorer | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
-| dashboard | ✅ | ✅* | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| live_count_wall | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| sku_master | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ |
-| settings | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ |
-| cycle_config | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| user_manual | lazy | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+> สแกนจาก `<script src>` จริงเมื่อ 2026-08-10 (หลังถอด dead load 6 จุด) — มีเทส `tests/unit/script-loads.test.mjs` บังคับว่า **หน้าไหนอ้าง global ตัวไหน หน้านั้นต้องโหลดไฟล์ต้นทาง**
 
-\* โหลดแต่ไม่ได้ใช้จริง
+| หน้า | api | sku-utils | warehouses | db-errors | settings | reconcile | sidebar | ui-confirm | เฉพาะหน้า |
+|---|:-:|:-:|:-:|:-:|:-:|:-:|:-:|:-:|---|
+| index | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | script.js |
+| import_counts | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | |
+| audit_check | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | audit-dedupe, audit-log, audit-book-impact, audit-loc-compare |
+| count_search | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | |
+| reconcile | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | |
+| book_explorer | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | |
+| dashboard | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | dashboard-shared |
+| live_count_wall | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | live-count-wall.js |
+| sku_master | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ❌ | |
+| settings | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | |
+| cycle_config | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | |
+| chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | |
+| user_manual | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | manual-editor.js |
+
+`chat-notify-shared.js` + `Css/chat-notify.css` ไม่มี tag ในหน้าไหนเลย — `sidebar-shared.js` inject ให้ทุกหน้าตอน runtime (จึงต้อง bump `ASSET_VER`)
+
+**`db-errors.js` โหลดแค่ 4 หน้า และ `settings-shared.js` 9 หน้า** — 6 จุดที่เหลือถูกถอดออกเมื่อ 2026-08-10 เพราะไม่มีการเรียกใช้จริง (`dashboard.html` มี connection pill ของตัวเองแยก ไม่ใช้ badge กลาง)
 
 จุดที่ drift:
 - ลำดับ `<script>` ไม่มีมาตรฐาน (6 หน้า sidebar มาก่อน api, 7 หน้ามาหลัง) — ทำงานได้เพราะ sidebar รอ DOMContentLoaded ยกเว้น `live-count-wall.js` ที่ลำดับสำคัญจริง
-- **cache-buster**: `api.js`, `settings-shared.js`, `reconcile-shared.js` มี `?v=20260809a` ครบทุกหน้าแล้ว (แก้ตอนทำ H1 หลังพบว่าเบราว์เซอร์ใช้ไฟล์เก่าจน fix ไม่มีผล) — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** ส่วน `sku-utils.js` / `db-errors.js` / `warehouses-shared.js` / `ui-confirm-modal.js` / `sidebar-shared.js` ยังไม่มี
+- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 13 หน้าด้วย
+- `reconcile` และ `book_explorer` โหลด `reconcile-shared.js` โดยไม่โหลด `warehouses-shared.js` — ไม่พัง เพราะ `refreshStandardWarehousesFromRegistry()` ถูกเรียกจาก `cycle_config` / `settings` เท่านั้น ซึ่งโหลดครบ · `book_explorer` ไม่โหลด `sku-utils.js` ก็ไม่พัง เพราะ `reconcile-shared.js:70` มี fallback normalize ที่เหมือน `SkuUtils.normalizeSku` เป๊ะ
 - `escapeHtml` มี **5 เวอร์ชัน** คนละชุดอักขระ (warehouses-shared, ui-confirm-modal, chat.html, dashboard.html, live-count-wall.js)
 - Connection badge มี 3 implementation (settings-shared กลาง, dashboard `#connectionPill`, live_count_wall id-based)
 - fallback รายชื่อคลัง hardcode ซ้ำ 3 ที่

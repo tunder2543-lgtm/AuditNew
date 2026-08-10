@@ -21,7 +21,11 @@ import { PROJECT_ROOT } from '../helpers/sandbox.mjs';
 
 suite('โครงสร้าง: หน้าที่ใช้ global ต้องโหลดไฟล์ที่ให้ global นั้น');
 
-/** global ที่หน้าเว็บเรียกใช้ → ไฟล์ที่ประกาศมันไว้ */
+/**
+ * global ที่หน้าเว็บเรียกใช้ → ไฟล์ที่ประกาศมันไว้
+ * สร้างจาก `window.X = …` จริงในไฟล์ `Js/*.js` (มีเทสด้านล่างบังคับให้ตรงกัน)
+ * ข้ามเฉพาะ global ที่เป็น handler ของ `Js/script.js` (ผูกกับ index.html หน้าเดียว)
+ */
 const PROVIDERS = {
     DbErrors: 'db-errors.js',
     SkuUtils: 'sku-utils.js',
@@ -29,8 +33,27 @@ const PROVIDERS = {
     warehouseService: 'warehouses-shared.js',
     reconcileService: 'reconcile-shared.js',
     apiService: 'api.js',
-    dashboardShared: 'dashboard-shared.js'
+    dashboardShared: 'dashboard-shared.js',
+    sidebarShared: 'sidebar-shared.js',
+    chatNotifyShared: 'chat-notify-shared.js',
+    // audit_check แตกโมดูลย่อยออกมา 4 ตัว
+    AuditDedupe: 'audit-dedupe.js',
+    AuditLog: 'audit-log.js',
+    AuditBookImpact: 'audit-book-impact.js',
+    AuditLocCompare: 'audit-loc-compare.js',
+    // settings-shared เป็นฟังก์ชันเดี่ยว ๆ ไม่ได้ห่อใน namespace
+    updateConnectionBadge: 'settings-shared.js',
+    checkSupabaseConnection: 'settings-shared.js',
+    testSupabaseConnection: 'settings-shared.js',
+    saveSupabaseSettings: 'settings-shared.js',
+    goToSettingsPage: 'settings-shared.js'
 };
+
+/**
+ * `chat-notify-shared.js` ไม่มี <script> ในหน้าไหน — `sidebar-shared.js` inject ให้ตอน runtime
+ * จึงถือว่า "โหลดแล้ว" ทุกหน้าที่โหลด sidebar-shared
+ */
+const INJECTED_BY = { 'chat-notify-shared.js': 'sidebar-shared.js' };
 
 /** ไฟล์ JS ที่เป็น "โค้ดของหน้านั้น" ไม่ใช่ shared layer */
 const PAGE_JS = {
@@ -82,25 +105,56 @@ test('ทุก global ในตาราง PROVIDERS ถูกประกา�
     }
 });
 
+/**
+ * เกณฑ์ "หน้านี้อ้าง global ตัวนี้": เจอชื่อมันโดด ๆ (มีหรือไม่มี `window.` นำหน้าก็ได้)
+ *
+ * ⚠️ ห้ามใช้เกณฑ์ "ต้องมี `.` / `?.` / `[` ตามหลัง" — จะพลาด pattern ที่ระบบนี้ใช้จริง
+ * คือ capture ไว้ก่อนแล้วค่อยใช้ (`Js/live-count-wall.js:6` = `const RS = window.reconcileService`)
+ * และพลาด global ที่เป็นฟังก์ชันเดี่ยว (`checkSupabaseConnection()`) ทั้งหมด
+ */
+function usesGlobal(src, name) {
+    return new RegExp(`\\b(?:window\\.)?${name}\\b`).test(src);
+}
+
 test('[script-loads] หน้าที่อ้าง global ต้องโหลด <script> ของไฟล์ที่ให้ global นั้น', () => {
     const problems = [];
 
     for (const page of htmlPages()) {
         const loaded = loadedScripts(fs.readFileSync(page.full, 'utf8'));
+        for (const [file, via] of Object.entries(INJECTED_BY)) {
+            if (loaded.has(via)) loaded.add(file);
+        }
         const own = pageOwnSource(page);
 
         for (const [global, file] of Object.entries(PROVIDERS)) {
             // ไฟล์ JS ประจำหน้าอาจเป็นตัวประกาศ global เองในบางกรณี — ข้าม
             if (PAGE_JS[page.name] === file) continue;
 
-            const uses = new RegExp(`\\b${global}\\s*(\\?\\.|\\.|\\[)`).test(own);
-            if (uses && !loaded.has(file)) {
+            if (usesGlobal(own, global) && !loaded.has(file)) {
                 problems.push(`${page.name}: ใช้ ${global} แต่ไม่ได้โหลด Js/${file}`);
             }
         }
     }
 
-    assert.deepEqual(problems, [], 'หน้าที่อ้าง global โดยไม่โหลดไฟล์ต้นทาง:\n  ' + problems.join('\n  '));
+    // ⚠️ tests/run.mjs พิมพ์แค่บรรทัดแรกของ error — รายชื่อจึงต้องอยู่บรรทัดเดียวกัน
+    assert.deepEqual(problems, [], `หน้าที่อ้าง global โดยไม่โหลดไฟล์ต้นทาง: ${problems.join(' | ')}`);
+});
+
+test('ตาราง PROVIDERS ต้องครอบคลุม window.X ทุกตัวที่ shared JS ประกาศ', () => {
+    /** global ที่เป็น handler ของหน้า index (script.js) — ผูกกับหน้าเดียว ไม่ใช่ shared API */
+    const PAGE_LOCAL_FILES = new Set(Object.values(PAGE_JS));
+    const missing = [];
+
+    for (const f of fs.readdirSync(path.join(PROJECT_ROOT, 'Js'))) {
+        if (!f.endsWith('.js') || PAGE_LOCAL_FILES.has(f)) continue;
+        const src = fs.readFileSync(path.join(PROJECT_ROOT, 'Js', f), 'latin1');
+        // `=(?!=)` — ไม่งั้น `typeof window.showToast === 'function'` จะถูกนับเป็นการประกาศ
+        for (const m of src.matchAll(/window\.([A-Za-z_$][\w$]*)\s*=(?!=)/g)) {
+            if (PROVIDERS[m[1]] === undefined) missing.push(`${f} → window.${m[1]}`);
+        }
+    }
+
+    assert.deepEqual(missing, [], `shared JS ประกาศ global ที่ยังไม่อยู่ในตาราง PROVIDERS: ${missing.join(' | ')}`);
 });
 
 test('[script-loads] 5 หน้าที่ถอด db-errors.js ออก ต้องยังไม่มีการอ้าง DbErrors', () => {

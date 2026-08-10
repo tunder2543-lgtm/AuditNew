@@ -179,7 +179,7 @@ variance           = counted_qty - effective_book
 
 ## ไฟล์ SQL
 
-รายการครบทุกไฟล์พร้อมสถานะรายไฟล์อยู่ที่ [DATABASE.md](DATABASE.md) — ปัจจุบันมี 20 ไฟล์ใน `docs/sql/` เอกสารนี้เคยลิสต์ไว้แค่ 3 ไฟล์แรก ที่เกี่ยวข้องกับ reconcile โดยตรงคือ:
+รายการครบทุกไฟล์พร้อมสถานะรายไฟล์อยู่ที่ [DATABASE.md](DATABASE.md) — ปัจจุบันมี 21 ไฟล์ใน `docs/sql/` เอกสารนี้เคยลิสต์ไว้แค่ 3 ไฟล์แรก ที่เกี่ยวข้องกับ reconcile โดยตรงคือ:
 
 - `002_reconciliation_schema.sql` — schema หลัก
 - `003_cycle_all_warehouses_date_range.sql` — คลังทั้งหมด + ช่วงวันที่ + unique index

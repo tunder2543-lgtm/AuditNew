@@ -22,7 +22,7 @@
 
 ## Shared JS ที่โหลด (`live_count_wall.html:415-422`)
 
-`api`, `sku-utils`, `warehouses-shared`, `db-errors`, `settings-shared`, `reconcile-shared`, `sidebar-shared`, `live-count-wall` — ⚠️ **ลำดับสำคัญ**: `live-count-wall.js` capture `const RS = window.reconcileService` ตอน parse (`live-count-wall.js:6`) — ถ้าสลับให้มาก่อน reconcile-shared หน้าจะพังทันที
+`api`, `sku-utils`, `warehouses-shared`, `settings-shared`, `reconcile-shared`, `sidebar-shared`, `live-count-wall` — ⚠️ **ลำดับสำคัญ**: `live-count-wall.js` capture `const RS = window.reconcileService` ตอน parse (`live-count-wall.js:6`) — ถ้าสลับให้มาก่อน reconcile-shared หน้าจะพังทันที
 
 ## localStorage keys
 

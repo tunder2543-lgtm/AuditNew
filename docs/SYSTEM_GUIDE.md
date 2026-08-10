@@ -33,7 +33,7 @@
 - `inventory_count_acceptances` — กลุ่มผลนับที่คนกด "ยืนยันว่าปกติ" (ฝั่ง audit_check)
 - `chat_messages` — แชททีม (ไฟล์แนบเก็บเป็นคอลัมน์ `file_*` ในตารางนี้ + Supabase Storage bucket `chat-attachments` ไม่ใช่ตารางแยก)
 
-SQL: ดูรายการ migration ครบทุกไฟล์พร้อมสถานะรายไฟล์ที่ [DATABASE.md](DATABASE.md) — ปัจจุบันมี 20 ไฟล์ใน `docs/sql/` (เอกสารนี้เคยลิสต์ไว้แค่ 4)
+SQL: ดูรายการ migration ครบทุกไฟล์พร้อมสถานะรายไฟล์ที่ [DATABASE.md](DATABASE.md) — ปัจจุบันมี 21 ไฟล์ใน `docs/sql/` (เอกสารนี้เคยลิสต์ไว้แค่ 4)
 
 ## 3) ลำดับการใช้งานระบบ (แนะนำ)
 

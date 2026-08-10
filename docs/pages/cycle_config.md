@@ -41,7 +41,7 @@
 
 ## Shared JS ที่โหลด (`:851-858`)
 
-ครบชุด: `sidebar-shared`, `api`, `sku-utils`, `warehouses-shared`, `db-errors`, `settings-shared`, `reconcile-shared`, `ui-confirm-modal` — แต่ใช้ระบบ confirm 2 แบบปนกัน (uiConfirm + modal promise เขียนเอง `showDeleteCycleModal:1430`, `showLinkConfirmModal:1452`)
+`sidebar-shared`, `api`, `sku-utils`, `warehouses-shared`, `settings-shared`, `reconcile-shared`, `ui-confirm-modal` (ถอด `db-errors` ออก 2026-08-10 — ไม่มีการเรียกใช้) — แต่ใช้ระบบ confirm 2 แบบปนกัน (uiConfirm + modal promise เขียนเอง `showDeleteCycleModal:1430`, `showLinkConfirmModal:1452`)
 
 ## localStorage keys
 

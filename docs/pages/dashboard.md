@@ -31,7 +31,7 @@
 
 ## Shared JS ที่โหลด (`:1597-1604`)
 
-`sidebar-shared`, `api`, `sku-utils` (โหลดแต่**ไม่ใช้** — หน้าใช้ `normalize()` ของตัวเองแบบ lowercase `:1713`), `warehouses-shared`, `db-errors`, `settings-shared`, `reconcile-shared`, `dashboard-shared`
+`sidebar-shared`, `api`, `sku-utils` (โหลดแต่**ไม่ใช้** — หน้าใช้ `normalize()` ของตัวเองแบบ lowercase `:1713`), `warehouses-shared`, `reconcile-shared`, `dashboard-shared` (ถอด `db-errors` + `settings-shared` ออก 2026-08-10 — หน้านี้มี connection pill ของตัวเอง ไม่ใช้ badge กลาง)
 
 ## localStorage keys
 
@@ -49,7 +49,7 @@
 - ~~ป้าย "รวม 3 คลัง" hardcode~~ **แก้แล้ว (H4)** — เปลี่ยนเป็น "(ทุกคลังในรอบนี้)"
 - `getSKUName(skuId)` รับ 1 argument แต่ถูกเรียกด้วย 2 (warehouse ถูกทิ้ง) 4 จุด (`:2340, 2629, 2663, 2679`)
 - `async render()` ไม่มีใคร await — RPC พังกลายเป็น unhandled rejection (`:2764` + call sites)
-- Connection badge เขียนเองใหม่ (`#connectionPill`, `:2055-2070`) — settings-shared โหลดมาแต่ไม่ทำงานเพราะไม่มี element ที่มันหา
-- Dead: `renderFilters` (`:2447-2453` ไม่มีผู้เรียก), ตัวแปร `bookSku` (`:1614` write-only), `getScopedBookSku()` เป็น shim คืน `bookSkuAll` ตรง ๆ (`:1731-1733`)
+- Connection badge เขียนเองใหม่ (`#connectionPill`) — จึงถอด `settings-shared.js` ออกแล้ว (2026-08-10)
+- Dead: ~~`renderFilters`~~ (ลบแล้ว 2026-08-10), ตัวแปร `bookSku` (`:1614` write-only), `getScopedBookSku()` เป็น shim คืน `bookSkuAll` ตรง ๆ (`:1731-1733`)
 - normalize SKU แบบ lowercase ของตัวเอง — สวนมาตรฐาน UPPERCASE ของระบบ (ไม่บั๊กตราบใดที่ self-consistent แต่เป็นกับดัก)
 - สี chart hardcode hex ไม่ใช้ CSS variables (dashboard-shared.js)

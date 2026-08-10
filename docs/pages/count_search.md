@@ -37,7 +37,7 @@
 
 ## Shared JS ที่โหลด
 
-`sidebar-shared.js`, `api.js`, `sku-utils.js`, `warehouses-shared.js`, `db-errors.js`, `settings-shared.js`, `reconcile-shared.js` — ไม่โหลด `ui-confirm-modal.js` (ไม่มี action ทำลายข้อมูล)
+`sidebar-shared.js`, `api.js`, `sku-utils.js`, `warehouses-shared.js`, `settings-shared.js`, `reconcile-shared.js` — ไม่โหลด `ui-confirm-modal.js` (ไม่มี action ทำลายข้อมูล)
 
 ## localStorage keys
 

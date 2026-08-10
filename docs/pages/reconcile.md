@@ -57,7 +57,7 @@
 
 ## Shared JS ที่โหลด (`:632-638`)
 
-`sidebar-shared.js`, `api.js`, `sku-utils.js`, `db-errors.js` (โหลดแต่ไม่ใช้), `settings-shared.js`, `reconcile-shared.js?v=20260529d` (หน้าเดียวที่มี cache-buster), `ui-confirm-modal.js` — **ไม่โหลด `warehouses-shared.js`**
+`sidebar-shared.js`, `api.js`, `sku-utils.js`, `settings-shared.js`, `reconcile-shared.js`, `ui-confirm-modal.js` (ทุกไฟล์มี `?v=` แล้ว · ถอด `db-errors.js` ออก 2026-08-10 — ไม่มีการเรียกใช้) — **ไม่โหลด `warehouses-shared.js`**
 
 ## Storage keys
 

@@ -1323,6 +1323,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 let insertedPairs;
                 let duplicateItems = [];
                 let failedEntries = [];
+                let groupAborted = false;   // circuit breaker ทำงานหรือเปล่า (M32)
 
                 if (!error) {
                     // bulk ผ่าน — จับคู่ตามดัชนี เพราะ payloads[i] มาจาก reversedItems[i] โดยตรง
@@ -1337,6 +1338,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     insertedPairs = one.inserted;
                     duplicateItems = one.duplicates;
                     failedEntries = one.failed;
+                    groupAborted = !!one.aborted;
                     // ไม่มีอะไรเข้าเลย = พังทั้งชุดจริง ๆ (เช่นไม่มีสิทธิ์/เน็ตหลุด) → คืนสภาพเดิม
                     if (!insertedPairs.length && !duplicateItems.length) throw (one.lastError || error);
                 }
@@ -1344,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // แถวที่ยังพังอยู่ต้องค้างในกลุ่มให้ผู้ใช้แก้ต่อ — ที่เหลือเข้า DB แล้ว
                 // reversedItems เรียง เก่า→ใหม่ แต่ groupItems เรียง ใหม่อยู่บน (unshift) — ต้องกลับด้าน
                 groupItems = failedEntries.map(f => f.item).reverse();
-                const abortNote = one.aborted
+                const abortNote = groupAborted
                     ? ' · ระบบหยุดบันทึกเองเพราะเชื่อมต่อฐานข้อมูลไม่ได้ติดกันหลายครั้ง'
                     : '';
                 renderGroupList();
@@ -1391,7 +1393,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // บอกให้ชัดว่าอะไรเข้าแล้ว อะไรยังค้าง — ของเดิมพังทั้งชุดแล้วเงียบ
                     const savedCount = insertedPairs.length + duplicateItems.length;
                     showToast(
-                        `บันทึกได้ ${savedCount}/${itemCount} รายการ · เหลือ ${failedEntries.length} รายการค้างในกลุ่ม — ${abortNote}` +
+                        `บันทึกได้ ${savedCount}/${itemCount} รายการ · เหลือ ${failedEntries.length} รายการค้างในกลุ่ม${abortNote} — ` +
                         `${failedEntries[0].reason}`,
                         'error'
                     );

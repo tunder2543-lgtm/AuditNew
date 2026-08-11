@@ -34,7 +34,16 @@ export function liftFunctions(src, names, context = {}) {
             `window.${n} = async function`,
             `window.${n} = function`,
         ];
-        const marker = forms.find(f => src.includes(f));
+        // ⚠️ ต้องเช็คขอบคำ — `includes('function handleEdConfirm')` ไปแมตช์
+        //    `function handleEdConfirmInner` ได้ แล้วยกผิดตัว **เงียบ ๆ** (เจอจริง 2026-08-11)
+        const boundaryOk = (f) => {
+            const i = src.indexOf(f);
+            if (i < 0) return false;
+            const next = src[i + f.length];
+            // ตัวถัดจากชื่อฟังก์ชันต้องไม่ใช่ตัวอักษร/ตัวเลข/_ /$
+            return f.includes('= ') ? true : !/[\w$]/.test(next || '');
+        };
+        const marker = forms.find(boundaryOk);
         assert.ok(marker, `ยกฟังก์ชัน ${n} ไม่ได้`);
         const at = src.indexOf(marker);
         const raw = src.slice(at, at + bodyOf(src, marker).length + (src.indexOf('{', at) - at));

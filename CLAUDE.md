@@ -128,4 +128,10 @@ node tests/run.mjs
   - 🔴 **เปลี่ยนฟังก์ชันเป็น async = สร้าง race ใหม่** — `handleEdConfirm` ต้องมี `edBusy` + `edGeneration` + ยาม stale หลัง await ทุกจุด ไม่งั้นกดยกเลิกแล้วเปิดแถวอื่นระหว่างรอ = เขียน **audit log ของการแก้ไขที่ไม่เคยเกิด**
   - 🔴 **เทส regex ล้วนยามไม่ได้ (ครั้งที่ 5)** — `const bookPending = false;` ผ่านเทส M10 ทั้ง 3 ข้อ ⇒ ต้องยกฟังก์ชันมารันจริง · `tests/helpers/lift.mjs` ยก `window.f = function` ได้แล้ว
   - ⚠️ **คืนค่าสถานะมาแล้วต้องมีคนอ่าน** — `aborted` เคยเป็น write-only ทั้ง 2 หน้า circuit breaker จึงแทบไม่ได้ผล
+- 🔴 **บั๊กที่หลุดถึงผู้ใช้จริง 2026-08-11 (ครั้งที่ 2 ในโปรเจกต์)** — `submitGroup` โยน `ReferenceError: one is not defined` ⇒ **บันทึกผลนับแบบกลุ่มไม่ได้เลย** · สาเหตุ: ใช้ `one.aborted` นอกบล็อก `else` ที่ประกาศ `const one`
+  - **ทำไมเทส 348 ข้อผ่านหมด**: เทสยกเฉพาะ `insertGroupRowsOneByOne` (ลูก) มารันจริง ส่วน `submitGroup` (แม่ ที่บรรทัดพังอยู่) มีแต่เทสอ่านซอร์ส · `new Function(src)` ตรวจแค่ syntax — ตัวแปรผิด scope เป็น runtime error
+  - **วัดแล้ว**: ฟังก์ชันที่แก้ในชุด 1–5 มี **88 จุด · มีเทสรันจริงแค่ 29** (ที่เหลือมีแต่เทสอ่านซอร์ส) — เสี่ยงแบบเดียวกันทั้งหมด
+  - เพิ่ม `tests/unit/scope-guard.test.mjs` — **รัน `submitGroup` + `handleEdConfirm` จริงทั้ง 2 เส้นทาง** (พิสูจน์แล้วว่าเอาบั๊กกลับมาแล้วแดง)
+  - ⚠️ **`tests/helpers/lift.mjs` เคยยกผิดฟังก์ชันเงียบ ๆ** — `includes('function handleEdConfirm')` ไปแมตช์ `handleEdConfirmInner` · เพิ่มเช็คขอบคำแล้ว
+  - ⛔ **กติกาใหม่: แก้บรรทัดในฟังก์ชันไหน ต้องมีเทสที่ *รัน* ฟังก์ชันนั้น** ไม่ใช่แค่เทสที่อ่านซอร์สของมัน
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

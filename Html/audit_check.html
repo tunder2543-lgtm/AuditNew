@@ -659,12 +659,6 @@
             color: var(--text);
         }
 
-        .audit-data-scope input[type="checkbox"] {
-            width: 15px;
-            height: 15px;
-            accent-color: var(--primary);
-        }
-
         .audit-scope-hint {
             font-size: 0.78rem;
             color: #93c5fd;
@@ -1112,10 +1106,6 @@
                             <option value="">กำลังโหลด...</option>
                         </select>
                     </label>
-                    <label style="cursor:pointer;">
-                        <input type="checkbox" id="auditFilterAllTime">
-                        ทุกช่วงเวลา (รวมรอบเก่า)
-                    </label>
                     <span class="audit-scope-hint" id="auditScopeHint">แสดงเฉพาะเดือนที่มีข้อมูลการนับในระบบ — เปลี่ยนคลังแล้วรายการเดือนจะอัปเดต</span>
                 </div>
 
@@ -1467,7 +1457,7 @@
 
         function isLooseAuditScope() {
             const f = getAuditFilters();
-            return !f.warehouse || f.allTime;
+            return !f.warehouse;
         }
 
         /** แยกตำแหน่งเป็นส่วน ตัวอักษร/ตัวเลข สำหรับเรียง A1, A2, A10 */
@@ -1773,14 +1763,7 @@
         async function refreshAuditMonthSelect(preferredMonth) {
             const monthEl = document.getElementById('auditFilterMonth');
             const warehouseEl = document.getElementById('auditFilterWarehouse');
-            const allTimeEl = document.getElementById('auditFilterAllTime');
             if (!monthEl) return;
-
-            if (allTimeEl && allTimeEl.checked) {
-                monthEl.innerHTML = '<option value="">ทุกช่วงเวลา</option>';
-                monthEl.disabled = true;
-                return;
-            }
 
             if (!supabaseClient) {
                 monthEl.innerHTML = '<option value="">ยังไม่ได้เชื่อมต่อ</option>';
@@ -1819,11 +1802,9 @@
         function getAuditFilters() {
             const warehouseEl = document.getElementById('auditFilterWarehouse');
             const monthEl = document.getElementById('auditFilterMonth');
-            const allTimeEl = document.getElementById('auditFilterAllTime');
             const warehouse = warehouseEl ? warehouseEl.value.trim() : '';
-            const allTime = allTimeEl ? allTimeEl.checked : false;
-            const yearMonth = (!allTime && monthEl) ? monthEl.value : '';
-            return { warehouse, yearMonth, allTime };
+            const yearMonth = monthEl ? monthEl.value : '';
+            return { warehouse, yearMonth };
         }
 
         function getMonthBoundsIso(yearMonth) {
@@ -1839,9 +1820,7 @@
 
         function formatAuditScopeLabel(filters) {
             const wh = filters.warehouse || 'ทุกคลัง';
-            const period = filters.allTime
-                ? 'ทุกช่วงเวลา'
-                : (filters.yearMonth ? filters.yearMonth : 'ไม่ระบุเดือน');
+            const period = filters.yearMonth || 'ไม่ระบุเดือน';
             return `${wh} · ${period}`;
         }
 
@@ -1851,7 +1830,6 @@
             const f = getAuditFilters();
             const parts = [];
             if (!f.warehouse) parts.push('เลือกคลังเพื่อความแม่นยำ');
-            if (f.allTime) parts.push('ทุกช่วงเวลา — อาจรวมรอบเก่า');
             if (parts.length) {
                 hint.textContent = `⚠ ${parts.join(' · ')} — bulk แก้ตำแหน่ง/Import เทียบควรระบุคลังและเดือน`;
                 hint.style.color = '#fbbf24';
@@ -1864,7 +1842,6 @@
         function saveAuditFilters() {
             const f = getAuditFilters();
             localStorage.setItem('audit_check_warehouse', f.warehouse);
-            localStorage.setItem('audit_check_all_time', f.allTime ? '1' : '0');
             if (f.yearMonth) localStorage.setItem('audit_check_year_month', f.yearMonth);
             updateAuditScopeHint();
         }
@@ -1872,11 +1849,7 @@
         function initAuditFilters() {
             const warehouseEl = document.getElementById('auditFilterWarehouse');
             const monthEl = document.getElementById('auditFilterMonth');
-            const allTimeEl = document.getElementById('auditFilterAllTime');
-            if (!warehouseEl || !monthEl || !allTimeEl) return;
-
-            const savedMonth = localStorage.getItem('audit_check_year_month') || '';
-            const allTime = localStorage.getItem('audit_check_all_time') === '1';
+            if (!warehouseEl || !monthEl) return;
 
             // ค่าเริ่มต้นคลัง = ทุกคลัง เสมอ (ไม่บันทึก/กู้คืนจาก localStorage)
             if (window.warehouseService?.populateSelect) {
@@ -1889,7 +1862,6 @@
                 warehouseEl.value = '';
             }
             localStorage.setItem('audit_check_warehouse', '');
-            allTimeEl.checked = allTime;
             monthEl.innerHTML = '<option value="">กำลังโหลดเดือน...</option>';
             monthEl.disabled = true;
 
@@ -3624,7 +3596,7 @@
                 const ok = await uiConfirm.show({
                     title: 'เปิดโหมดแก้ตำแหน่ง',
                     variant: 'amber',
-                    intro: 'ขอบเขตข้อมูลกว้าง (ทุกคลัง หรือทุกช่วงเวลา)',
+                    intro: 'ขอบเขตข้อมูลกว้าง — ยังไม่ได้เลือกคลัง',
                     bullets: ['แนะนำเลือกคลังและเดือนก่อนแก้ตำแหน่ง'],
                     confirmLabel: 'เปิดโหมดแก้ไข'
                 });
@@ -4077,7 +4049,7 @@
                 return;
             }
             const f = getAuditFilters();
-            const period = f.allTime ? 'ทุกช่วงเวลา' : (f.yearMonth || 'ยังไม่เลือกเดือน');
+            const period = f.yearMonth || 'ยังไม่เลือกเดือน';
             const wh = document.getElementById('locCompareWarehouse')?.value || '';
             scopeNote.textContent = wh
                 ? `จะเทียบกับ: ${wh} · ${period} — เลือกคลังตรงนี้ได้เลย ไม่ต้องไปตั้งที่แถบด้านบน`
@@ -4276,7 +4248,7 @@
                     'ตำแหน่งในระบบ': '',
                     เหตุผล: `ไม่มีแถวนับในคลัง/เดือนนี้ (โซน Excel ${zone}) — ไม่สร้างเข้าระบบ`,
                     คลัง: locCompareState.warehouse || f.warehouse || '',
-                    เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
+                    เดือน: f.yearMonth || ''
                 });
             });
             (locCompareState.dbAmbiguous || []).forEach(x => {
@@ -4286,7 +4258,7 @@
                     'ตำแหน่งในระบบ': (x.locations || []).join(' / '),
                     เหตุผล: 'ซ้ำหลายตำแหน่งใน DB — ต้องแก้ด้วยมือ',
                     คลัง: locCompareState.warehouse || f.warehouse || '',
-                    เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
+                    เดือน: f.yearMonth || ''
                 });
             });
             (locCompareState.missingQty || []).forEach(x => {
@@ -4296,7 +4268,7 @@
                     'ตำแหน่งในระบบ': x.dbLocation || '',
                     เหตุผล: 'ข้อมูลไม่ครบ — แถวนี้ไม่มีจำนวนในระบบ จึงยังไม่แก้ตำแหน่งให้',
                     คลัง: x.warehouse || locCompareState.warehouse || f.warehouse || '',
-                    เดือน: f.yearMonth || (f.allTime ? 'ทุกช่วงเวลา' : '')
+                    เดือน: f.yearMonth || ''
                 });
             });
             return rows;
@@ -4372,20 +4344,9 @@
             // ด่านตรวจที่เหลือต้องผ่านให้หมด **ก่อน** จะไปแตะ scope ของหน้า
             // (เดิมสลับคลังทิ้งไว้แล้วค่อย abort — หน้าเปลี่ยนถาวรทั้งที่ผู้ใช้ยกเลิก)
             const beforeSync = getAuditFilters();
-            if (!beforeSync.allTime && !beforeSync.yearMonth) {
-                showToast('กรุณาเลือกเดือนที่มีข้อมูลการนับ หรือติ๊ก「ทุกช่วงเวลา」', 'error');
+            if (!beforeSync.yearMonth) {
+                showToast('กรุณาเลือกเดือนที่มีข้อมูลการนับก่อนเทียบตำแหน่ง', 'error');
                 return;
-            }
-            if (beforeSync.allTime) {
-                const ok = await uiConfirm.show({
-                    title: 'เทียบตำแหน่ง',
-                    variant: 'amber',
-                    intro: 'กำลังใช้「ทุกช่วงเวลา」',
-                    bullets: ['อาจรวมข้อมูลจากรอบเก่า'],
-                    hideBulletsBox: false,
-                    confirmLabel: 'เทียบต่อ'
-                });
-                if (!ok) return;
             }
 
             const { map: excelBySku, conflicts: excelConflicts } = buildExcelSkuMap(locCompareState.excelRows);
@@ -4412,14 +4373,14 @@
                     // เช็คเดือน "ก่อน" โหลดข้อมูล — ถ้าไม่มีเดือน getMonthBoundsIso คืน null ทั้งคู่
                     // แล้วจะดึงทั้งคลังทุกช่วงเวลามาทิ้งเปล่า ๆ ก่อน abort
                     const afterSwitch = getAuditFilters();
-                    if (!afterSwitch.allTime && !afterSwitch.yearMonth) {
+                    if (!afterSwitch.yearMonth) {
                         whEl.value = whBefore;          // คืนสภาพหน้าให้เหมือนก่อนกด
                         saveAuditFilters();
                         await refreshAuditMonthSelect();
-                        showToast(`คลัง ${chosenWh} ไม่มีข้อมูลการนับให้เลือกเดือน — ติ๊ก「ทุกช่วงเวลา」หรือเลือกคลังอื่น`, 'error');
+                        showToast(`คลัง ${chosenWh} ไม่มีข้อมูลการนับให้เลือกเดือน — เลือกคลังอื่น`, 'error');
                         return;
                     }
-                    if (!afterSwitch.allTime && monthBefore && afterSwitch.yearMonth !== monthBefore) {
+                    if (monthBefore && afterSwitch.yearMonth !== monthBefore) {
                         monthSwitchedTo = afterSwitch.yearMonth;
                     }
 
@@ -4448,8 +4409,8 @@
                 showToast('กรุณาเลือกคลังก่อนเทียบตำแหน่ง', 'error');
                 return;
             }
-            if (!filters.allTime && !filters.yearMonth) {
-                showToast(`คลัง ${chosenWh} ไม่มีข้อมูลการนับให้เลือกเดือน — ติ๊ก「ทุกช่วงเวลา」หรือเลือกคลังอื่น`, 'error');
+            if (!filters.yearMonth) {
+                showToast(`คลัง ${chosenWh} ไม่มีข้อมูลการนับให้เลือกเดือน — เลือกคลังอื่น`, 'error');
                 return;
             }
             // เดือนถูกสลับให้อัตโนมัติ — เขียนค้างไว้ในโมดัล ไม่ใช้ toast
@@ -5261,7 +5222,7 @@
 
         /**
          * Pipeline ออโต้: โหลดอ้างอิง → ใส่รายการลงตาราง → ตรวจสอบทั้งหมด
-         * เรียกอัตโนมัติเมื่อผู้ใช้เปลี่ยน คลัง/เดือน/ทุกช่วงเวลา
+         * เรียกอัตโนมัติเมื่อผู้ใช้เปลี่ยน คลัง/เดือน
          */
         let autoRunInFlight = false;
         let autoRunQueued = false;
@@ -5368,7 +5329,6 @@
 
         const auditFilterWarehouse = document.getElementById('auditFilterWarehouse');
         const auditFilterMonth = document.getElementById('auditFilterMonth');
-        const auditFilterAllTime = document.getElementById('auditFilterAllTime');
 
         async function onAuditWarehouseChange() {
             saveAuditFilters();
@@ -5382,19 +5342,8 @@
             if (supabaseClient) await runFullAuditLoad();
         }
 
-        async function onAuditAllTimeChange() {
-            if (auditFilterMonth) auditFilterMonth.disabled = auditFilterAllTime.checked;
-            saveAuditFilters();
-            if (!supabaseClient) return;
-            if (!auditFilterAllTime.checked) {
-                await refreshAuditMonthSelect();
-            }
-            await runFullAuditLoad();
-        }
-
         if (auditFilterWarehouse) auditFilterWarehouse.addEventListener('change', onAuditWarehouseChange);
         if (auditFilterMonth) auditFilterMonth.addEventListener('change', onAuditMonthChange);
-        if (auditFilterAllTime) auditFilterAllTime.addEventListener('change', onAuditAllTimeChange);
 
         supabaseClient = window.apiService ? window.apiService.getClient() : null;
         if (typeof initConnectionBadge === 'function') {

@@ -245,6 +245,16 @@ test('[flow] คืนค่า: กดยกเลิก = ไม่แตะ�
     assert.equal(calls.clear, 0);
 });
 
+test('[ui] ปุ่มยอมรับเกินต้องโผล่เฉพาะโหมด "เกิน" เท่านั้น', () => {
+    // admin สั่งชัด: ห้ามโชว์ตอนอยู่โหมด ขาด / ถูกต้อง / ทั้งหมด
+    assert.match(RECONCILE, /id="btnBulkAcceptOver" style="display:none;"/,
+        'ค่าเริ่มต้นใน markup ต้องซ่อน — ก่อน JS รันก็ต้องไม่โผล่');
+    const at = RECONCILE.indexOf('function updateAutoAdjustButton');
+    const body = RECONCILE.slice(at, at + 1200);
+    assert.match(body, /bulkBtn\.style\.display = adjustViewMode === 'over' \? '' : 'none'/,
+        'ต้องผูกกับ updateAutoAdjustButton ซึ่งถูกเรียกทุกครั้งที่สลับโหมด');
+});
+
 test('[ui] ปุ่ม/โมดัลครบ และ Export ใช้รายการเดียวกับที่แสดง', () => {
     assert.match(RECONCILE, /id="btnBulkAcceptOver"/);
     assert.match(RECONCILE, /id="bulkAcceptModal"/);

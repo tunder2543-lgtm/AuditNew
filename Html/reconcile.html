@@ -520,7 +520,7 @@
                             <i data-lucide="wand-2"></i> ปรับยอด Auto
                         </button>
 
-                        <button type="button" class="rc-btn rc-btn-green rc-btn-auto" id="btnBulkAcceptOver" title="เลือกรายการสถานะ เกิน ที่ต่างไม่เกินเพดานที่กำหนด ดูรายการ/Export แล้วยอมรับผลนับทั้งชุดในครั้งเดียว">
+                        <button type="button" class="rc-btn rc-btn-green rc-btn-auto" id="btnBulkAcceptOver" style="display:none;" title="เลือกรายการสถานะ เกิน ที่ต่างไม่เกินเพดานที่กำหนด ดูรายการ/Export แล้วยอมรับผลนับทั้งชุดในครั้งเดียว">
                             <i data-lucide="check-check"></i> ยอมรับเกิน (Apply เป็นชุด)
                         </button>
 
@@ -941,6 +941,14 @@
         btn.title = enabled
             ? `สร้าง Draft ปรับยอดทุก SKU โหมด${label} ตามจำนวนที่ต่าง`
             : 'เลือกโหมด ขาด หรือ เกิน ก่อน';
+
+        // ปุ่ม "ยอมรับเกินเป็นชุด" ทำงานกับสถานะเกินเท่านั้น — โผล่เฉพาะตอนเลือกโหมดเกิน
+        // ไม่งั้นคนอยู่โหมดขาด/ทั้งหมดจะเห็นปุ่มที่ไม่เกี่ยวกับสิ่งที่กำลังดู
+        const bulkBtn = document.getElementById('btnBulkAcceptOver');
+        if (bulkBtn) {
+            bulkBtn.style.display = adjustViewMode === 'over' ? '' : 'none';
+            bulkBtn.disabled = !linesCache.length;
+        }
     }
 
     /** ไม่นำ count_only (นับเจอแต่ไม่พบใน Excel) มาคำนวณ % */

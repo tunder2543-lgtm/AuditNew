@@ -147,4 +147,7 @@ node tests/run.mjs
 - ✅ **โหมด "แก้ไขจำนวน" ใน audit_check** (2026-08-11 เย็น): โครงเดียวกับโหมดแก้ตำแหน่งทุกจุด — ยืนยัน 2 ขั้น + guard M12 + `AUDIT_EDIT_QTY` ลง audit log ทุกแถว + ออกจากโหมดแล้ว re-verify (สถานะไม่ค้างที่ "ตำแหน่ง/จำนวนไม่ตรง") · โหมดแก้ไขเปิดได้ทีละอย่าง · **เทส 407 PASS**
   - ⚠️ การแก้จำนวนโดย**คน**ผ่านยืนยัน 2 ขั้น + audit log ไม่ขัดนโยบายข้อ 3 (ที่ห้ามคือ**ระบบ**แก้เอง) — เส้นทางเดียวกับโหมดแก้ตำแหน่งที่มีมาก่อน
   - 🔴 **ReferenceError รอบที่ 3 ของวัน (smoke จับได้ก่อน commit)** — อ้าง `qtyInput` ใน scope ที่ไม่มี ⇒ `createRow` พังทุกแถว ตารางว่างทั้งหน้า · เทส [ui] regex 9 ข้อผ่านหมดเพราะไม่มีข้อไหนรัน `createRow` ⇒ เพิ่มเทสรัน `createRow` จริงแล้ว · **แตะ `createRow`/listener ของตาราง = ต้อง smoke ตารางโหลดขึ้นเสมอ**
+- ✅ **reconcile: "ยอมรับเกิน (Apply เป็นชุด)" + "ประวัติ / คืนค่า"** (2026-08-11 ค่ำ): เลือกรายการเกินตามเพดานค่าต่าง (+1..+N) → ดูรายการ/Export → ยืนยัน 2 ขั้น → batch create + `applyAllDraftsForCycle` (refresh ครั้งเดียว) · โมดัลประวัติดึงสดจาก DB คืนค่าผ่าน `clearAdjustmentsAndMatchAcceptancesForSkus` (H6) แล้ว `runRefresh()` เต็ม · **เทส 418 PASS**
+  - ⛔ **`apply_all_drafts_for_cycle` Apply ทุก draft ของรอบ** — flow แบบชุดต้องบล็อกเมื่อมี draft ค้าง ไม่งั้นพ่วง draft ที่ไม่เกี่ยวไปด้วย (มีเทสบังคับ)
+  - ⚠️ **คืนค่า = ต่อ SKU ทั้งการตัดสิน** (ยอดปรับ+การยืนยันของ SKU นั้นในรอบ) ไม่ใช่ต่อรายการ log — ผลนับไม่ถูกแตะ · เขียน `RECONCILE_ADJ_CLEAR` ก่อนลบเสมอ
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

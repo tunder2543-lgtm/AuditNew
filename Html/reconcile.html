@@ -379,6 +379,26 @@
         .rc-empty { text-align: center; padding: 2rem 1.5rem; color: var(--text-muted); }
         .rc-empty i { width: 40px; height: 40px; opacity: 0.3; margin-bottom: 0.75rem; }
 
+        /* modal กลางจอ — ใช้ร่วมกันระหว่าง "ยอมรับเกินเป็นชุด" กับ "ประวัติ/คืนค่า" */
+        .rc-modal {
+            position: fixed; inset: 0; z-index: 14000; display: none; align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+        }
+        .rc-modal.active { display: flex; }
+        .rc-modal-box {
+            background: linear-gradient(165deg, #1a1d24, #12141a);
+            border: 1px solid rgba(59,130,246,0.35); border-radius: 16px;
+            padding: 1.25rem 1.5rem; width: min(860px, 94vw); max-height: 88vh;
+            display: flex; flex-direction: column; gap: 0.75rem;
+        }
+        .rc-modal-box h3 { margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem; }
+        .rc-modal-scroll { overflow: auto; border: 1px solid rgba(148,163,184,0.15); border-radius: 10px; }
+        .rc-modal-scroll table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .rc-modal-scroll th, .rc-modal-scroll td { padding: 0.4rem 0.6rem; border-bottom: 1px solid rgba(148,163,184,0.1); text-align: left; white-space: nowrap; }
+        .rc-modal-scroll th { position: sticky; top: 0; background: #161922; z-index: 1; }
+        .rc-modal-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
+        .rc-modal-hint { font-size: 0.8rem; color: var(--text-muted); }
+
         .rc-loading {
             position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
             background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
@@ -422,6 +442,9 @@
                     </button>
                     <button type="button" class="rc-btn rc-btn-green" id="btnExport">
                         <i data-lucide="download"></i> Export Excel
+                    </button>
+                    <button type="button" class="rc-btn rc-btn-ghost" id="btnAdjHistory" title="ดูยอดปรับ + การยืนยันทั้งหมดของรอบนี้ และคืนค่ารายการที่กดพลาดได้ (เขียนประวัติก่อนลบเสมอ)">
+                        <i data-lucide="history"></i> ประวัติ / คืนค่า
                     </button>
                     <button type="button" class="rc-btn rc-btn-green" id="btnExportFinal" title="สรุปต่อ SKU ว่ายอดจริงคือเท่าไร มาจากการยืนยันแบบไหน ใครยืนยัน — รายการที่ยังไม่ตัดสินจะบอกชัดว่ายังไม่ยืนยัน">
                         <i data-lucide="badge-check"></i> Export ยอดจริง
@@ -495,6 +518,10 @@
 
                         <button type="button" class="rc-btn rc-btn-warn rc-btn-auto" id="btnAutoAdjust" disabled title="สร้าง Draft ปรับยอดทุก SKU ในโหมดที่เลือก">
                             <i data-lucide="wand-2"></i> ปรับยอด Auto
+                        </button>
+
+                        <button type="button" class="rc-btn rc-btn-green rc-btn-auto" id="btnBulkAcceptOver" title="เลือกรายการสถานะ เกิน ที่ต่างไม่เกินเพดานที่กำหนด ดูรายการ/Export แล้วยอมรับผลนับทั้งชุดในครั้งเดียว">
+                            <i data-lucide="check-check"></i> ยอมรับเกิน (Apply เป็นชุด)
                         </button>
 
                         <div class="rc-adj-hint" id="adjHint"></div>
@@ -620,6 +647,48 @@
 
         </div>
     </main>
+</div>
+
+<!-- ยอมรับผลนับสถานะ "เกิน" เป็นชุด ตามเพดานค่าต่าง -->
+<div class="rc-modal" id="bulkAcceptModal">
+    <div class="rc-modal-box">
+        <h3><i data-lucide="check-check"></i> ยอมรับผลนับ (Apply ทันที) — สถานะ เกิน</h3>
+        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
+            <label for="bulkAcceptMax" style="font-size:0.85rem;">เลือกรายการที่ ต่าง +1 ถึง</label>
+            <input type="number" id="bulkAcceptMax" min="1" step="1" value="10" style="width:90px;">
+            <span class="rc-modal-hint" id="bulkAcceptSummary">—</span>
+        </div>
+        <div class="rc-modal-hint">Excel ใช้เทียบของ SKU ที่เลือกจะถูกปรับให้เท่าผลนับ · ตรวจรายการก่อน แล้วยืนยัน 2 ขั้น · ยกเลิกทีหลังได้ที่ปุ่ม "ประวัติ / คืนค่า"</div>
+        <div class="rc-modal-scroll" style="max-height:46vh;">
+            <table>
+                <thead><tr><th>#</th><th>SKU</th><th>ชื่อ</th><th style="text-align:right">Excel ใช้เทียบ</th><th style="text-align:right">ผลนับ</th><th style="text-align:right">ต่าง</th></tr></thead>
+                <tbody id="bulkAcceptList"></tbody>
+            </table>
+        </div>
+        <div class="rc-modal-actions">
+            <button type="button" class="rc-btn rc-btn-ghost" id="btnBulkAcceptExport"><i data-lucide="download"></i> Export รายการนี้</button>
+            <button type="button" class="rc-btn rc-btn-ghost" id="btnBulkAcceptClose">ปิด</button>
+            <button type="button" class="rc-btn rc-btn-green" id="btnBulkAcceptConfirm" disabled><i data-lucide="check-check"></i> ยอมรับผลนับ (<span id="bulkAcceptCount">0</span>)</button>
+        </div>
+    </div>
+</div>
+
+<!-- ประวัติยอดปรับ + การยืนยันของรอบนี้ พร้อมคืนค่า -->
+<div class="rc-modal" id="adjHistoryModal">
+    <div class="rc-modal-box">
+        <h3><i data-lucide="history"></i> ประวัติการปรับ / ยืนยัน — <span id="adjHistoryCycleLabel"></span></h3>
+        <div class="rc-modal-hint">คืนค่า = ลบยอดปรับและการยืนยันของ SKU นั้น<strong>ทั้งหมดในรอบนี้</strong> (เขียนประวัติก่อนลบเสมอ) แล้วคำนวณ Match ใหม่ — ตัวเลขกลับเป็นเหมือนก่อนตัดสิน · ผลนับไม่ถูกแตะ</div>
+        <div class="rc-modal-scroll" style="max-height:52vh;">
+            <table>
+                <thead><tr><th><input type="checkbox" id="adjHistorySelectAll" title="เลือกทั้งหมด"></th><th>ประเภท</th><th>SKU</th><th>รายละเอียด</th><th>โดย</th><th>เมื่อ</th></tr></thead>
+                <tbody id="adjHistoryList"></tbody>
+            </table>
+        </div>
+        <div class="rc-modal-actions">
+            <button type="button" class="rc-btn rc-btn-ghost" id="btnAdjHistoryClose">ปิด</button>
+            <button type="button" class="rc-btn rc-btn-warn" id="btnHistoryRestoreSelected" disabled><i data-lucide="undo-2"></i> คืนค่าที่เลือก (<span id="adjHistorySelCount">0</span>)</button>
+        </div>
+    </div>
 </div>
 
 <div class="rc-loading" id="loading">
@@ -2412,6 +2481,271 @@
         }
     }
 
+    /* ── ยอมรับเกินเป็นชุด (ตามเพดานค่าต่าง) ───────────────────────────── */
+
+    /**
+     * เลือกแถวสถานะ "เกิน" ที่ ต่าง +1 ถึง +maxDiff — ข้ามแถวที่ยืนยันไปแล้ว
+     * (count_only ไม่เข้าเพราะสถานะไม่ใช่ over · แถว Book 0 ที่อยู่ใน Book = over จริง จึงเข้า)
+     */
+    function selectOverRowsForBulkAccept(lines, maxDiff) {
+        const max = Number(maxDiff);
+        if (!Number.isFinite(max) || max < 1) return [];
+        return (lines || []).filter(l => {
+            if (isLineAcceptedMatch(l.sku_id)) return false;
+            if (resolveDisplayStatus(l) !== 'over') return false;
+            const v = computeDisplayVariance(l);
+            return v >= 1 && v <= max;
+        });
+    }
+
+    /** แถว Excel ของรายการที่กำลังจะยอมรับ — ใช้ทั้งแสดงในโมดัลและ Export */
+    function buildBulkAcceptExportRows(rows, maxDiff) {
+        let sumOver = 0;
+        const data = rows.map((l, i) => {
+            const m = getExportLineMetrics(l);
+            sumOver += m.variance;
+            return {
+                '#': i + 1,
+                SKU: l.sku_id,
+                'ชื่อ': skuNameMap[l.sku_id] || '',
+                'Excel ใช้เทียบ (ก่อน)': m.effective,
+                'ผลนับ': m.counted,
+                'ต่าง': m.variance,
+                'ยอดหลัง Apply': m.counted
+            };
+        });
+        data.push({
+            '#': '', SKU: 'รวม', 'ชื่อ': `เกินไม่เกิน +${Number(maxDiff)}`,
+            'Excel ใช้เทียบ (ก่อน)': '', 'ผลนับ': '', 'ต่าง': sumOver,
+            'ยอดหลัง Apply': `${rows.length.toLocaleString()} SKU`
+        });
+        return data;
+    }
+
+    let bulkAcceptRows = [];
+
+    function refreshBulkAcceptList() {
+        const max = Number(document.getElementById('bulkAcceptMax').value);
+        bulkAcceptRows = selectOverRowsForBulkAccept(linesCache, max);
+        const body = document.getElementById('bulkAcceptList');
+        const sum = bulkAcceptRows.reduce((t, l) => t + computeDisplayVariance(l), 0);
+        body.innerHTML = bulkAcceptRows.map((l, i) => {
+            const m = getExportLineMetrics(l);
+            return `<tr><td>${i + 1}</td><td>${RS.escapeHtml(l.sku_id)}</td>` +
+                `<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;">${RS.escapeHtml(skuNameMap[l.sku_id] || '')}</td>` +
+                `<td style="text-align:right">${m.effective.toLocaleString()}</td>` +
+                `<td style="text-align:right">${m.counted.toLocaleString()}</td>` +
+                `<td style="text-align:right;color:#fbbf24;">+${m.variance.toLocaleString()}</td></tr>`;
+        }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem;">ไม่มีรายการเกินในช่วงนี้</td></tr>';
+        document.getElementById('bulkAcceptSummary').textContent =
+            `${bulkAcceptRows.length.toLocaleString()} SKU · รวมเกิน +${sum.toLocaleString()} ชิ้น`;
+        document.getElementById('bulkAcceptCount').textContent = bulkAcceptRows.length.toLocaleString();
+        document.getElementById('btnBulkAcceptConfirm').disabled = bulkAcceptRows.length === 0;
+        lucide.createIcons();
+    }
+
+    function openBulkAcceptOverModal() {
+        if (!currentCycle?.id || !linesCache.length) {
+            return showToast('เลือกรอบและคำนวณ Match ก่อน', 'error');
+        }
+        // มี draft ค้าง = Apply ทั้งชุดจะพ่วง draft ที่ไม่เกี่ยวไปด้วย — ให้เคลียร์ก่อน
+        const drafts = adjustmentsCache.filter(a => a.status === 'draft');
+        if (drafts.length) {
+            return showToast(`มี Draft ค้าง ${drafts.length} รายการ — Apply ทั้งหมด หรือลบ Draft ก่อน จึงจะใช้โหมดชุดได้`, 'error');
+        }
+        document.getElementById('bulkAcceptModal').classList.add('active');
+        refreshBulkAcceptList();
+    }
+
+    async function runBulkAcceptOver() {
+        const max = Number(document.getElementById('bulkAcceptMax').value);
+        const rows = selectOverRowsForBulkAccept(linesCache, max);
+        if (!rows.length) return showToast('ไม่มีรายการในช่วงที่เลือก', 'error');
+
+        // เช็คซ้ำก่อนเขียนจริง — ระหว่างเปิดโมดัลอาจมีคนสร้าง draft เพิ่ม
+        const drafts = adjustmentsCache.filter(a => a.status === 'draft');
+        if (drafts.length) {
+            return showToast(`มี Draft ค้าง ${drafts.length} รายการ — ปิดโมดัลแล้วจัดการ Draft ก่อน`, 'error');
+        }
+
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
+
+        const sum = rows.reduce((t, l) => t + computeDisplayVariance(l), 0);
+        const bullets = rows.slice(0, 8).map(l =>
+            `${l.sku_id}: +${computeDisplayVariance(l)} → ยอด ${Number(l.counted_qty)}`);
+        if (rows.length > 8) bullets.push(`… และอีก ${rows.length - 8} SKU`);
+        const okBulk = await uiConfirm.twoStep({
+            title: `ยอมรับผลนับ เกินไม่เกิน +${max}`,
+            variant: 'amber',
+            step1: {
+                intro: `ยอมรับผลนับ ${rows.length.toLocaleString()} SKU (รวมเกิน +${sum.toLocaleString()} ชิ้น)`,
+                bullets,
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: `สร้างยอดปรับ + Apply ทันที ${rows.length.toLocaleString()} SKU — Excel ใช้เทียบจะเท่าผลนับ`,
+                note: 'ยกเลิกทีหลังได้ที่ปุ่ม "ประวัติ / คืนค่า" (เขียนประวัติก่อนลบเสมอ)',
+                noteVariant: 'danger',
+                confirmLabel: 'ยอมรับผลนับทั้งชุด'
+            }
+        });
+        if (!okBulk) return;
+
+        await runOnce('bulkAcceptOver', async () => {
+            const btn = document.getElementById('btnBulkAcceptConfirm');
+            btn.disabled = true;
+            const loadingEl = document.getElementById('loading');
+            loadingEl.classList.add('active');
+            document.getElementById('loadingText').textContent = `กำลังยอมรับผลนับ ${rows.length} SKU...`;
+            try {
+                const toCreate = rows.map(l => ({
+                    cycleId,
+                    skuId: l.sku_id,
+                    adjustmentQty: computeAutoAdjustmentQty(l),
+                    varianceBefore: computeDisplayVariance(l),
+                    note: `ยอมรับผลนับ (เกินไม่เกิน +${max})`,
+                    reason: 'reconcile'
+                }));
+                await RS.createStockAdjustmentsBatch(toCreate);
+                const applied = await RS.applyAllDraftsForCycle(cycleId);
+                document.getElementById('bulkAcceptModal').classList.remove('active');
+                await runRefresh({ skipReconciliationRefresh: true });
+                showToast(`ยอมรับผลนับแล้ว ${applied} SKU (+${sum.toLocaleString()} ชิ้น) — ดู/คืนค่าได้ที่ปุ่ม "ประวัติ / คืนค่า"`);
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                loadingEl.classList.remove('active');
+            }
+        });
+    }
+
+    /* ── ประวัติการปรับ + คืนค่า ─────────────────────────────────────────── */
+
+    /** รวมยอดปรับ + การยืนยันของรอบ เป็นรายการเดียว เรียงใหม่ → เก่า */
+    function buildAdjustHistoryEntries(adjustments, acceptanceMap) {
+        const out = [];
+        (adjustments || []).forEach(a => out.push({
+            type: 'adj',
+            sku: a.sku_id,
+            detail: `${Number(a.adjustment_qty) > 0 ? '+' : ''}${Number(a.adjustment_qty)} ` +
+                `(${a.status === 'draft' ? 'draft' : 'applied'})${a.note ? ` — ${a.note}` : (a.reason ? ` — ${a.reason}` : '')}`,
+            by: a.created_by || '',
+            at: a.applied_at || a.created_at || null
+        }));
+        if (acceptanceMap) {
+            for (const [sku, r] of acceptanceMap) {
+                out.push({
+                    type: 'ack',
+                    sku,
+                    detail: `ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)${r.note ? ` — ${r.note}` : ''}`,
+                    by: r.accepted_by || '',
+                    at: r.accepted_at || null
+                });
+            }
+        }
+        out.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+        return out;
+    }
+
+    function fmtHistoryDt(iso) {
+        if (!iso) return '—';
+        try { return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }); }
+        catch { return String(iso); }
+    }
+
+    function refreshHistorySelCount() {
+        const n = document.querySelectorAll('#adjHistoryList input[type="checkbox"]:checked').length;
+        document.getElementById('adjHistorySelCount').textContent = String(n);
+        document.getElementById('btnHistoryRestoreSelected').disabled = n === 0;
+    }
+
+    async function openAdjHistoryModal() {
+        if (!currentCycle?.id) return showToast('เลือกรอบก่อน', 'error');
+        document.getElementById('adjHistoryCycleLabel').textContent =
+            `${RS.formatWarehouseDisplay?.(currentCycle.warehouse) || currentCycle.warehouse} · ${currentCycle.year_month}`;
+        document.getElementById('adjHistoryModal').classList.add('active');
+        const body = document.getElementById('adjHistoryList');
+        body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;color:var(--text-muted);">กำลังโหลด...</td></tr>';
+        try {
+            // ดึงสดจาก DB — cache ของหน้าอาจเก่ากว่าที่คนอื่นเพิ่งกด
+            const [adjustments, ackMap] = await Promise.all([
+                RS.fetchAdjustments(currentCycle.id),
+                RS.fetchMatchAcceptanceMap(currentCycle.id)
+            ]);
+            const entries = buildAdjustHistoryEntries(adjustments, ackMap);
+            body.innerHTML = entries.map(e =>
+                `<tr><td><input type="checkbox" class="adj-history-cb" data-sku="${RS.escapeHtml(e.sku)}"></td>` +
+                `<td>${e.type === 'adj' ? 'ยอดปรับ' : 'ยืนยันถูกต้อง'}</td>` +
+                `<td>${RS.escapeHtml(e.sku)}</td>` +
+                `<td style="white-space:normal;max-width:320px;">${RS.escapeHtml(e.detail)}</td>` +
+                `<td>${RS.escapeHtml(e.by || '—')}</td>` +
+                `<td>${fmtHistoryDt(e.at)}</td></tr>`
+            ).join('') || '<tr><td colspan="6" style="text-align:center;padding:1rem;color:var(--text-muted);">รอบนี้ยังไม่มีการปรับ/ยืนยัน</td></tr>';
+            body.querySelectorAll('.adj-history-cb').forEach(cb =>
+                cb.addEventListener('change', refreshHistorySelCount));
+            document.getElementById('adjHistorySelectAll').checked = false;
+            refreshHistorySelCount();
+        } catch (err) {
+            body.innerHTML = `<tr><td colspan="6" style="color:#f87171;padding:1rem;">${RS.escapeHtml(err.message)}</td></tr>`;
+        }
+        lucide.createIcons();
+    }
+
+    /** คืนค่าการตัดสินของ SKU ที่เลือก — ลบยอดปรับ+การยืนยันทั้งหมดของ SKU นั้นในรอบนี้ */
+    async function rollbackHistorySkus() {
+        const skus = [...new Set(
+            [...document.querySelectorAll('#adjHistoryList input[type="checkbox"]:checked')]
+                .map(cb => cb.dataset.sku).filter(Boolean)
+        )];
+        if (!skus.length) return showToast('เลือกรายการก่อน', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
+
+        const bullets = skus.slice(0, 10);
+        if (skus.length > 10) bullets.push(`… และอีก ${skus.length - 10} SKU`);
+        const okRb = await uiConfirm.twoStep({
+            title: 'คืนค่าการตัดสิน',
+            variant: 'amber',
+            step1: {
+                intro: `คืนค่า ${skus.length.toLocaleString()} SKU — ลบยอดปรับและการยืนยันของ SKU เหล่านี้ทั้งหมดในรอบนี้`,
+                bullets,
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: `ตัวเลข Excel ใช้เทียบ/สถานะ จะกลับเป็นเหมือนก่อนตัดสิน แล้วคำนวณ Match ใหม่`,
+                note: 'เขียนประวัติก่อนลบเสมอ (ดูได้ในประวัติหน้า index) · ผลนับไม่ถูกแตะ',
+                noteVariant: 'danger',
+                confirmLabel: 'คืนค่า'
+            }
+        });
+        if (!okRb) return;
+
+        await runOnce('historyRollback', async () => {
+            const btn = document.getElementById('btnHistoryRestoreSelected');
+            btn.disabled = true;
+            const loadingEl = document.getElementById('loading');
+            loadingEl.classList.add('active');
+            document.getElementById('loadingText').textContent = `กำลังคืนค่า ${skus.length} SKU...`;
+            try {
+                await RS.clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skus, {
+                    onProgress: ({ done, total }) => {
+                        document.getElementById('loadingText').textContent = `กำลังคืนค่า... ${done}/${total}`;
+                    }
+                });
+                document.getElementById('adjHistoryModal').classList.remove('active');
+                await runRefresh();   // คำนวณ Match ใหม่ทั้งรอบ — สถานะ/ตัวเลขกลับเป็นก่อนตัดสิน
+                showToast(`คืนค่าแล้ว ${skus.length.toLocaleString()} SKU`);
+            } catch (err) {
+                showToast(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                loadingEl.classList.remove('active');
+            }
+        });
+    }
+
   /* ── Events ── */
     document.getElementById('kpiRow').addEventListener('click', (e) => {
         const card = e.target.closest('[data-filter]');
@@ -2463,6 +2797,32 @@
         renderAdjPanelSummary(selectedAdjLine);
     });
     document.getElementById('btnApplyAll').addEventListener('click', applyAllDrafts);
+
+    document.getElementById('btnBulkAcceptOver').addEventListener('click', openBulkAcceptOverModal);
+    document.getElementById('bulkAcceptMax').addEventListener('input', refreshBulkAcceptList);
+    document.getElementById('btnBulkAcceptClose').addEventListener('click', () =>
+        document.getElementById('bulkAcceptModal').classList.remove('active'));
+    document.getElementById('btnBulkAcceptConfirm').addEventListener('click', runBulkAcceptOver);
+    document.getElementById('btnBulkAcceptExport').addEventListener('click', () => {
+        if (!bulkAcceptRows.length) return showToast('ไม่มีรายการให้ Export', 'error');
+        const max = Number(document.getElementById('bulkAcceptMax').value);
+        const data = buildBulkAcceptExportRows(bulkAcceptRows, max);
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'ยอมรับเกิน');
+        const ym = currentCycle?.year_month || 'cycle';
+        XLSX.writeFile(wb, `ยอมรับเกิน_ไม่เกิน+${max}_${ym}.xlsx`);
+        showToast(`Export ${bulkAcceptRows.length.toLocaleString()} SKU`);
+    });
+
+    document.getElementById('btnAdjHistory').addEventListener('click', openAdjHistoryModal);
+    document.getElementById('btnAdjHistoryClose').addEventListener('click', () =>
+        document.getElementById('adjHistoryModal').classList.remove('active'));
+    document.getElementById('btnHistoryRestoreSelected').addEventListener('click', rollbackHistorySkus);
+    document.getElementById('adjHistorySelectAll').addEventListener('change', (e) => {
+        document.querySelectorAll('#adjHistoryList .adj-history-cb').forEach(cb => { cb.checked = e.target.checked; });
+        refreshHistorySelCount();
+    });
 
     document.getElementById('resultBody').addEventListener('click', (e) => {
         const addBtn = e.target.closest('[data-add-book]');

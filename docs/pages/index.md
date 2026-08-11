@@ -97,6 +97,6 @@
 - **cycle_id ค้างข้ามเดือน**: ถ้าเดือนปัจจุบันไม่มีรอบ ระบบยังแนบ cycle เก่าจาก localStorage ให้ผลนับใหม่ (`script.js:169-188, 413-418`)
 - **XSS**: interpolate `sku_id`/`name_pro`/`counter_name` เข้า innerHTML/onclick โดยไม่ escape หลายจุด (`script.js:553-565, 785, 1034, 1330, 1771, 1801`)
 - **กติกากันซ้ำตอนแก้ไขขัดกับนโยบาย DB**: `getEditDestinationCollision` ห้ามซ้ำ sku+loc+wh ทั้งที่ migration 011 อนุญาต
-- **Group insert แบบ all-or-nothing**: แถวเดียวพังทั้งชุด rollback ไม่มี fallback รายแถว (ต่างจาก import_counts ที่มี)
+- ~~**Group insert แบบ all-or-nothing**~~ **✅ แก้แล้ว (M9, 2026-08-11)** — bulk ล้มแล้วตกมาทีละแถว แถวที่ถูกต้องเข้า DB จริง แถวที่พังค้างในกลุ่มให้แก้ต่อ
 - **KPI แสดง 0% ระหว่าง Book กำลังโหลด** โดยไม่มีสถานะ loading (`script.js:1345, 1363`)
 - **Dead code ~450 บรรทัด**: extra-SKU drawer (`script.js:1918-1991, 2457-2501`), dashboard modal ทั้งชุด (`index.html:316-412` + `script.js:2095-2417`) — โหลด Chart.js จาก CDN โดยไม่ได้ใช้

@@ -738,6 +738,10 @@
                         sku: row.sku,
                         loc: row.loc,
                         qty: row.qty,
+                        // ⚠️ ต้องพา id เดิมไปด้วย — ถ้า retry แล้ว mint ใหม่ กลไกกันซ้ำของ DB
+                        //    (unique index บน client_request_id) จะมองว่าเป็นคนละแถว แล้วแทรกซ้ำจริง
+                        client_request_id: row.client_request_id,
+                        import_batch_id: row.import_batch_id,
                         reason: info?.message || result.error?.message || 'ไม่ทราบสาเหตุ'
                     });
                     lastError = result.error;
@@ -873,6 +877,74 @@
             return items;
         }
 
+        /**
+         * คีย์ค้างจากการนำเข้าที่ยังไม่สำเร็จ — เก็บข้ามการรีเฟรช (M6)
+         *
+         * เดิม `client_request_id` อยู่ในตัวแปรใน memory ล้วน ⇒ 3 เส้นทางทำให้คีย์หาย
+         * แล้วบั๊กเดิมกลับมาเต็ม: (1) refresh/ปิดเปิดเบราว์เซอร์ (2) อัปโหลดไฟล์เดิมทับ
+         * (3) กดล้างไฟล์ · และ (1) คือสิ่งที่คนทำเป็นอันดับแรกเมื่อ "เน็ตหลุดกลางการนำเข้า"
+         * ซึ่งเป็นเคสเดียวที่ M6 ทำอันตรายจริง
+         *
+         * วิธี: จำแถวที่ยังไม่สำเร็จพร้อมคีย์ไว้ แล้วตอน parse ไฟล์ใหม่ ถ้าแถวไหน
+         * (sku+loc+qty) ตรงกับที่ค้างอยู่ ให้ **ยืมคีย์เดิมกลับมา**
+         * ⇒ อัปไฟล์เดิมซ้ำหลัง refresh = ชน unique index (ข้าม) ไม่ใช่แทรกซ้ำ
+         * ⇒ ไฟล์ที่นำเข้าสำเร็จหมดแล้วจะไม่มีอะไรค้าง การนำเข้าไฟล์เดิมใหม่โดยตั้งใจยังทำได้ปกติ
+         */
+        const PENDING_KEYS_STORAGE = 'import_counts_pending_keys_v1';
+
+        function rowKeySignature(r) {
+            return [r.sku, r.loc, r.qty].join('\u0000');
+        }
+
+        function savePendingKeys(rows) {
+            try {
+                const keep = (rows || [])
+                    .filter(r => r.client_request_id)
+                    .map(r => ({
+                        k: rowKeySignature(r),
+                        c: r.client_request_id,
+                        b: r.import_batch_id || ''
+                    }));
+                if (keep.length) localStorage.setItem(PENDING_KEYS_STORAGE, JSON.stringify(keep));
+                else localStorage.removeItem(PENDING_KEYS_STORAGE);
+            } catch (err) {
+                console.warn('[Import] เก็บคีย์ค้างไม่สำเร็จ:', err.message);
+            }
+        }
+
+        function loadPendingKeyMap() {
+            try {
+                const raw = localStorage.getItem(PENDING_KEYS_STORAGE);
+                if (!raw) return new Map();
+                const map = new Map();
+                for (const e of JSON.parse(raw) || []) {
+                    if (!map.has(e.k)) map.set(e.k, []);
+                    map.get(e.k).push(e);
+                }
+                return map;
+            } catch (err) {
+                return new Map();
+            }
+        }
+
+        /** เติมคีย์เดิมกลับให้แถวที่ตรงกับของที่ค้างอยู่ (แถวซ้ำในไฟล์แจกคนละคีย์ตามลำดับ) */
+        function restorePendingKeys(rows) {
+            const map = loadPendingKeyMap();
+            if (!map.size) return rows;
+            let restored = 0;
+            for (const r of rows) {
+                const queue = map.get(rowKeySignature(r));
+                if (queue && queue.length) {
+                    const e = queue.shift();
+                    r.client_request_id = e.c;
+                    if (e.b) r.import_batch_id = e.b;
+                    restored++;
+                }
+            }
+            if (restored) console.info(`[Import] กู้คีย์ค้างกลับมา ${restored} แถว — กดนำเข้าซ้ำจะไม่เกิดแถวซ้ำ`);
+            return rows;
+        }
+
         function renderPreview() {
             const card = document.getElementById('previewCard');
             const summary = document.getElementById('importSummary');
@@ -885,7 +957,8 @@
 
             const valid = parsedRows.filter(r => r.valid);
             const invalid = parsedRows.filter(r => !r.valid);
-            pendingValidRows = valid;
+            // อัปไฟล์เดิมทับหลังนำเข้าไม่สำเร็จ ต้องได้คีย์เดิมกลับมา ไม่ใช่คีย์ใหม่ (M6)
+            pendingValidRows = restorePendingKeys(valid);
 
             if (!parsedRows.length) {
                 card.style.display = 'none';
@@ -924,6 +997,8 @@
             parsedRows = [];
             pendingValidRows = [];
             lastImportFailedRows = [];
+            // กดล้างไฟล์ = ตั้งใจเริ่มใหม่ ⇒ ทิ้งคีย์ค้างไปด้วย
+            savePendingKeys([]);
             importConfirmStep = 0;
             fileName = '';
             hideImportResultPanel();
@@ -966,9 +1041,11 @@
                 .replace(/'/g, '&#39;');
         }
 
-        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel, cycleId, batchImportId }) {
+        async function logImportBatch({ warehouse, counter_name, rowCount, failCount, duplicateCount, fileLabel, cycleId, batchImportId, previewRows }) {
             if (!supabaseClient || (rowCount <= 0 && failCount <= 0 && duplicateCount <= 0)) return;
-            const preview = pendingValidRows.slice(0, 8).map(r => r.sku).join(', ');
+            // ⚠️ ห้ามอ่าน pendingValidRows ตรงนี้ — ตอนถูกเรียก มันถูกแทนที่ด้วย "แถวที่ล้มเหลว" ไปแล้ว
+            //    (เดิม preview จึงเป็นรายชื่อ SKU ที่ล้มเหลว ในนามของแถวที่สำเร็จ · ว่างเปล่าเมื่อ fail = 0)
+            const preview = (previewRows || []).slice(0, 8).map(r => r.sku).join(', ');
             const skuNote = preview + (rowCount > 8 ? ` ... (+${rowCount - 8})` : '');
             const statusNote = [
                 `สำเร็จ ${rowCount}`,
@@ -1010,7 +1087,9 @@
             const thaiTime = formatImportLogDate(log.created_at);
             const rows = log.new_qty != null ? Number(log.new_qty).toLocaleString() : '—';
             const logKey = log.id != null ? String(log.id) : String(log.record_id || '');
-            const canExport = (log.new_qty != null && Number(log.new_qty) > 0);
+            // Export ได้เมื่อมี batch id จริง แม้ ok = 0 — เคสเน็ตหลุด แถวเข้า DB ไปแล้ว
+            // แต่ client นับเป็น fail/duplicate ทั้งชุด (ดู ISSUES M6)
+            const canExport = (log.new_qty != null && Number(log.new_qty) > 0) || isUuid(log.record_id);
             return `
                 <div class="import-log-item" data-log-id="${escHtml(logKey)}">
                     <div class="import-log-item-head">
@@ -1178,7 +1257,8 @@
                 return;
             }
             const expected = log.new_qty != null ? Number(log.new_qty) : 0;
-            if (!expected) {
+            // ถ้ามี import_batch_id จริง ให้ดึงตาม batch ได้เลย ไม่ต้องพึ่งตัวเลข ok ที่ client บันทึกไว้
+            if (!expected && !isUuid(log.record_id)) {
                 showToast('ไม่มีแถวสำเร็จในรายการนี้', 'error');
                 return;
             }
@@ -1453,12 +1533,15 @@
             hideImportResultPanel();
 
             try {
-                const batchImportId = genClientRequestId();
                 // client_request_id ต่อแถว (unique ใน DB) · import_batch_id ต่อครั้งกดนำเข้า (Export รายละเอียด)
+                // ⚠️ แถวที่ค้างจากการนำเข้ารอบก่อน (retry) ต้องใช้คีย์ **เดิม** เสมอ
+                //    ไม่งั้น DB มองเป็นแถวใหม่ → แถวที่จริง ๆ เข้าไปแล้วตอนเน็ตหลุดจะถูกแทรกซ้ำ
+                //    และ import_batch_id ที่เปลี่ยนจะทำให้ "Export รายละเอียด" ของ log เดิมหาแถวไม่ครบ
+                const batchImportId = rows.find(r => r.import_batch_id)?.import_batch_id || genClientRequestId();
                 const rowsWithReqId = rows.map(r => ({
                     ...r,
-                    client_request_id: genClientRequestId(),
-                    import_batch_id: batchImportId
+                    client_request_id: r.client_request_id || genClientRequestId(),
+                    import_batch_id: r.import_batch_id || batchImportId
                 }));
 
                 for (let i = 0; i < rowsWithReqId.length; i += CHUNK_SIZE) {
@@ -1481,6 +1564,11 @@
                 }
 
                 lastImportFailedRows = allFailedRows;
+                // ⚠️ ต้องเก็บก่อน pendingValidRows ถูกแทนที่ด้านล่าง — ไม่งั้น preview ใน audit log
+                //    จะกลายเป็นรายชื่อ SKU ที่ **ล้มเหลว** ในนามของแถวที่สำเร็จ
+                const successPreviewRows = rowsWithReqId.filter(
+                    r => !allFailedRows.some(f => f.sku === r.sku && f.loc === r.loc && f.qty === r.qty)
+                );
 
                 // เหลือเฉพาะแถวที่ล้มเหลวไว้ retry (map กลับเป็นรูปแบบ pendingValidRows)
                 if (allFailedRows.length > 0) {
@@ -1489,11 +1577,16 @@
                         loc: fr.loc,
                         qty: fr.qty,
                         valid: true,
-                        errors: ''
+                        errors: '',
+                        // คงคีย์เดิมไว้ให้การกดนำเข้าซ้ำเป็น idempotent
+                        client_request_id: fr.client_request_id,
+                        import_batch_id: fr.import_batch_id
                     }));
                 } else {
                     pendingValidRows = [];
                 }
+                // เก็บข้ามการรีเฟรช — สำเร็จหมดแล้วจะล้างทิ้งเอง
+                savePendingKeys(pendingValidRows);
 
                 localStorage.setItem('saved_counter_name', counter_name);
                 localStorage.setItem('saved_warehouse', warehouse);
@@ -1530,7 +1623,8 @@
                         duplicateCount: duplicateSkipped,
                         fileLabel: fileName || 'Excel Import',
                         cycleId: getImportCycleHint(warehouse).cycleId,
-                        batchImportId
+                        batchImportId,
+                        previewRows: successPreviewRows
                     });
                     await loadImportHistory();
                 }

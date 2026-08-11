@@ -183,8 +183,12 @@
 ### - [ ] M5. Connection badge เสีย class หลังเช็คครั้งแรก
 `Js/settings-shared.js:22, 27` — `badge.className = ...` ทับ `connection-badge-status` ทิ้ง (style ที่ผูกอยู่หลุด) **[ยืนยันแล้ว]** — ใช้ classList.add/remove
 
-### - [ ] M6. import_counts: retry สร้าง id ใหม่ → แถวซ้ำจริงเมื่อ network error
-`Html/import_counts.html:1479-1485, 1448-1454` — retry mint `client_request_id`/`import_batch_id` ใหม่ ทำลายกลไก idempotent และแตก batch เดียวเป็นหลาย id
+### - [x] M6. import_counts: retry สร้าง id ใหม่ → แถวซ้ำจริงเมื่อ network error
+> **✅ แก้แล้ว 2026-08-11** — คีย์เดิมรอดตลอดเส้นทาง (`failedRows` → `pendingValidRows` → `buildCountPayload`) และ `batchImportId` สืบทอดจากแถวที่ค้าง ⇒ กดนำเข้าซ้ำชน unique index แล้วถูกนับเป็น **duplicate (ข้าม)** แทนการแทรกซ้ำ
+> **และเก็บคีย์ค้างลง `localStorage.import_counts_pending_keys_v1`** — เพราะเคสที่ M6 อันตรายที่สุด (เน็ตหลุด) เป็นเคสที่ผู้ใช้กด refresh มากที่สุด · ตอน parse ไฟล์ใหม่ แถวที่ (sku+loc+qty) ตรงกับที่ค้างจะ**ยืมคีย์เดิมกลับ** ⇒ ปิดครบทั้ง 3 เส้นทางที่เคยทำคีย์หาย: refresh · อัปไฟล์เดิมทับ · (กดล้างไฟล์ = ตั้งใจเริ่มใหม่ จึงล้างคีย์ให้)
+> ไฟล์ที่นำเข้าสำเร็จหมดแล้วจะไม่มีคีย์ค้าง ⇒ การนำเข้าไฟล์เดิมซ้ำโดยตั้งใจยังทำได้ปกติ
+> เทสคุ้มกัน 11 ข้อ — **5 ข้อ `[behaviour]` รันโค้ดจริงผ่าน mock DB** (ไม่ใช่แค่สแกนซอร์ส) หลัง code-reviewer พิสูจน์ว่าเทสรุ่นแรกย้อนบั๊กกลับได้โดยไม่มีอะไรแดง
+> เทสคุ้มกัน 3 ข้อ `[M6]` ใน `tests/unit/import-retry-idempotent.test.mjs` (พิสูจน์ด้วย mutation)
 
 ### - [ ] M7. import_counts: "Export รายละเอียด" ของ log เก่าเดาจากช่วงเวลา
 `Html/import_counts.html:1149-1164` — window ±30 นาที กรองแค่คลัง+ชื่อคน — ปนแถวนับมือได้ ไฟล์ export ไม่มีเครื่องหมายบอก
@@ -192,8 +196,10 @@
 ### - [ ] M8. index: กติกากันซ้ำตอนแก้ไขขัดนโยบาย DB + เช็คจาก cache บางส่วน
 `Js/script.js:449-471` — block ปลายทางซ้ำ (sku+loc+wh) ที่ migration 011 อนุญาต และเช็คจาก `allRecords` ที่โหลดเฉพาะ scope ปัจจุบัน — ไม่ deterministic
 
-### - [ ] M9. index: group insert แบบ all-or-nothing
-`Js/script.js:1122-1127` — แถวเดียวพังทั้ง 25 แถว rollback ผู้ใช้ต้องหาเอง (import_counts มี fallback รายแถวอยู่แล้วแต่ไม่ได้ share โค้ด)
+### - [x] M9. index: group insert แบบ all-or-nothing
+> **✅ แก้แล้ว 2026-08-11** — เพิ่ม `insertGroupRowsOneByOne()` ใน `Js/script.js`: bulk ล้มแล้วตกมาทีละแถว ⇒ แถวที่ถูกต้อง**เข้า DB จริง** ไม่ถูก rollback · แถวที่ยังพังค้างอยู่ในกลุ่มให้แก้ต่อ (เดิมล้างกลุ่มทั้งชุด) · duplicate นับเป็น "บันทึกไว้แล้ว" ไม่ใช่ error · toast บอกชัดว่าเข้ากี่/ค้างกี่รายการ พร้อมเหตุผลของแถวแรกที่พัง
+> ปลอดภัยเพราะทุกรายการมี `clientRequestId` ตั้งแต่ตอนกด "เพิ่มลงกลุ่ม" ⇒ retry ชน unique index แทนการแทรกซ้ำ · ถ้าไม่มีอะไรเข้า DB เลย (ไม่มีสิทธิ์/เน็ตหลุด) ยังคืนสภาพกลุ่มเหมือนเดิม
+> เทสคุ้มกัน 5 ข้อ `[M9]` (พิสูจน์ด้วย mutation)
 
 ### - [ ] M10. index: KPI แสดง 0%/0 ระหว่าง Book โหลด โดยแยกไม่ออกจาก "นับครบแล้ว"
 `Js/script.js:1345, 1363`
@@ -228,6 +234,12 @@
 ### - [x] M20. user_manual: รูปเก็บซ้ำ 2 ชุดใน localStorage + backup กู้กลับไม่ได้ + toast quota ไม่ทำงาน
 > 🚫 **ตกไป 2026-08-11** — ถอดหน้าคู่มือออกจากระบบทั้งฟีเจอร์ (มติ admin) · key `stock_audit_user_manual_v2` / `stock_audit_manual_mode_v1` อาจค้างในเบราว์เซอร์ผู้ใช้แต่ไม่มีโค้ดอ่านแล้ว
 `Js/manual-editor.js:37-41, 205-218, 44-53`
+
+### - [ ] M31. import_counts: คีย์ค้างไม่ผูกกับคลัง/ผู้นับ
+ถ้าผู้ใช้เปลี่ยน dropdown คลังก่อนกด "นำเข้าแถวที่เหลือ" และแถวนั้นเข้า DB ไปแล้วในคลังเดิม จะถูกนับเป็น "ข้ามซ้ำ" เงียบ ๆ แทนที่จะเข้าคลังใหม่ (`Html/import_counts.html` — คีย์ผูกกับ sku+loc+qty ไม่ผูก context) · ไม่มีทางเลือกไหน "ถูก" ชัด แต่ควรเตือนเมื่อคลัง/ผู้นับเปลี่ยนขณะมีแถวค้าง · **พบจาก review M6** 
+
+### - [ ] M32. ไม่มี circuit breaker ตอน insert รายแถว
+`Js/script.js` `insertGroupRowsOneByOne` (25 แถว) และ `Html/import_counts.html` `importRowsOneByOne` (chunk 200) วน insert แบบ sequential ไม่มีเงื่อนไขเลิก — เน็ตตาย = ยิงต่อจนครบทุกแถว UI ค้างยาว · ควร break เมื่อเจอ network error ติดกัน 3 ครั้งแล้วโยนแถวที่เหลือเข้า `failed` · **พบจาก review M6/M9**
 
 ### - [ ] M21. chat: ล้าง Storage จำกัด 500 ไฟล์ไม่มี pagination + ไฟล์แนบเป็น public URL ถาวร
 `Html/chat.html:565, 386-390`

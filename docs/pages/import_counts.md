@@ -71,7 +71,7 @@
 
 - **XSS ใน preview table**: `r.sku`, `r.loc`, `r.errors` ใส่ innerHTML ตรง ๆ (`:906-909`) ทั้งที่มี `escHtml` (`:957`) ใช้ที่อื่นทั้งหน้า
 - **"Export รายละเอียด" ของ log เก่า (ไม่มี batch id) เดาจากช่วงเวลา ±30 นาที** — อาจปนแถวที่นับมือเข้ามา (`:1149-1164`)
-- **Retry สร้าง `client_request_id`/`import_batch_id` ใหม่** — แถวที่จริง ๆ insert สำเร็จแต่ network error จะกลายเป็นซ้ำจริงใน DB (`:1479-1485, 1448-1454`)
+- ~~**Retry สร้าง `client_request_id`/`import_batch_id` ใหม่**~~ **✅ แก้แล้ว (M6, 2026-08-11)** — คีย์เดิมถูกพาไปตลอดเส้นทางและ**เก็บลง localStorage** (`import_counts_pending_keys_v1`) จึงกู้กลับได้แม้ refresh หรืออัปไฟล์เดิมทับ ⇒ กดนำเข้าซ้ำชน unique index (ข้าม) ไม่ใช่แทรกซ้ำ
 - ไม่มี guard บังคับให้มี `cycle_id` — นำเข้าได้ทั้งที่แถบเหลือง แถวเหล่านั้นจะมองไม่เห็นในทุก view ที่กรองตามรอบ
 - `loadImportHistory()` ถูกเรียกซ้ำ 2 ครั้งตอนบูต (`:1625-1640`)
 - `readAsBinaryString` deprecated (`:954`)

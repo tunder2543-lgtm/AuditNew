@@ -1086,6 +1086,42 @@ document.addEventListener('DOMContentLoaded', () => {
     bindGroupContextListeners();
     renderGroupList();
 
+    /**
+     * บันทึกกลุ่มทีละแถว — ใช้เมื่อ bulk insert ล้ม (M9)
+     *
+     * เดิม `insert(payloads)` เป็น all-or-nothing: แถวเดียวพัง = อีก 24 แถวที่ถูกต้อง
+     * ถูก rollback ทิ้งหมด ผู้ใช้ต้องไล่หาเองว่าแถวไหนเป็นตัวปัญหา
+     * (`import_counts.html` มี fallback แบบนี้อยู่แล้ว — หน้านับเพิ่งมามี)
+     *
+     * ปลอดภัยเพราะทุกรายการมี `clientRequestId` ประจำตัวตั้งแต่ตอนกด "เพิ่มลงกลุ่ม"
+     * (`:1019`) ⇒ กดส่งซ้ำจะชน unique index แล้วนับเป็น duplicate ไม่ใช่แทรกซ้ำ
+     */
+    async function insertGroupRowsOneByOne(items, payloads) {
+        const inserted = [];      // { item, row } เรียงตามลำดับที่สำเร็จ
+        const duplicates = [];    // เข้า DB ไปแล้วจากการกดครั้งก่อน
+        const failed = [];        // { item, reason }
+        let lastError = null;
+
+        for (let i = 0; i < items.length; i++) {
+            const { data, error } = await supabaseClient
+                .from('inventory_counts')
+                .insert([payloads[i]])
+                .select();
+
+            if (!error) {
+                inserted.push({ item: items[i], row: (data || [])[0] || null });
+            } else if (window.DbErrors?.isDuplicateError(error)) {
+                duplicates.push(items[i]);
+            } else {
+                const info = window.DbErrors?.formatDbError(error, { context: 'บันทึกกลุ่ม' });
+                failed.push({ item: items[i], reason: info?.message || error.message });
+                lastError = error;
+            }
+        }
+
+        return { inserted, duplicates, failed, lastError };
+    }
+
     window.submitGroup = async function() {
         if (groupSubmitPromise) return groupSubmitPromise;
 
@@ -1148,26 +1184,38 @@ document.addEventListener('DOMContentLoaded', () => {
                     .insert(payloads)
                     .select();
 
-                if (error) throw error;
+                let insertedPairs;
+                let duplicateItems = [];
+                let failedEntries = [];
 
-                groupItems = [];
+                if (!error) {
+                    // bulk ผ่าน — จับคู่ตามดัชนี เพราะ payloads[i] มาจาก reversedItems[i] โดยตรง
+                    // (เดิมจับคู่ด้วย SKU queue ซึ่งได้ผลเดียวกัน แต่ถ้าลำดับ returning เปลี่ยน
+                    //  จะผูก row.id ผิดตัว = ปุ่มแก้/ลบยิงผิดแถวจริงใน DB)
+                    insertedPairs = reversedItems
+                        .map((item, i) => ({ item, row: (data || [])[i] || null }))
+                        .filter(pair => pair.row);
+                } else {
+                    // M9: bulk เป็น all-or-nothing — ตกมาทีละแถวเพื่อไม่ให้แถวที่ถูกต้องหายไปด้วย
+                    const one = await insertGroupRowsOneByOne(reversedItems, payloads);
+                    insertedPairs = one.inserted;
+                    duplicateItems = one.duplicates;
+                    failedEntries = one.failed;
+                    // ไม่มีอะไรเข้าเลย = พังทั้งชุดจริง ๆ (เช่นไม่มีสิทธิ์/เน็ตหลุด) → คืนสภาพเดิม
+                    if (!insertedPairs.length && !duplicateItems.length) throw (one.lastError || error);
+                }
+
+                // แถวที่ยังพังอยู่ต้องค้างในกลุ่มให้ผู้ใช้แก้ต่อ — ที่เหลือเข้า DB แล้ว
+                // reversedItems เรียง เก่า→ใหม่ แต่ groupItems เรียง ใหม่อยู่บน (unshift) — ต้องกลับด้าน
+                groupItems = failedEntries.map(f => f.item).reverse();
                 renderGroupList();
 
                 let totalQtyInGroup = 0;
-                const insertedRows = data && data.length > 0 ? data : [];
-                const bySku = new Map();
-                insertedRows.forEach(row => {
-                    const key = normalizeSkuKey(row.sku_id);
-                    if (!bySku.has(key)) bySku.set(key, []);
-                    bySku.get(key).push(row);
-                });
+                // นับเฉพาะรายการที่เข้า DB จริงในครั้งนี้ — ไม่รวมแถวที่ยังพังอยู่
+                const groupSkuDetails = insertedPairs
+                    .map(({ item }) => `${item.sku} (x${item.quantity})`).join(', ');
 
-                const groupSkuDetails = reversedItems.map(item => `${item.sku} (x${item.quantity})`).join(', ');
-
-                reversedItems.forEach(originalItem => {
-                    const key = normalizeSkuKey(originalItem.sku);
-                    const queue = bySku.get(key);
-                    const row = queue && queue.length ? queue.shift() : null;
+                insertedPairs.forEach(({ item: originalItem, row }) => {
                     const insertedId = row ? row.id : null;
                     if (!insertedId) return;
 
@@ -1185,7 +1233,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     totalQtyInGroup += originalItem.quantity;
                 });
 
-                logAudit('GROUP_INSERT', 'multiple', groupSkuDetails, null, totalQtyInGroup, warehouse, location, counter_name);
+                // bulk สำเร็จแต่ .select() คืนว่างได้ (ถ้า policy SELECT ถูกรัดในอนาคต)
+                // ⇒ แถวเข้า DB จริงแต่ insertedPairs ว่าง — ยังต้องเขียน audit log ตาม invariant ข้อ 1
+                const savedForLog = insertedPairs.length ? insertedPairs.map(p => p.item) : (error ? [] : reversedItems);
+                if (savedForLog.length) {
+                    const detail = savedForLog.map(it => `${it.sku} (x${it.quantity})`).join(', ');
+                    const qty = savedForLog.reduce((sum, it) => sum + it.quantity, 0);
+                    logAudit('GROUP_INSERT', 'multiple', detail, null, qty, warehouse, location, counter_name);
+                }
 
                 localStorage.setItem('saved_counter_name', counter_name);
                 localStorage.setItem('saved_warehouse', warehouse);
@@ -1193,7 +1248,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 updateStats();
 
-                showToast(`✓ บันทึกกลุ่มสำเร็จ ${itemCount} รายการ`, 'success');
+                if (failedEntries.length) {
+                    // บอกให้ชัดว่าอะไรเข้าแล้ว อะไรยังค้าง — ของเดิมพังทั้งชุดแล้วเงียบ
+                    const savedCount = insertedPairs.length + duplicateItems.length;
+                    showToast(
+                        `บันทึกได้ ${savedCount}/${itemCount} รายการ · เหลือ ${failedEntries.length} รายการค้างในกลุ่ม — ` +
+                        `${failedEntries[0].reason}`,
+                        'error'
+                    );
+                } else if (duplicateItems.length) {
+                    // แถว duplicate เข้า DB ไปแล้วตั้งแต่ครั้งก่อน จึงไม่มี row ให้ใส่รายการล่าสุด
+                    // ⇒ ถ้าไม่บอกให้ชัด ผู้ใช้จะเห็น "สำเร็จ" แต่จอไม่ขยับ แล้วกลับไปนับใหม่
+                    showToast(
+                        `บันทึกไว้แล้วจากการกดครั้งก่อน ${duplicateItems.length} รายการ — ` +
+                        `ไม่ได้บันทึกซ้ำ · กดปุ่มรีเฟรช/โหลดหน้าใหม่เพื่อดูรายการเดิม`,
+                        'success'
+                    );
+                } else {
+                    showToast(`✓ บันทึกกลุ่มสำเร็จ ${itemCount} รายการ`, 'success');
+                }
 
                 skuInput.value = '';
                 quantityInput.value = '';

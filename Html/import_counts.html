@@ -711,7 +711,8 @@
                     fail: 0,
                     duplicateSkipped: 0,
                     failedRows: [],
-                    lastError: null
+                    lastError: null,
+                    aborted: false
                 };
             }
 
@@ -730,15 +731,29 @@
             let duplicateSkipped = 0;
             const failedRows = [];
             let lastError = null;
+            let netStreak = 0;
+            let aborted = false;
 
             for (const row of rows) {
+                if (aborted) {
+                    // เน็ตตายแล้ว — ที่เหลือไม่ต้องยิง แต่ต้องเก็บคีย์ไว้ให้กด "นำเข้าแถวที่เหลือ" ต่อได้
+                    failedRows.push({
+                        sku: row.sku, loc: row.loc, qty: row.qty,
+                        client_request_id: row.client_request_id,
+                        import_batch_id: row.import_batch_id,
+                        reason: 'หยุดนำเข้าเพราะเชื่อมต่อฐานข้อมูลไม่ได้ติดกันหลายครั้ง'
+                    });
+                    continue;
+                }
                 const payload = buildCountPayload(row, warehouse, counter_name);
                 const result = await insertOneCountRow(payload);
 
                 if (result.status === 'ok') {
                     ok += 1;
+                    netStreak = 0;
                 } else if (result.status === 'duplicate') {
                     duplicateSkipped += 1;
+                    netStreak = 0;
                 } else {
                     const info = window.DbErrors?.formatDbError(result.error, { context: 'นำเข้า' });
                     failedRows.push({
@@ -752,6 +767,10 @@
                         reason: info?.message || result.error?.message || 'ไม่ทราบสาเหตุ'
                     });
                     lastError = result.error;
+
+                    // circuit breaker — เน็ตตายแล้วยิงต่อจนครบทุกแถวคือทำให้ UI ค้างยาวเปล่า ๆ (M32)
+                    netStreak = window.DbErrors?.isNetworkError(result.error) ? netStreak + 1 : 0;
+                    if (netStreak >= 3) aborted = true;
                 }
             }
 
@@ -760,7 +779,8 @@
                 fail: failedRows.length,
                 duplicateSkipped,
                 failedRows,
-                lastError
+                lastError,
+                aborted
             };
         }
 
@@ -1562,6 +1582,22 @@
                         allFailedRows.push(...chunkResult.failedRows);
                     }
                     if (chunkResult.lastError) lastError = chunkResult.lastError;
+
+                    // เน็ตตายแล้ว chunk ถัดไปก็พังหมด (ไฟล์หมื่นแถว = 50 chunk x 4 request)
+                    // ต้องหยุดจริง ไม่ใช่แค่คืนค่า aborted มาเฉย ๆ (review ชุด 5)
+                    if (chunkResult.aborted) {
+                        const rest = rowsWithReqId.slice(i + CHUNK_SIZE);
+                        for (const r of rest) {
+                            allFailedRows.push({
+                                sku: r.sku, loc: r.loc, qty: r.qty,
+                                client_request_id: r.client_request_id,
+                                import_batch_id: r.import_batch_id,
+                                reason: 'หยุดนำเข้าเพราะเชื่อมต่อฐานข้อมูลไม่ได้ติดกันหลายครั้ง'
+                            });
+                        }
+                        fail += rest.length;
+                        break;
+                    }
 
                     setLoading(
                         true,

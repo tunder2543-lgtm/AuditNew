@@ -472,30 +472,136 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * ตรวจปลายทางแก้ไข (sku + ตำแหน่ง + คลัง) ว่ามีแถวอื่นใน cache แล้วหรือไม่
+     * ตรวจปลายทางแก้ไข — **ถามฐานข้อมูลจริง ข้ามขอบเขตที่โหลดมา** (M8)
+     *
+     * ⚠️ กติกาเดิมผิด 2 ชั้น:
+     *   1. บล็อกทุกแถวที่ SKU+ตำแหน่ง+คลังตรงกัน **โดยไม่ดูจำนวน** — แต่ invariant ข้อ 3
+     *      บอกว่า "หลายแถวที่ตำแหน่งเดียวกัน จำนวนต่างกัน = การทำงานปกติ" (นับแยกถุง)
+     *      และ migration 011 ก็อนุญาตระดับ DB ⇒ ระบบบล็อกงานที่ถูกต้องของพนักงาน
+     *   2. เช็คจาก `allRecords` ซึ่งโหลดเฉพาะ scope ปัจจุบัน ⇒ ผลไม่ deterministic
+     *      (เลือกคลังคนละอันได้คำตอบคนละอย่าง) และมองไม่เห็นแถวที่ชนกันจริง
+     *
+     * ใช้เกณฑ์เดียวกับหน้า audit_check (`AuditDedupe.classifyDestinationCollision`)
+     * เพื่อไม่ให้ 2 หน้าตัดสินคนละแบบ: ซ้ำจริง = รอบ+คลัง+SKU+ตำแหน่ง+**จำนวน**เท่ากันหมด
      */
-    function getEditDestinationCollision(sku, location, warehouse, excludeRecordId) {
+    async function getEditDestinationCollision(sku, location, warehouse, qty, excludeRecordId) {
         const skuN = normalizeSkuKey(sku);
         const locN = normalizeLocKey(location);
-        const whN = String(warehouse || '').trim();
+        // ⚠️ ต้อง normalize ให้ตรงกับ audit_check ไม่งั้น 2 หน้าตัดสินคนละแบบ (review ชุด 5)
+        const whN = normalizeLocKey(warehouse);
         if (!skuN || !locN) {
             return { blocked: true, message: 'SKU หรือตำแหน่งปลายทางว่าง' };
         }
+        const qtyN = Number(qty);
+        if (!Number.isFinite(qtyN)) {
+            return { blocked: true, message: 'อ่านจำนวนปลายทางไม่ได้ — ลองใหม่อีกครั้ง' };
+        }
+        if (!supabaseClient) {
+            return { blocked: true, message: 'ยังไม่ได้เชื่อมต่อ Supabase — ตรวจปลายทางไม่ได้' };
+        }
 
         const exclude = String(excludeRecordId || '');
-        const others = allRecords.filter(r => {
-            if (String(r.id) === exclude) return false;
-            if (whN && String(r.warehouse || '').trim() !== whN) return false;
-            return normalizeSkuKey(r.sku_id) === skuN && normalizeLocKey(r.location) === locN;
+        if (!exclude) {
+            return { blocked: true, message: 'ไม่รู้ว่ากำลังแก้แถวไหน — ปิดแล้วลองใหม่' };
+        }
+
+        let rows = [];
+        let movingCycleId = null;
+        try {
+            // กรอง sku_id + counted_qty (+คลังถ้ารู้) ฝั่ง DB ได้ — sku normalize แล้วตาม invariant ข้อ 2
+            // แต่ location ต้องกรองฝั่ง client เพราะในฐานจริงยังมีตัวพิมพ์เล็กปนอยู่
+            //
+            // ⛔ ต้องแบ่งหน้าเสมอ — PostgREST ตัดที่ 1,000 แถว **เงียบ ๆ** และเพราะเรียงตาม id
+            //    ขึ้น แถวที่ถูกตัดทิ้งคือแถวใหม่สุด ซึ่งคือแถวรอบปัจจุบันที่ guard มีไว้จับพอดี
+            //    (บทเรียน M1 — review ชุด 5 จับได้)
+            const PAGE = 1000;
+            const MAX_PAGES = 50;          // 50,000 แถวต่อ (SKU + จำนวน) เดียว = เกินจริงไปมากแล้ว
+            let from = 0;
+            // ⚠️ ต้องมีเพดานรอบเสมอ — ถ้า `.range()` หลุดหายไป (แก้โค้ดพลาด) เงื่อนไข
+            //    `page.length` จะเป็นจริงตลอด แล้ววนไม่จบจนเบราว์เซอร์ค้าง (เจอตอน mutation)
+            for (let pageNo = 0; pageNo < MAX_PAGES; pageNo++) {
+                let q = supabaseClient
+                    .from('inventory_counts')
+                    .select('id, sku_id, location, counted_qty, warehouse, cycle_id, created_at')
+                    .eq('sku_id', skuN)
+                    .eq('counted_qty', qtyN);
+                if (whN) q = q.eq('warehouse', warehouse);
+                const { data, error } = await q.order('id').range(from, from + PAGE - 1);
+                if (error) throw error;
+                const page = data || [];
+                rows = rows.concat(page);
+                if (!page.length) break;
+                from += page.length;
+                if (pageNo === MAX_PAGES - 1) {
+                    return { blocked: true, message: 'ข้อมูลปลายทางมากผิดปกติ — ตรวจไม่ครบ จึงไม่บันทึก' };
+                }
+            }
+
+            const me = await supabaseClient
+                .from('inventory_counts')
+                .select('cycle_id')
+                .eq('id', exclude)
+                .maybeSingle();
+            if (me.error) throw me.error;
+            movingCycleId = me.data?.cycle_id ?? null;
+        } catch (err) {
+            console.error(err);
+            // ตรวจไม่ได้ ไม่เท่ากับ ไม่ชน
+            return { blocked: true, message: 'ตรวจปลายทางกับฐานข้อมูลไม่สำเร็จ — ลองใหม่อีกครั้ง' };
+        }
+
+        const destRows = rows.filter(r =>
+            String(r.id) !== exclude
+            && normalizeLocKey(r.location) === locN
+            && (!whN || normalizeLocKey(r.warehouse) === whN)
+        );
+        if (!destRows.length) return null;
+
+        // ไม่รู้คลังของแถวที่กำลังแก้ แต่ปลายทางมีของอยู่ ⇒ ตัดสินไม่ได้ว่าชนคลังไหน
+        // (เกณฑ์เดียวกับ audit_check — ห้ามยอมรับทุกคลังเป็นปลายทาง)
+        if (!whN) {
+            return {
+                blocked: true,
+                message: `ปลายทางมีแถวค่าเดียวกันอยู่ ${destRows.length} แถว แต่ระบุคลังของแถวนี้ไม่ได้ — เลือกคลังก่อนแก้ไข`
+            };
+        }
+
+        const cls = window.AuditDedupe?.classifyDestinationCollision({
+            destRows: scopeNoCycleRowsToSameMonth(destRows, movingCycleId, bangkokMonthOfIso(nowIsoForCompare(destRows, exclude))),
+            movingCycleId
         });
+        if (!cls) {
+            // ไม่มีโมดูล = ไม่กล้าปล่อยผ่าน (พฤติกรรมปลอดภัยเดิม)
+            return { blocked: true, message: `ปลายทางมีแถวค่าเดียวกันอยู่แล้ว ${destRows.length} แถว` };
+        }
+        if (!cls.blocked && !cls.warning) return null;
+        return cls;
+    }
 
-        if (!others.length) return null;
+    /** เดือนไทยของแถวที่กำลังแก้ — ใช้จำกัดขอบเขตของแถวที่ยังไม่ผูกรอบ */
+    function bangkokMonthOfIso(iso) {
+        return window.countScanService?.bangkokYmdOf(iso)?.slice(0, 7) || null;
+    }
 
-        const total = others.length + 1;
-        return {
-            blocked: true,
-            message: `ปลายทางซ้ำในระบบ (มี ${total} แถวที่ SKU+ตำแหน่ง+คลังเดียวกันอยู่แล้ว)`
-        };
+    function nowIsoForCompare(destRows, excludeId) {
+        const me = allRecords.find(r => String(r.id) === String(excludeId));
+        return me?.created_at || destRows[0]?.created_at || null;
+    }
+
+    /**
+     * `cycleKey(null)` เป็นค่าเดียวกันทั้งฐาน ⇒ แถวที่ยังไม่ผูกรอบของปีที่แล้วจะถูกนับเป็น
+     * "รอบเดียวกัน" แล้วบล็อกงานเดือนนี้ · จำกัดด้วยเดือนไทย (เกณฑ์เดียวกับ audit_check)
+     */
+    function scopeNoCycleRowsToSameMonth(destRows, movingCycleId, movingMonth) {
+        if (movingCycleId) return destRows;
+        return destRows.map(r => {
+            if (r.cycle_id) return r;
+            const m = bangkokMonthOfIso(r.created_at);
+            if (movingMonth && m && m !== movingMonth) {
+                return { ...r, cycle_id: `\u0000เดือนอื่น|${m}` };
+            }
+            return r;
+        });
     }
 
     function findBookSku(skuId) {
@@ -1105,11 +1211,16 @@ document.addEventListener('DOMContentLoaded', () => {
      * ปลอดภัยเพราะทุกรายการมี `clientRequestId` ประจำตัวตั้งแต่ตอนกด "เพิ่มลงกลุ่ม"
      * (`:1019`) ⇒ กดส่งซ้ำจะชน unique index แล้วนับเป็น duplicate ไม่ใช่แทรกซ้ำ
      */
+    /** เจอ network error ติดกันกี่ครั้งถึงเลิกยิงต่อ (M32) */
+    const NETWORK_FAIL_STREAK_LIMIT = 3;
+
     async function insertGroupRowsOneByOne(items, payloads) {
         const inserted = [];      // { item, row } เรียงตามลำดับที่สำเร็จ
         const duplicates = [];    // เข้า DB ไปแล้วจากการกดครั้งก่อน
         const failed = [];        // { item, reason }
         let lastError = null;
+        let netStreak = 0;
+        let abortedAt = -1;
 
         for (let i = 0; i < items.length; i++) {
             const { data, error } = await supabaseClient
@@ -1119,16 +1230,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (!error) {
                 inserted.push({ item: items[i], row: (data || [])[0] || null });
+                netStreak = 0;
             } else if (window.DbErrors?.isDuplicateError(error)) {
                 duplicates.push(items[i]);
+                netStreak = 0;
             } else {
                 const info = window.DbErrors?.formatDbError(error, { context: 'บันทึกกลุ่ม' });
                 failed.push({ item: items[i], reason: info?.message || error.message });
                 lastError = error;
+
+                // เน็ตตาย = ยิงต่อไปก็พังทุกแถว แค่ทำให้ผู้ใช้รอนานขึ้นเปล่า ๆ
+                // หยุดแล้วโยนที่เหลือเข้า failed พร้อมบอกเหตุผลตรง ๆ (M32)
+                netStreak = window.DbErrors?.isNetworkError(error) ? netStreak + 1 : 0;
+                if (netStreak >= NETWORK_FAIL_STREAK_LIMIT) {
+                    abortedAt = i;
+                    break;
+                }
             }
         }
 
-        return { inserted, duplicates, failed, lastError };
+        if (abortedAt >= 0) {
+            for (let i = abortedAt + 1; i < items.length; i++) {
+                failed.push({ item: items[i], reason: 'หยุดบันทึกเพราะเชื่อมต่อฐานข้อมูลไม่ได้ติดกันหลายครั้ง' });
+            }
+        }
+
+        return { inserted, duplicates, failed, lastError, aborted: abortedAt >= 0 };
     }
 
     window.submitGroup = async function() {
@@ -1217,6 +1344,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // แถวที่ยังพังอยู่ต้องค้างในกลุ่มให้ผู้ใช้แก้ต่อ — ที่เหลือเข้า DB แล้ว
                 // reversedItems เรียง เก่า→ใหม่ แต่ groupItems เรียง ใหม่อยู่บน (unshift) — ต้องกลับด้าน
                 groupItems = failedEntries.map(f => f.item).reverse();
+                const abortNote = one.aborted
+                    ? ' · ระบบหยุดบันทึกเองเพราะเชื่อมต่อฐานข้อมูลไม่ได้ติดกันหลายครั้ง'
+                    : '';
                 renderGroupList();
 
                 let totalQtyInGroup = 0;
@@ -1261,7 +1391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     // บอกให้ชัดว่าอะไรเข้าแล้ว อะไรยังค้าง — ของเดิมพังทั้งชุดแล้วเงียบ
                     const savedCount = insertedPairs.length + duplicateItems.length;
                     showToast(
-                        `บันทึกได้ ${savedCount}/${itemCount} รายการ · เหลือ ${failedEntries.length} รายการค้างในกลุ่ม — ` +
+                        `บันทึกได้ ${savedCount}/${itemCount} รายการ · เหลือ ${failedEntries.length} รายการค้างในกลุ่ม — ${abortNote}` +
                         `${failedEntries[0].reason}`,
                         'error'
                     );
@@ -1474,14 +1604,29 @@ document.addEventListener('DOMContentLoaded', () => {
             ? bookSkuList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name))).length
             : 0;
 
+        // ⚠️ ระหว่าง Book ยังโหลดไม่เสร็จ ห้ามแสดง 0 / 0% — มันอ่านได้ว่า "นับครบแล้ว"
+        //    ซึ่งตรงข้ามกับความจริง · แยก 3 สถานะให้ชัด (M10)
+        const bookPending = !!activeCycleForPage?.id && !isBookReady;
+
         if (uncountedEl) {
-            uncountedEl.textContent = uncountedCount.toLocaleString();
+            // ไม่มี Book ก็ต้องเป็น "—" เหมือนกล่อง % — เลข 0 อ่านได้ว่า "นับครบแล้ว"
+            uncountedEl.textContent = (bookPending || totalItems === 0)
+                ? '—'
+                : uncountedCount.toLocaleString();
+            uncountedEl.title = bookPending
+                ? 'กำลังโหลดรายการ Book ของรอบนี้'
+                : (totalItems === 0 ? 'รอบนี้ยังไม่มีรายการ Book ให้เทียบ' : '');
         }
 
         if (progressEl) {
-            progressEl.textContent = totalItems === 0
-                ? '0%'
-                : `${Math.min(100, Math.floor((countedInBook / totalItems) * 100))}%`;
+            progressEl.textContent = bookPending
+                ? '—'
+                : (totalItems === 0
+                    ? '—'
+                    : `${Math.min(100, Math.floor((countedInBook / totalItems) * 100))}%`);
+            progressEl.title = bookPending
+                ? 'กำลังโหลดรายการ Book ของรอบนี้'
+                : (totalItems === 0 ? 'ยังไม่มีรายการ Book ให้เทียบ — คำนวณความคืบหน้าไม่ได้' : '');
         }
 
         lucide.createIcons();
@@ -1588,7 +1733,15 @@ document.addEventListener('DOMContentLoaded', () => {
         lucide.createIcons();
     };
 
+    /**
+     * นับรุ่นของ modal — bump ทุกครั้งที่ปิด/เปิดใหม่ (review ชุด 5)
+     * ใช้ตรวจว่า `edState` ยังเป็นก้อนเดิมหลัง await หรือเปล่า
+     */
+    let edGeneration = 0;
+    let edBusy = false;
+
     window.closeEdModal = function() {
+        edGeneration += 1;
         document.getElementById('editDeleteModal').classList.remove('open');
         edState = {
             mode: '', id: null, sku: '', oldQty: 0, newQty: 0,
@@ -1599,6 +1752,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.handleEdConfirm = async function() {
         if (!supabaseClient) return;
+
+        // ⚠️ ตั้งแต่ M8 ฟังก์ชันนี้มี network round-trip นำหน้าการเขียน — ถ้าไม่กันไว้
+        //    (ก) ดับเบิลคลิก = เขียน 2 ครั้ง + audit log ซ้ำ
+        //    (ข) กดยกเลิกแล้วเปิดแถวอื่นระหว่างรอ = โค้ดวิ่งต่อโดยอ่าน edState ของ "แถวใหม่"
+        //         แล้วเขียน audit log ของการแก้ไขที่ไม่เคยเกิด (ขัด invariant ข้อ 1)
+        if (edBusy) return;
+        edBusy = true;
+        const myGen = edGeneration;
+        const edBtn = document.getElementById('edConfirmBtn');
+        if (edBtn) edBtn.disabled = true;
+        try {
+            await handleEdConfirmInner(myGen);
+        } finally {
+            edBusy = false;
+            const btnNow = document.getElementById('edConfirmBtn');
+            if (btnNow) btnNow.disabled = false;
+        }
+    };
+
+    /** true = ผู้ใช้ปิด/เปลี่ยนแถวระหว่างที่เรารอ DB อยู่ ⇒ ต้องทิ้งผลลัพธ์ ห้ามเขียนต่อ */
+    function edStaleSince(gen) {
+        return gen !== edGeneration;
+    }
+
+    async function handleEdConfirmInner(myGen) {
 
         if (edState.mode === 'edit') {
             if (edState.step === 1) {
@@ -1618,14 +1796,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     showToast('ไม่มีการเปลี่ยนแปลง', 'error');
                     return;
                 }
-                if (locChanged) {
-                    const coll = getEditDestinationCollision(
-                        edState.sku, newLocation, edState.warehouse, edState.id
+                // ตรวจทั้งตอนเปลี่ยนตำแหน่ง **และ** ตอนเปลี่ยนจำนวน — เกณฑ์ซ้ำจริงรวมจำนวนด้วย
+                // (แก้จำนวนให้ไปตรงกับแถวที่มีอยู่ ก็สร้างแถวซ้ำได้เหมือนกัน)
+                if (locChanged || qtyChanged) {
+                    const coll = await getEditDestinationCollision(
+                        edState.sku, newLocation, edState.warehouse, newQty, edState.id
                     );
-                    if (coll) {
+                    if (edStaleSince(myGen)) return;   // ผู้ใช้ปิด/เปลี่ยนแถวไปแล้ว
+                    if (coll?.blocked) {
                         showToast(coll.message, 'error');
                         return;
                     }
+                    edState.destWarning = coll?.warning || '';
                 }
                 edState.newQty = newQty;
                 edState.newLocation = newLocation;
@@ -1636,8 +1818,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (locChanged) changes.push(`ตำแหน่ง: <strong>${escapeHtml(edState.oldLocation || '-')}</strong> → <strong>${escapeHtml(newLocation)}</strong>`);
 
                 document.getElementById('edModalTitle').innerHTML = `<i data-lucide="edit"></i> ยืนยันการแก้ไข (ขั้นที่ 2/2)`;
+                const warnLine = edState.destWarning
+                    ? `<br><span style="color:#fbbf24;">${escapeHtml(edState.destWarning)}</span>`
+                    : '';
                 document.getElementById('edModalDesc').innerHTML =
-                    `ยืนยันการแก้ไข <strong>${escapeHtml(edState.sku)}</strong><br>${changes.join('<br>')}`;
+                    `ยืนยันการแก้ไข <strong>${escapeHtml(edState.sku)}</strong><br>${changes.join('<br>')}${warnLine}`;
                 document.getElementById('edInputGroup').style.display = 'none';
                 document.getElementById('edWarningText').textContent = `ข้อมูลในฐานข้อมูล Supabase จะถูกอัปเดตทันที`;
                 document.getElementById('edWarningBox').style.display = 'flex';
@@ -1646,11 +1831,13 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (edState.step === 2) {
                 try {
                     const locWillChange = normalizeLocKey(edState.newLocation) !== normalizeLocKey(edState.oldLocation);
-                    if (locWillChange) {
-                        const coll = getEditDestinationCollision(
-                            edState.sku, edState.newLocation, edState.warehouse, edState.id
+                    const qtyWillChange = edState.newQty !== edState.oldQty;
+                    if (locWillChange || qtyWillChange) {
+                        const coll = await getEditDestinationCollision(
+                            edState.sku, edState.newLocation, edState.warehouse, edState.newQty, edState.id
                         );
-                        if (coll) {
+                        if (edStaleSince(myGen)) return;
+                        if (coll?.blocked) {
                             showToast(coll.message, 'error');
                             return;
                         }
@@ -2015,15 +2202,34 @@ document.addEventListener('DOMContentLoaded', () => {
             container.innerHTML = `<div class="empty-state"><i data-lucide="loader-2" class="spin"></i><p>กำลังคำนวณ...</p></div>`;
             lucide.createIcons();
         }
-        
+
+        // ⚠️ เส้นทางนี้เขียนทับ badge ตัวเดียวกับ updateStats — ถ้าไม่รู้จัก bookPending
+        //    ผู้ใช้ที่เห็น "—" แล้วกดกล่องเพื่อดูรายการ จะได้ "0" กลับมาระหว่าง Book ยังโหลด
+        //    แล้วรายการขึ้นว่า "ยังไม่มี Book — อัปโหลดที่เมนูตั้งค่ารอบ" ทั้งที่ไม่ต้องทำอะไร (M10)
+        const bookPending = !!activeCycleForPage?.id
+            && bookSkuLoadedForCycleId !== activeCycleForPage.id;
+        const uncountedEl = document.getElementById('totalUncounted');
+
+        if (bookPending) {
+            uncountedItemsCache = [];
+            if (uncountedEl) {
+                uncountedEl.textContent = '—';
+                uncountedEl.title = 'กำลังโหลดรายการ Book ของรอบนี้';
+            }
+            if (container) {
+                container.innerHTML = `<div class="empty-state"><i data-lucide="loader-2" class="spin"></i><p>กำลังโหลดรายการ Book ของรอบนี้...</p></div>`;
+                lucide.createIcons();
+            }
+            return;
+        }
+
         const scopedRecords = getWarehouseScopedRecords();
         const allCountedSkus = new Set(scopedRecords.map(r => normalizeSkuKey(r.sku_id)).filter(Boolean));
         uncountedItemsCache = bookSkuList.filter(s => !allCountedSkus.has(normalizeSkuKey(s.sku_name)));
-        
-        // Update badge
-        const uncountedEl = document.getElementById('totalUncounted');
+
         if (uncountedEl) {
-            uncountedEl.textContent = uncountedItemsCache.length.toLocaleString();
+            uncountedEl.textContent = bookSkuList.length === 0 ? '—' : uncountedItemsCache.length.toLocaleString();
+            uncountedEl.title = bookSkuList.length === 0 ? 'รอบนี้ยังไม่มีรายการ Book ให้เทียบ' : '';
         }
 
         renderUncountedList(uncountedItemsCache);

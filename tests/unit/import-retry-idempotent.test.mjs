@@ -88,7 +88,8 @@ test('[M9][behaviour] bulk ล้ม → ต้องยิงรายแถว
 
     const fns = liftFunctions(SCRIPT, ['insertGroupRowsOneByOne'], {
         supabaseClient: mock,
-        window: { DbErrors: { isDuplicateError: (e) => e?.code === '23505', formatDbError: () => ({ message: 'x' }) } },
+        NETWORK_FAIL_STREAK_LIMIT: 3,
+        window: { DbErrors: { isDuplicateError: (e) => e?.code === '23505', isNetworkError: () => false, formatDbError: () => ({ message: 'x' }) } },
     });
 
     const items = [{ sku: 'A1', quantity: 1 }, { sku: 'A2', quantity: 2 }];
@@ -129,7 +130,8 @@ test('[M9][behaviour] duplicate ต้องถูกนับแยกจาก
 
     const fns = liftFunctions(SCRIPT, ['insertGroupRowsOneByOne'], {
         supabaseClient: mock,
-        window: { DbErrors: { isDuplicateError: (e) => e?.code === '23505', formatDbError: (e) => ({ message: e.message }) } },
+        NETWORK_FAIL_STREAK_LIMIT: 3,
+        window: { DbErrors: { isDuplicateError: (e) => e?.code === '23505', isNetworkError: () => false, formatDbError: (e) => ({ message: e.message }) } },
     });
 
     const out = await fns.insertGroupRowsOneByOne(

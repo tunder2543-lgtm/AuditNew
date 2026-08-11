@@ -26,10 +26,21 @@ export function bodyOf(src, marker) {
  */
 export function liftFunctions(src, names, context = {}) {
     const decls = names.map(n => {
-        const marker = src.includes(`async function ${n}`) ? `async function ${n}` : `function ${n}`;
+        // รองรับทั้ง `function f()`, `async function f()` และ `window.f = function ()`
+        // (หน้าเว็บในโปรเจกต์นี้ผูกฟังก์ชันไว้กับ window เพื่อให้ onclick= เรียกได้)
+        const forms = [
+            `async function ${n}`,
+            `function ${n}`,
+            `window.${n} = async function`,
+            `window.${n} = function`,
+        ];
+        const marker = forms.find(f => src.includes(f));
+        assert.ok(marker, `ยกฟังก์ชัน ${n} ไม่ได้`);
         const at = src.indexOf(marker);
-        assert.ok(at >= 0, `ยกฟังก์ชัน ${n} ไม่ได้`);
-        return src.slice(at, at + bodyOf(src, marker).length + (src.indexOf('{', at) - at));
+        const raw = src.slice(at, at + bodyOf(src, marker).length + (src.indexOf('{', at) - at));
+        return marker.startsWith('window.')
+            ? raw.replace(marker, marker.includes('async') ? `async function ${n}` : `function ${n}`)
+            : raw;
     });
     const sandbox = { console: { warn() {}, info() {}, error() {} }, ...context };
     vm.createContext(sandbox);

@@ -779,7 +779,6 @@
         setStatusFilter(activeStatusFilter === status ? '' : status);
     }
 
-    /** ค่า "ต่าง" ที่แสดง — ขาด: Book−ผลนับ−ปรับแล้ว, เกิน: ผลนับ−Book−ปรับแล้ว */
     function getDraftAdjustmentSum(skuId) {
         return adjustmentsCache
             .filter(a => a.status === 'draft' && a.sku_id === skuId)
@@ -843,16 +842,18 @@
         return s === 'short' || s === 'over' || s === 'book_only';
     }
 
+    /**
+     * "ต่าง" ที่แสดง = ผลนับ − Excel ที่ใช้เทียบตอนนี้ (รวม draft)
+     *
+     * ⚠️ เครื่องหมายมีความหมาย: **ติดลบ = ขาด · บวก = เกิน** (ทิศทางเดียวกับ
+     *    `reconciliation_lines.variance_qty` ของ DB)
+     * เดิมคืนค่าบวกทั้ง short และ over (คืนขนาด ไม่ใช่ทิศทาง) ⇒ "ขาด 5" แสดงเป็น
+     * `+5` สีแดง และแถวรวมใน Export เอาสองทิศทางมาบวกกันจนอ่านไม่ได้ความ (M3)
+     */
     function computeDisplayVariance(line) {
         if (isLineAcceptedMatch(line.sku_id)) return 0;
-        const book = Number(line.book_qty);
-        const counted = Number(line.counted_qty);
-        const adj = getTotalAdjustment(line);
-        const status = resolveDisplayStatus(line);
-        if (status === 'match') return 0;
-        if (status === 'short') return book - counted - adj;
-        if (status === 'over') return counted - book - adj;
-        return counted - (book + adj);
+        if (resolveDisplayStatus(line) === 'match') return 0;
+        return Number(line.counted_qty) - (Number(line.book_qty) + getTotalAdjustment(line));
     }
 
     function computeAutoAdjustmentQty(line) {
@@ -878,8 +879,16 @@
         if (isLineAcceptedMatch(line.sku_id)) return '0%';
         if (isExcludedFromPct(displayStatus)) return '—';
         if (displayStatus === 'match') return '0%';
-        if (line.variance_pct != null) return Number(line.variance_pct).toFixed(1) + '%';
-        return '—';
+        // ⚠️ ห้ามใช้ `line.variance_pct` ตรง ๆ — DB คำนวณค่านั้นจากยอดที่ Apply แล้วเท่านั้น
+        //    พอมี draft ค้างอยู่ คอลัมน์ "ต่าง" ขยับตาม draft แต่ % ไม่ขยับ = ตัวเลข 2 ช่อง
+        //    ในแถวเดียวกันขัดกันเอง ผู้ใช้จะไม่รู้ว่าเชื่อช่องไหน (M18)
+        //    สูตรตรงกับฝั่ง SQL: หารด้วย effective ถ้าเป็น 0 ค่อยถอยไปใช้ book
+        const effective = Number(line.book_qty) + getTotalAdjustment(line);
+        // ใช้ค่าที่ "มากกว่า 0" เท่านั้น ตามสูตร SQL — ห้ามใช้ Math.abs เพราะฐานติดลบ
+        // จะให้ % ที่ดูสมเหตุสมผลแบบเงียบ ๆ แทนที่จะบอกว่าคิดไม่ได้
+        const base = effective > 0 ? effective : (Number(line.book_qty) > 0 ? Number(line.book_qty) : 0);
+        if (!base) return '—';
+        return (Math.abs(computeDisplayVariance(line)) / base * 100).toFixed(1) + '%';
     }
 
     function computeKpiStats(lines) {
@@ -957,7 +966,8 @@
             const displayStatus = resolveDisplayStatus(l);
             const v = computeDisplayVariance(l);
             const vColor = displayStatus === 'short' ? '#f87171' : displayStatus === 'over' ? '#fbbf24' : (v < 0 ? '#f87171' : v > 0 ? '#fbbf24' : '#34d399');
-            const sign = (displayStatus === 'over' || v > 0) && v !== 0 ? '+' : '';
+            // v ติดลบอยู่แล้วเมื่อขาด — เติม '+' ให้ฝั่งเกินอย่างเดียว (M3)
+            const sign = v > 0 ? '+' : '';
             const applied = Number(l.adjustment_applied);
             const draft = getDraftAdjustmentSum(l.sku_id);
             const totalAdj = applied + draft;
@@ -1518,7 +1528,9 @@
 
     function buildAdjustedExportRows() {
         return lastImportAdjustResults.map((r, i) => {
-            const variance = Number(r.effectiveAfter) - Number(r.countedQty);
+            // ⚠️ ต้องเป็นทิศทางเดียวกับชีต Match (ผลนับ − Excel · ลบ = ขาด) — อยู่ไฟล์ Excel
+            //    เดียวกัน ถ้าคนละเครื่องหมาย SKU ตัวเดียวกันจะเป็น -40 ในชีตหนึ่ง +40 ในอีกชีต
+            const variance = Number(r.countedQty) - Number(r.effectiveAfter);
             return {
                 '#': i + 1,
                 SKU: r.skuId,
@@ -1546,7 +1558,7 @@
         list.innerHTML = hits.map(l => `
             <div class="rc-search-item" data-sku="${RS.escapeHtml(l.sku_id)}">
                 ${RS.escapeHtml(l.sku_id)}
-                <small>ต่าง ${computeDisplayVariance(l).toLocaleString()} · ${STATUS_MAP[l.match_status]?.th || l.match_status}</small>
+                <small>ต่าง ${computeDisplayVariance(l).toLocaleString()} · ${STATUS_MAP[resolveDisplayStatus(l)]?.th || l.match_status}</small>
             </div>`).join('');
         list.classList.add('show');
         list.querySelectorAll('.rc-search-item').forEach(el => {
@@ -2525,17 +2537,20 @@
         });
     })();
 
-    document.getElementById('btnExport').addEventListener('click', () => {
-        const rows = getVisibleLines();
-        if (!rows.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
-        const totals = { book: 0, totalAdj: 0, effective: 0, counted: 0, variance: 0 };
+    /** แถว Export ของชีต Match รวมแถว "รวม" ท้ายตาราง (แยกออกมาเพื่อเทสได้จริง) */
+    function buildMatchExportRows(rows) {
+        const totals = { book: 0, totalAdj: 0, effective: 0, counted: 0, variance: 0, short: 0, over: 0 };
         const data = rows.map((l, i) => {
             const m = getExportLineMetrics(l);
             totals.book += m.book;
             totals.totalAdj += m.totalAdj;
             totals.effective += m.effective;
             totals.counted += m.counted;
+            // m.variance มีเครื่องหมายแล้ว (ลบ = ขาด) แถวรวมจึงเป็น "ยอดสุทธิ" ที่อ่านได้จริง
+            // แต่สุทธิอย่างเดียวยังหลอกตาได้ (ขาด 500 + เกิน 503 = +3) จึงแยกสองทิศทางไว้ด้วย
             totals.variance += m.variance;
+            if (m.variance < 0) totals.short += m.variance;
+            else if (m.variance > 0) totals.over += m.variance;
             const adjNote = m.draft !== 0
                 ? (m.applied !== 0 ? `${m.applied >= 0 ? '+' : ''}${m.applied} + draft ${m.draft >= 0 ? '+' : ''}${m.draft}` : `draft ${m.draft >= 0 ? '+' : ''}${m.draft}`)
                 : null;
@@ -2564,8 +2579,15 @@
             'ผลนับ': totals.counted,
             'ต่าง': totals.variance,
             '%': '',
-            'สถานะ': ''
+            'สถานะ': `ขาดรวม ${Math.abs(totals.short).toLocaleString()} · เกินรวม ${totals.over.toLocaleString()}`
         });
+        return data;
+    }
+
+    document.getElementById('btnExport').addEventListener('click', () => {
+        const rows = getVisibleLines();
+        if (!rows.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
+        const data = buildMatchExportRows(rows);
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Match');

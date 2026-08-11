@@ -75,9 +75,9 @@
 - ~~`#cycleSelect` ไม่มี change listener~~ **แก้แล้ว (H5, 2026-08-09)** — เปลี่ยนรอบ = ล้างสถานะ + ซ่อน panel ทันที แล้วโหลดรอบใหม่ให้ · ทุก action ล็อก cycle id ตอน guard และเช็คซ้ำหลัง confirm modal · dropdown ถูกล็อกระหว่างโหลด
 - **Import Excel ทำให้ทุก SKU "ถูกต้อง" โดยไม่สนผลนับ**: import Book ก่อนแล้วค่อยคำนวณ adjustment → delta=0 เสมอ สถานะเปลี่ยนเพราะ force-accept ทุก SKU ในไฟล์ (`:1479-1498`, `reconcile-shared.js:2858`)
 - **Import ลบ adjustment ที่ applied แล้ว** — `clearAdjustmentsAndMatchAcceptancesForSkus` delete โดยไม่กรอง status ทำลายประวัติ (`reconcile-shared.js:2712-2717`)
-- แถว "ขาด" แสดงเครื่องหมาย `+` (เช่น ขาด 5 แสดง `+5` สีแดง) (`:867, 974`); แถวรวมใน export บวก variance คนละเครื่องหมายรวมกัน (`:2447`)
-- `%` ใช้ค่า `variance_pct` เก่าจาก DB ก่อนมี draft — ขัดกับคอลัมน์ `ต่าง` ที่คำนวณใหม่ (`:895`)
-- `computeMatchStatus` (JS) กับ SQL ให้สถานะไม่ตรงกันกรณี `effective=0 && counted>0` (JS=`over`, SQL=`count_only`)
+- ~~แถว "ขาด" แสดงเครื่องหมาย `+`; แถวรวมใน export บวก variance คนละเครื่องหมายรวมกัน~~ **แก้แล้ว (M3, 2026-08-11)** — `computeDisplayVariance` คืน "ทิศทาง" (`ผลนับ − Excel ใช้เทียบ`) ทั้งคอลัมน์แล้ว ลบ = ขาด · แถวรวมเป็นยอดสุทธิ + บอก "ขาดรวม/เกินรวม" แยกกัน · ชีต `Adjusted` ใช้ทิศทางเดียวกัน
+- ~~`%` ใช้ค่า `variance_pct` เก่าจาก DB ก่อนมี draft~~ **แก้แล้ว (M18, 2026-08-11)** — `formatRowVariancePct` คำนวณใหม่จาก effective ที่รวม draft (สูตรเดียวกับ SQL: ใช้ effective ก่อน ถ้า ≤ 0 ถอยไปใช้ book ถ้าไม่มีคืน `—`)
+- ~~`computeMatchStatus` (JS) กับ SQL ให้สถานะไม่ตรงกันกรณี `effective=0 && counted>0`~~ **แก้แล้ว (M2, 2026-08-11)** — ยึดฝั่ง JS (เคสนี้เกิดหลังกด "สร้างลง Book (ยอด 0)" จึงต้องเป็น "เกิน") แล้วแก้ SQL ตามใน `docs/sql/020`
 - ~~`parseBookExcelRows` ใช้ `normalizeSku` กับชื่อสินค้า → `name_pro` ถูกแปลงเป็นตัวพิมพ์ใหญ่หมด~~ **แก้แล้ว (M4, 2026-08-10)** — ใช้ `String(...).trim()` เฉพาะคอลัมน์ชื่อ (คอลัมน์ SKU ยัง normalize เหมือนเดิม) · ⚠️ ข้อมูลเก่ายังเป็น ALL CAPS
 - `saveDraft` ไม่ normalize SKU จากช่องค้นหา (`:1712-1728`)
 - Dead: `renderImportPreview` + `#importPreviewWrap` ไม่เคยแสดง (`:1326-1346, 473-478`), `adjInputMode` ประกาศแล้วไม่อ่าน (`:693`), `updateCycleStatus`/`importBookStockLinesMerge` ใน shared ไม่มีผู้เรียก

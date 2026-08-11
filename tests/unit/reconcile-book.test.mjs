@@ -1,8 +1,7 @@
 // เทส parser Book Excel + สถานะ Match
 // [M4] ชื่อโดน UPPERCASE — แก้แล้ว 2026-08-10 (เป็นเทสถาวรกัน regression)
-// knownIssue ที่เหลือ: M2 (สถานะ JS ไม่ตรง SQL)
 import assert from 'node:assert/strict';
-import { suite, test, knownIssue } from '../helpers/harness.mjs';
+import { suite, test } from '../helpers/harness.mjs';
 import { loadFresh } from '../helpers/sandbox.mjs';
 
 suite('reconcile-shared: Book Excel + computeMatchStatus');
@@ -99,14 +98,12 @@ test('[M4] แต่ **รหัส SKU** ต้องยัง UPPERCASE ตา
 });
 
 // -----------------------------------------------------------------------------
-// M2 (docs/ISSUES.md): JS กับ SQL ให้สถานะไม่ตรงกัน
-// กรณี SKU อยู่ใน Book ที่ qty 0 แล้วนับเจอ:
-//   SQL (docs/sql/013:77) → 'count_only'   |   JS ปัจจุบัน → 'over'
-// เทสนี้ยึด SQL เป็นแหล่งความจริง (reconciliation_lines สร้างจาก SQL)
-// ⚠️ ถ้า admin ตัดสินใจยึดฝั่ง JS แทน ให้แก้ SQL แล้วกลับ assert ข้อนี้
+// M2 (docs/ISSUES.md) — ปิดแล้ว 2026-08-11 โดย **ยึดฝั่ง JS เป็นแหล่งความจริง**
+// เดิม SQL (013:77) ให้ 'count_only' กับ SKU ที่อยู่ใน Book ยอด 0 แล้วนับเจอ
+// แต่เคสนี้เกิดหลังผู้ใช้กด "สร้างลง Book (ยอด 0)" — SKU มีใน Book แล้ว จึงต้องเป็น "เกิน"
+// แก้ SQL ตามใน docs/sql/020 · เทสละเอียดอยู่ที่ tests/dryrun/match-status.test.mjs
 // -----------------------------------------------------------------------------
-knownIssue('M2', 'computeMatchStatus (JS) ต้องให้ผลตรงกับ refresh_reconciliation_for_cycle (SQL)', () => {
-    const status = RS.computeMatchStatus({ bookQty: 0, countedQty: 5, inBookSkuSet: true });
-    assert.equal(status, 'count_only',
-        `SQL ให้ 'count_only' แต่ JS ให้ '${status}' — หน้าเว็บกับ DB แสดงสถานะคนละค่า`);
+test('[M2] อยู่ใน Book ยอด 0 แล้วนับเจอ = เกิน (ไม่ใช่ "นับเจอไม่พบใน Excel")', () => {
+    assert.equal(RS.computeMatchStatus({ bookQty: 0, countedQty: 5, inBookSkuSet: true }), 'over');
+    assert.equal(RS.computeMatchStatus({ bookQty: 0, countedQty: 5, inBookSkuSet: false }), 'count_only');
 });

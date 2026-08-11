@@ -173,11 +173,20 @@
 `Html/cycle_config.html:1001, 1152` (`.limit(10000)` — **2 จุด**), `:1224` (`.limit(5000)`) บน `inventory_counts` — Supabase hosted จำกัด max-rows (ปกติ 1000) และไม่มี paginate → เดือนที่ข้อมูลเยอะ วันที่มีนับจริงจะไม่โผล่ให้เลือก ทั้งที่มี RPC `get_inventory_count_months` (013) อยู่แล้วแต่หน้านี้ไม่ใช้ **[ยืนยันแล้ว]**
 **แก้:** ใช้ RPC + เพิ่ม RPC "days with counts"
 
-### - [ ] M2. สถานะ match ไม่ตรงกันระหว่างหน้าเว็บกับ DB
+### - [x] M2. สถานะ match ไม่ตรงกันระหว่างหน้าเว็บกับ DB
+> **✅ แก้แล้ว + รันกับ DB จริงแล้ว 2026-08-11** — เลือกยึด **ฝั่ง JS** เพราะเคสนี้เกิดหลังผู้ใช้กดปุ่ม "สร้างลง Book (ยอด 0)" ⇒ SKU มีบรรทัดใน Book แล้ว สถานะจึงต้องเป็น "เกิน" ไม่ใช่ "นับเจอ แต่ไม่พบ SKU ใน Excel"
+> รากของปัญหา: เงื่อนไข SQL เดิมใช้ `effective_book_qty = 0` ซึ่งแยกไม่ออกระหว่าง "ไม่มีบรรทัดใน Book" กับ "มีบรรทัดแต่ยอด 0" → [020](sql/020_match_status_count_only_in_book.sql) เพิ่ม `in_book` เข้า CTE `merged`
+> ⛔ ใช้ `CREATE OR REPLACE` จึงต้องประกาศ `SECURITY DEFINER` + `SET search_path` ซ้ำ (018 ตั้งด้วย `ALTER` ซึ่งถูกเขียนทับ) — มีเทสบังคับ
+> ผลจริง: **77 แถวเปลี่ยน count_only → over** (ตึกกันตนา 2026-08 70 แถว · 2026-06 7 แถว) · ไม่มีแถวหาย/เพิ่ม · `variance_qty`/`variance_pct` ไม่ขยับแม้แต่แถวเดียว · refresh ครบทั้ง 6 รอบ
+> ⚠️ **รอบที่ปิดแล้วจะค้าง semantic เก่าถาวร** เพราะคำสั่ง refresh ข้าม closed/archived โดยตั้งใจ (M24 ห้ามให้ยอดที่สรุปแล้วขยับ) — ตอนรันยังไม่มีรอบไหนปิด
 `Js/reconcile-shared.js:1080-1081` (JS: `over`) vs `docs/sql/013:77` (SQL: `count_only`) กรณี SKU อยู่ใน Book ที่ qty 0 แล้วนับเจอ **[ยืนยันแล้ว]**
 **แก้:** เลือก semantic เดียวแล้วแก้อีกฝั่งให้ตรง
 
-### - [ ] M3. reconcile: แถว "ขาด" แสดง `+N` และแถวรวมใน export ไร้ความหมาย
+### - [x] M3. reconcile: แถว "ขาด" แสดง `+N` และแถวรวมใน export ไร้ความหมาย
+> **✅ แก้แล้ว 2026-08-11** — `computeDisplayVariance` เดิมคืน "ขนาด" (บวกทั้ง short และ over) ตอนนี้คืน "ทิศทาง" `ผลนับ − Excel ที่ใช้เทียบ` (ลบ = ขาด) ทิศทางเดียวกับ `reconciliation_lines.variance_qty`
+> แถวรวมใน Export เป็นยอดสุทธิที่อ่านได้จริงแล้ว + บอก "ขาดรวม/เกินรวม" แยกกัน เพราะสุทธิอย่างเดียวยังหลอกตาได้ (ขาด 500 + เกิน 503 = +3)
+> พ่วงจาก review: ชีต `Adjusted` ในไฟล์ Excel เดียวกันยังใช้ทิศทางตรงข้าม — แก้ให้ตรงกันแล้ว (มีเทสคุม)
+> ⚠️ `stock_adjustments.variance_before` เปลี่ยนทิศทางตามไปด้วย — คอลัมน์นี้ write-only แต่แถวเก่า/ใหม่คนละ convention (บันทึกไว้ใน DATABASE.md)
 `Html/reconcile.html:867, 974` (ขาด 5 แสดง `+5` สีแดง), `:2447` (บวก variance คนละเครื่องหมายรวมกัน) **[ยืนยันแล้ว]**
 
 ### - [x] M4. Book import แปลงชื่อสินค้าเป็นตัวพิมพ์ใหญ่หมด
@@ -232,7 +241,9 @@
 ### - [ ] M17. deleteCycle ไม่ atomic
 `Js/reconcile-shared.js:965-1017` — unlink counts กับ delete cycle เป็น 2 statement พังกลางทางค้างสถานะครึ่ง ๆ
 
-### - [ ] M18. reconcile: `%` ใช้ค่าเก่าจาก DB ขัดกับคอลัมน์ "ต่าง" ที่คำนวณใหม่เมื่อมี draft
+### - [x] M18. reconcile: `%` ใช้ค่าเก่าจาก DB ขัดกับคอลัมน์ "ต่าง" ที่คำนวณใหม่เมื่อมี draft
+> **✅ แก้แล้ว 2026-08-11** — `formatRowVariancePct` เลิกอ่าน `reconciliation_lines.variance_pct` (DB คำนวณจากยอดที่ Apply แล้วเท่านั้น) หันมาคำนวณใหม่จาก effective ที่รวม draft · สูตรตรงกับ SQL: ใช้ effective ถ้า > 0 · ไม่งั้นถอยไปใช้ book ถ้า > 0 · ไม่งั้นคืน `—`
+> ⚠️ **ห้ามใช้ `Math.abs` กับฐาน** — review ชี้ว่าจะได้ % ที่ดูสมเหตุสมผลแบบเงียบ ๆ แทนที่จะบอกว่าคิดไม่ได้ เมื่อฐานติดลบ
 `Html/reconcile.html:895`
 
 ### - [x] M19. `encodeCycleWarehouses` เรียงไม่เสถียร — ชุดคลังเดียวกัน encode ได้ 2 แบบ = 2 รอบใน DB
@@ -258,6 +269,9 @@
 
 ### - [ ] M34. `audit_check` มี `fetchAvailableMonths` ซ้ำกับ `RS.fetchCountMonths` ทั้งดุ้น
 `Html/audit_check.html:1700-1730` — RPC ก่อน → regex เดียวกัน → paging 1,000 เหมือนกัน แต่หน้านี้ไม่โหลด `reconcile-shared.js` จึงใช้ helper กลางไม่ได้ทันที · แก้บั๊กตัวเดียวกันต้องแก้ 2 ที่ตลอดไป (หน้านี้รอดจาก regression "ทุกคลัง" เพราะส่งชื่อคลังเดี่ยวเสมอ) · **พบจาก review M1**
+
+### - [ ] M35. reconcile: `renderTable` สแกน `adjustmentsCache` ซ้ำหลายรอบต่อแถว
+`Html/reconcile.html` — `getDraftAdjustmentSum` ทำ `.filter().reduce()` บนทั้ง cache ทุกครั้งที่ถูกเรียก และหลังแก้ M18 คอลัมน์ `%` ก็เรียกผ่าน `computeDisplayVariance` เพิ่มอีกชั้น ⇒ จาก ~4 เป็น ~7 รอบต่อแถว (O(N×A)) รอบ 3,000 SKU × 500 draft ≈ 10M ops ต่อการ render หนึ่งครั้ง · ยังไหวอยู่ แต่ถ้าเริ่มหน่วงให้ทำ `Map<sku, draftSum>` ครั้งเดียวต่อ render · **พบจาก review M18/M3**
 
 ### - [ ] M21. chat: ล้าง Storage จำกัด 500 ไฟล์ไม่มี pagination + ไฟล์แนบเป็น public URL ถาวร
 `Html/chat.html:565, 386-390`

@@ -143,10 +143,12 @@ sku_master.sku_name ~(soft)~ inventory_counts.sku_id ~(soft)~ book_stock_lines.s
 | `017_drop_skunorm_backup_tables.sql` | ลบตารางสำรอง `_bk_*` จาก 010 | ✅ รันแล้ว 2026-08-09 |
 | `018_refresh_reconciliation_security_definer.sql` | `refresh_reconciliation_for_cycle` → SECURITY DEFINER (แก้ 401 ตอนกด "คำนวณ Match") | ✅ รันแล้ว 2026-08-09 |
 | `019_inventory_count_acceptances.sql` | ตาราง "ยืนยันว่าผลนับปกติ" + RLS policy | ✅ รันแล้ว 2026-08-10 |
+| `020_match_status_count_only_in_book.sql` | M2: `count_only` ต้องแปลว่า "ไม่มีบรรทัดใน Book" ไม่ใช่ "ยอด Book = 0" | ✅ รันแล้ว 2026-08-11 (77 แถวเปลี่ยน count_only → over · refresh ครบ 6 รอบ) |
 
 > **เลข migration ที่ชนกัน — อย่าเปลี่ยนชื่อไฟล์** (รันไปแล้วในฐานจริง เปลี่ยนชื่อแล้วสืบย้อนไม่ได้):
 > `003` ×2 · `004` ×2 (`004_chat_messages.sql` กับ `004_dashboard_submission_buckets.sql`)
-> 🔴 **ห้ามรัน `003_reconciliation_book_only_with_zero_count.sql` เด็ดขาด** — ถือ `refresh_reconciliation_for_cycle` เวอร์ชันเก่า ถ้ารันจะทับ 013 + 018 → Match พังทั้งระบบ และหายเป็น SECURITY DEFINER ทำให้กลับไป 401
+> 🔴 **ห้ามรัน `003_reconciliation_book_only_with_zero_count.sql` เด็ดขาด** — ถือ `refresh_reconciliation_for_cycle` เวอร์ชันเก่า ถ้ารันจะทับ 013 + 018 + 020 → Match พังทั้งระบบ และหายเป็น SECURITY DEFINER ทำให้กลับไป 401
+> 🔴 **`002_reconciliation_schema.sql` ก็ถือฟังก์ชันนี้เวอร์ชันเก่าเช่นกัน** — ถ้าตั้งฐานใหม่ ลำดับบังคับคือ 002 → 013 → 018 → **020 ต้องเป็นตัวสุดท้ายของสาย `refresh_reconciliation_for_cycle` เสมอ** (020 มี body ครบและประกาศ SECURITY DEFINER ไว้ในตัวแล้ว)
 
 ## DB objects ที่ไม่มีโค้ดใช้ (บันทึกไว้ — **ไม่ลบ**)
 
@@ -160,7 +162,7 @@ sku_master.sku_name ~(soft)~ inventory_counts.sku_id ~(soft)~ book_stock_lines.s
 |---|---|
 | `stock_adjustments.exported_at` | 💀 ไม่มีใครเขียน ไม่มีใครอ่าน — RPC ก็ไม่แตะ |
 | `stock_adjustments.applied_at` / `.created_by` | write-only (RPC เขียน client ไม่เคย select) |
-| `stock_adjustments.variance_before` | write-only (`reconcile-shared.js:2523,2589` เขียน ไม่มีจุดอ่าน) |
+| `stock_adjustments.variance_before` | write-only (ไม่มีจุดอ่าน) · ⚠️ **เปลี่ยนทิศทางเครื่องหมาย 2026-08-11 (M3)** — แถวก่อนหน้านั้นเก็บ "ขนาด" (ขาดเป็นบวก) แถวใหม่เก็บ "ทิศทาง" (ขาดเป็นลบ) · ถ้าทำรายงานย้อนหลังจากคอลัมน์นี้ ต้องแยกตามวันที่ ไม่งั้นตัวเลขหักล้างกันเอง |
 | `book_stock_lines.adjusted_book_qty` | write-only (RPC 013 เขียนทุกครั้ง client ไม่เคยอ่าน) |
 | `book_stock_lines.row_no` | write-only |
 | `book_stock_lines.location` | null เสมอ + ไม่เคยถูก filter |
@@ -194,7 +196,7 @@ sku_master.sku_name ~(soft)~ inventory_counts.sku_id ~(soft)~ book_stock_lines.s
 
 ## จุดที่โค้ดกับ DB ไม่ตรงกัน (สรุป — รายละเอียดใน [ISSUES.md](ISSUES.md))
 
-1. `computeMatchStatus` (JS) vs `refresh_reconciliation_for_cycle` (SQL): กรณี `effective=0 && counted>0` และ SKU อยู่ใน Book — JS ตอบ `over`, SQL ตอบ `count_only`
+1. ~~`computeMatchStatus` (JS) vs `refresh_reconciliation_for_cycle` (SQL): กรณี `effective=0 && counted>0` และ SKU อยู่ใน Book~~ **แก้แล้ว (M2, 2026-08-11)** — ยึดฝั่ง JS แล้วแก้ SQL ตามใน [020](sql/020_match_status_count_only_in_book.sql) · ⚠️ **รอบที่ปิดแล้วจะยังค้าง semantic เก่า** เพราะคำสั่ง refresh ข้าม closed/archived โดยตั้งใจ (M24) — ถ้าเจอในรอบเก่า อย่าเปิด M2 ใหม่
 2. audit_check dedupe + script.js edit guard บังคับกติกา unique ที่ migration 011 ตั้งใจยกเลิก
 3. `reason='accept_count'` (007) ไม่เคยถูกใช้ — client map เป็นค่าอื่น
 4. `status='exported'` ไม่มีโค้ดตั้ง — export เป็น XLSX ฝั่ง client ล้วน

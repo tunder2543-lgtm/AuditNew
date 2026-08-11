@@ -25,11 +25,11 @@ test('Js/dashboard-shared.js โหลดได้ + export window.dashboardShar
     assert.equal(typeof sb.dashboardShared.bucketSubmissionsByInterval, 'function');
 });
 
-test('Js/reconcile-shared.js โหลดได้ + export window.reconcileService (~90 ฟังก์ชัน)', () => {
+test('Js/reconcile-shared.js โหลดได้ + export window.reconcileService (~78 ฟังก์ชัน)', () => {
     const sb = loadFresh('Js/sku-utils.js', 'Js/reconcile-shared.js');
     assert.ok(sb.reconcileService);
     const keys = Object.keys(sb.reconcileService);
-    assert.ok(keys.length >= 80, `คาด export >= 80 ตัว ได้ ${keys.length}`);
+    assert.ok(keys.length >= 75, `คาด export >= 75 ตัว ได้ ${keys.length}`);   // ลด 80→75 ตอนลบ 6 ฟังก์ชันตาย 2026-08-11
     assert.equal(typeof sb.reconcileService.attachCycleToPayload, 'function');
 });
 

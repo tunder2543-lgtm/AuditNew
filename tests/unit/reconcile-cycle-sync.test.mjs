@@ -46,8 +46,8 @@ test('[H5-guard] runOnce ต้องตรวจว่ารอบตรงก�
 
 /** ฟังก์ชันใน reconcileService ที่ "เขียน" ฐานข้อมูล — ทุก call site ต้องอยู่หลัง guard */
 const RS_WRITE_FNS = [
-    'importBookStockLines', 'applyAdjustmentsToBookTargets',
-    'acceptReconciliationAsMatch', 'acceptReconciliationAsMatchBatch', 'acceptCountedQtyAsMatch',
+    'importBookStockLines',
+    'acceptReconciliationAsMatch', 'acceptCountedQtyAsMatch',
     'createStockAdjustment', 'createStockAdjustmentsBatch', 'deleteDraftAdjustment',
     'applyStockAdjustment', 'applyAllDraftsForCycle',
     'addBookFromCountOnly', 'addBookFromCountOnlyBatch', 'deleteBookStockBySku',

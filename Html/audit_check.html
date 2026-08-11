@@ -6,7 +6,7 @@
     <title>ตรวจสอบความถูกต้อง — Stock Audit</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../Css/style.css?v=20260811a">
+    <link rel="stylesheet" href="../Css/style.css?v=20260811b">
     <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260810a">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -26,13 +26,6 @@
             gap: 0.75rem;
             align-items: center;
             justify-content: space-between;
-        }
-
-        .audit-toolbar-left {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            align-items: center;
         }
 
         .audit-stats {
@@ -1311,7 +1304,7 @@
             <div class="loc-compare-header">
                 <div>
                     <h2 id="historyTitle">ประวัติการแก้ไข / ลบ</h2>
-                    <p id="historySubtitle">ทุกการแก้และลบในหน้านี้ถูกบันทึกไว้ก่อนเสมอ — ดูได้ว่าใครทำอะไร SKU ไหน ตำแหน่งไหน จำนวนเท่าไหร่ เมื่อไหร่</p>
+                    <p>ทุกการแก้และลบในหน้านี้ถูกบันทึกไว้ก่อนเสมอ — ดูได้ว่าใครทำอะไร SKU ไหน ตำแหน่งไหน จำนวนเท่าไหร่ เมื่อไหร่</p>
                 </div>
                 <button type="button" class="loc-compare-close" id="btnHistoryClose" title="ปิด">
                     <i data-lucide="x" style="width:22px;height:22px"></i>
@@ -1377,13 +1370,13 @@
         </div>
     </div>
 
-    <script src="../Js/sidebar-shared.js?v=20260811a"></script>
+    <script src="../Js/sidebar-shared.js?v=20260811b"></script>
 <script src="../Js/api.js?v=20260809j"></script>
     <script src="../Js/sku-utils.js?v=20260809j"></script>
     <script src="../Js/warehouses-shared.js?v=20260809j"></script>
     <script src="../Js/db-errors.js?v=20260809j"></script>
     <script src="../Js/settings-shared.js?v=20260809j"></script>
-    <script src="../Js/ui-confirm-modal.js?v=20260809j"></script>
+    <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
     <script src="../Js/audit-dedupe.js?v=20260810d"></script>
     <script src="../Js/audit-book-impact.js?v=20260810d"></script>
     <script src="../Js/audit-loc-compare.js?v=20260810f"></script>
@@ -1442,10 +1435,6 @@
                 }
             }
             return matches;
-        }
-
-        function skuLocKey(sku, loc, qty) {
-            return refEntryKey(sku, loc, getAuditFilters().warehouse, qty);
         }
 
         function getScopedRefEntriesForSku(skuN) {
@@ -1620,16 +1609,6 @@
             if (!z) return 0;
             const m = s.match(new RegExp(`^${z}(\\d+)`));
             return m ? parseInt(m[1], 10) : 999999;
-        }
-
-        function countDataRowsInZone(zone) {
-            let n = 0;
-            sheetBody.querySelectorAll('tr').forEach(tr => {
-                if (!rowHasData(tr)) return;
-                const loc = tr.querySelector('[data-field="loc"]').value.trim();
-                if (getLocationZone(loc) === zone) n++;
-            });
-            return n;
         }
 
         function maxSlotInZone(zone) {
@@ -1841,7 +1820,6 @@
 
         function saveAuditFilters() {
             const f = getAuditFilters();
-            localStorage.setItem('audit_check_warehouse', f.warehouse);
             if (f.yearMonth) localStorage.setItem('audit_check_year_month', f.yearMonth);
             updateAuditScopeHint();
         }
@@ -1861,7 +1839,6 @@
             } else {
                 warehouseEl.value = '';
             }
-            localStorage.setItem('audit_check_warehouse', '');
             monthEl.innerHTML = '<option value="">กำลังโหลดเดือน...</option>';
             monthEl.disabled = true;
 
@@ -3068,8 +3045,6 @@
                 return;
             }
 
-            const btn = document.getElementById('btnVerifyAll');
-            if (btn) btn.disabled = true;
             setLoading(true, 'กำลังตรวจสอบทั้งหมด...', `0 / ${rows.length.toLocaleString()} แถว`);
 
             try {
@@ -3426,14 +3401,12 @@
             const btnMode = document.getElementById('btnSwapSkuLocMode');
             const btnApply = document.getElementById('btnApplySwapSkuLoc');
             const banner = document.getElementById('swapSkuLocBanner');
-            const btnVerify = document.getElementById('btnVerifyAll');
             const hint = document.getElementById('sheetToolbarHint');
 
             if (table) table.classList.toggle('swap-sku-loc-mode', swapSkuLocMode);
             if (btnMode) btnMode.classList.toggle('active-mode', swapSkuLocMode);
             if (btnApply) btnApply.style.display = swapSkuLocMode ? '' : 'none';
             if (banner) banner.classList.toggle('active', swapSkuLocMode);
-            if (btnVerify) btnVerify.disabled = swapSkuLocMode || editLocationMode;
 
             if (hint) {
                 hint.textContent = swapSkuLocMode
@@ -3606,7 +3579,6 @@
             const table = document.getElementById('auditSheet');
             const btnMode = document.getElementById('btnEditLocMode');
             const btnSave = document.getElementById('btnSaveLocChanges');
-            const btnVerify = document.getElementById('btnVerifyAll');
             const banner = document.getElementById('editLocBanner');
             const hint = document.getElementById('sheetToolbarHint');
 
@@ -3614,7 +3586,6 @@
             if (btnMode) btnMode.classList.toggle('active-mode', editLocationMode);
             if (btnSave) btnSave.style.display = editLocationMode ? '' : 'none';
             if (banner) banner.classList.toggle('active', editLocationMode);
-            if (btnVerify) btnVerify.disabled = editLocationMode || swapSkuLocMode;
 
             if (hint) {
                 hint.textContent = editLocationMode
@@ -3897,7 +3868,6 @@
             updateStats();
         }
 
-        document.getElementById('btnVerifyAll')?.addEventListener('click', () => verifyAll());
         document.getElementById('btnEditLocMode').addEventListener('click', () => {
             setEditLocationMode(!editLocationMode);
             showToast(editLocationMode ? 'เปิดโหมดแก้ไขตำแหน่ง' : 'ปิดโหมดแก้ไขตำแหน่ง — กลับโหมดตรวจสอบ');
@@ -5169,8 +5139,6 @@
                 return { items: [], scope: '' };
             }
 
-            const btn = document.getElementById('btnLoadCounts');
-            if (btn) btn.disabled = true;
             if (!silent) setLoading(true, 'กำลังดึงข้อมูลจาก Supabase...', 'รอสักครู่');
 
             try {
@@ -5218,7 +5186,6 @@
             }
         }
 
-        document.getElementById('btnLoadCounts')?.addEventListener('click', () => loadCountsToTable());
 
         /**
          * Pipeline ออโต้: โหลดอ้างอิง → ใส่รายการลงตาราง → ตรวจสอบทั้งหมด

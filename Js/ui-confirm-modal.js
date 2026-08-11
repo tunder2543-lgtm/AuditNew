@@ -187,25 +187,5 @@
         });
     }
 
-    /** Parse multiline confirm message into intro + bullets */
-    function parseMessage(msg) {
-        const lines = String(msg || '').split('\n').map((l) => l.trim()).filter(Boolean);
-        const bullets = [];
-        let intro = '';
-        for (const line of lines) {
-            const cleaned = line.replace(/^[·•]\s*/, '');
-            if (/^ยืนยัน/.test(cleaned) && !intro) {
-                intro = cleaned;
-            } else if (/^[·•]/.test(line) || cleaned.startsWith('•')) {
-                bullets.push(cleaned.replace(/^•\s*/, ''));
-            } else if (!intro) {
-                intro = cleaned;
-            } else {
-                bullets.push(cleaned);
-            }
-        }
-        return { intro, bullets };
-    }
-
-    window.uiConfirm = { show, twoStep, parseMessage };
+    window.uiConfirm = { show, twoStep };
 })();

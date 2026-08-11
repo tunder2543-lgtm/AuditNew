@@ -77,22 +77,6 @@
         return thaiDate === today;
     }
 
-    function bangkokTodayRange() {
-        const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
-        const m = today.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-        if (!m) return null;
-        const start = m[1] + '-' + m[2] + '-' + m[3] + 'T00:00:00+07:00';
-        const y = Number(m[1]);
-        const mo = Number(m[2]);
-        const d = Number(m[3]);
-        const dt = new Date(Date.UTC(y, mo - 1, d + 1));
-        const ey = dt.getUTCFullYear();
-        const em = String(dt.getUTCMonth() + 1).padStart(2, '0');
-        const ed = String(dt.getUTCDate()).padStart(2, '0');
-        const end = ey + '-' + em + '-' + ed + 'T00:00:00+07:00';
-        return { start: start, end: end };
-    }
-
     function getSelectedCycle() {
         if (!selectedCycleId) return null;
         return cyclesList.find(function (c) { return c.id === selectedCycleId; }) || null;
@@ -121,11 +105,6 @@
             return normalizeSku(row.warehouse) === normalizeSku(scopeWarehouse);
         }
         return true;
-    }
-
-    function skuMatchesScope(sku) {
-        if (!scopeWarehouse) return true;
-        return normalizeSku(sku.warehouse) === normalizeSku(scopeWarehouse);
     }
 
     function getScopedCounts() {
@@ -721,5 +700,4 @@
         init();
     }
 
-    window.liveCountWall = { reload: reloadAll };
 })();

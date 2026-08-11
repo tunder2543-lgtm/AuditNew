@@ -176,16 +176,6 @@
 
 
 
-    function isMultiWarehouseCycle(cycleOrWarehouse) {
-
-        const list = parseCycleWarehouses(cycleOrWarehouse);
-
-        return !!list && list.length > 1;
-
-    }
-
-
-
     function formatWarehouseDisplay(cycleOrWarehouse) {
 
         if (isAllWarehousesCycle(cycleOrWarehouse)) return ALL_WAREHOUSES;
@@ -962,30 +952,6 @@
         if (active?.id === data.id) setActiveCycle(data);
 
 
-
-        return data;
-
-    }
-
-
-
-    async function updateCycleStatus(cycleId, status) {
-
-        const client = getClient();
-
-        const { data, error } = await client
-
-            .from('count_cycles')
-
-            .update({ status, updated_at: new Date().toISOString() })
-
-            .eq('id', cycleId)
-
-            .select('*')
-
-            .single();
-
-        if (error) throw error;
 
         return data;
 
@@ -2813,45 +2779,6 @@
 
     const ACCEPT_MATCH_CHUNK = 200;
 
-    /** ยืนยันถูกต้องหลาย SKU — ใช้หลัง Import Excel ให้แสดงสถานะ match ทันที */
-    async function acceptReconciliationAsMatchBatch({ cycleId, skuIds, note, onProgress } = {}) {
-        const client = getClient();
-        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-        if (!cycleId) throw new Error('ไม่พบรอบ');
-
-        const ids = uniqueSkuIds(skuIds);
-        if (!ids.length) return { accepted: 0 };
-
-        const acceptedAt = new Date().toISOString();
-        const noteText = note || 'import_excel';
-        let accepted = 0;
-
-        for (let i = 0; i < ids.length; i += ACCEPT_MATCH_CHUNK) {
-            const chunk = ids.slice(i, i + ACCEPT_MATCH_CHUNK);
-            const rows = chunk.map(sku_id => ({
-                cycle_id: cycleId,
-                sku_id,
-                note: noteText,
-                accepted_at: acceptedAt
-            }));
-            const { error } = await client
-                .from('reconciliation_match_acceptances')
-                .upsert(rows, { onConflict: 'cycle_id,sku_id' });
-            if (error) {
-                if (/does not exist|relation|schema cache/i.test(error.message)) {
-                    throw new Error('รัน docs/sql/008_reconciliation_match_acceptances.sql ใน Supabase ก่อน');
-                }
-                throw error;
-            }
-            accepted += chunk.length;
-            if (typeof onProgress === 'function') {
-                onProgress({ done: accepted, total: ids.length, phase: 'accept' });
-            }
-        }
-
-        return { accepted };
-    }
-
     /** action_type ใน inventory_audit_logs สำหรับการล้างยอดปรับตอน Import Excel (docs/ISSUES.md H6) */
     const ADJ_CLEAR_ACTION = 'RECONCILE_ADJ_CLEAR';
     const AUDIT_LOG_CHUNK = 100;
@@ -2992,40 +2919,6 @@
         return { deleted, logged };
     }
 
-    async function fetchBookQtySums(cycleId, skuIds, { onProgress } = {}) {
-        const client = getClient();
-        if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-        const ids = uniqueSkuIds(skuIds);
-        if (!ids.length) return new Map();
-
-        const map = new Map();
-        let done = 0;
-        for (let i = 0; i < ids.length; i += BOOK_CHUNK) {
-            const chunk = ids.slice(i, i + BOOK_CHUNK);
-            const { data, error } = await client
-                .from('book_stock_lines')
-                .select('sku_id, book_qty')
-                .eq('cycle_id', cycleId)
-                .in('sku_id', chunk);
-            if (error) throw error;
-            (data || []).forEach(r => {
-                const sku = normalizeSku(r.sku_id);
-                if (!sku) return;
-                map.set(sku, (map.get(sku) || 0) + Number(r.book_qty || 0));
-            });
-            done += chunk.length;
-            if (typeof onProgress === 'function') {
-                onProgress({ done, total: ids.length, phase: 'book' });
-            }
-        }
-        return map;
-    }
-
-    /** @deprecated ใช้ importBookStockLines(..., { mode: 'merge' }) แทน */
-    async function importBookStockLinesMerge(cycleId, validRows, fileName) {
-        return importBookStockLines(cycleId, validRows, fileName, { mode: 'merge' });
-    }
-
     function computeStatusFromEffective(effective, counted) {
         return computeMatchStatus({
             bookQty: 0,
@@ -3131,97 +3024,11 @@
         });
     }
 
-    /** Apply: เคลียร์ adjustment ของ SKU ในไฟล์ แล้วสร้าง+apply ให้ effective ตรงเป้าหมาย */
-    async function applyAdjustmentsToBookTargets(cycleId, targetsBySku, { notePrefix = 'import_excel', onProgress } = {}) {
-        const client = getClient();
-        if (!client || !cycleId) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-
-        const entries = Object.entries(targetsBySku || {})
-            .map(([sku, qty]) => ({ skuId: normalizeSku(sku), targetEffective: Number(qty) }))
-            .filter(e => e.skuId && Number.isFinite(e.targetEffective));
-        if (!entries.length) return { applied: 0, skippedZero: 0, results: [], preview: [] };
-
-        const skuIds = [...new Set(entries.map(e => e.skuId))];
-        const progress = (phase, done, total) => {
-            if (typeof onProgress === 'function') onProgress({ phase, done, total });
-        };
-
-        progress('clear', 0, skuIds.length);
-        await clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skuIds, {
-            onProgress: ({ done, total }) => progress('clear', done, total)
-        });
-
-        progress('preview', 0, skuIds.length);
-        const preview = await previewAdjustmentsToBookTargets(cycleId, targetsBySku, {
-            onProgress: ({ done, total }) => progress('preview', done, total)
-        });
-
-        const items = [];
-        let skippedZero = 0;
-        const EPS = 1e-6;
-        const previewBySku = new Map(preview.map(p => [p.skuId, p]));
-
-        for (const e of entries) {
-            const p = previewBySku.get(e.skuId);
-            const adjustmentQty = p ? p.requiredAdjustmentQty : 0;
-            if (Math.abs(adjustmentQty) < EPS) {
-                skippedZero++;
-                continue;
-            }
-            items.push({
-                cycleId,
-                skuId: e.skuId,
-                adjustmentQty,
-                varianceBefore: p ? (p.currentEffective - p.countedQty) : null,
-                reason: 'reconcile',
-                note: `${notePrefix}: target=${e.targetEffective}`
-            });
-        }
-
-        let inserted = [];
-        if (items.length) {
-            progress('draft', 0, items.length);
-            for (let i = 0; i < items.length; i += BOOK_CHUNK) {
-                const chunk = items.slice(i, i + BOOK_CHUNK);
-                const batch = await createStockAdjustmentsBatch(chunk);
-                inserted = inserted.concat(batch || []);
-                progress('draft', Math.min(i + chunk.length, items.length), items.length);
-            }
-        }
-
-        let applied = 0;
-        const results = [];
-        if (inserted.length) {
-            progress('apply', 0, inserted.length);
-            for (let i = 0; i < inserted.length; i += ADJ_APPLY_PARALLEL) {
-                const chunk = inserted.slice(i, i + ADJ_APPLY_PARALLEL);
-                await Promise.all(chunk.map(row => applyStockAdjustment(row.id)));
-                for (const row of chunk) {
-                    applied++;
-                    const p = previewBySku.get(row.sku_id);
-                    results.push({
-                        skuId: row.sku_id,
-                        targetEffective: entries.find(x => x.skuId === row.sku_id)?.targetEffective,
-                        adjustmentQty: Number(row.adjustment_qty),
-                        statusAfter: p?.statusAfter || 'match'
-                    });
-                }
-                progress('apply', applied, inserted.length);
-            }
-        }
-
-        progress('refresh', 0, 1);
-        await refreshReconciliation(cycleId);
-        progress('refresh', 1, 1);
-
-        return { applied, skippedZero, results, preview };
-    }
-
     /**
      * Import Book จาก Excel แล้ว **ปล่อยให้สถานะคำนวณเองตามจริง** (docs/ISSUES.md H6)
      *
      * ของเดิม: merge Book → สร้าง adjustment (ซึ่ง `target − bookQty = 0` เสมอเพราะเพิ่ง merge
-     * ไปแล้ว จึงเป็น dead path) → `acceptReconciliationAsMatchBatch` **force ทุก SKU ในไฟล์
+     * ไปแล้ว จึงเป็น dead path) → `acceptReconciliationAsMatchBatch` (ลบทิ้งแล้ว 2026-08-11) **force ทุก SKU ในไฟล์
      * เป็น "ถูกต้อง" โดยไม่ดูผลนับ** ทำให้ KPI สวยเกินจริง
      *
      * ของใหม่ ลำดับคือ:
@@ -3400,7 +3207,6 @@
 
         refreshStandardWarehousesFromRegistry,
 
-        isMultiWarehouseCycle,
 
         formatWarehouseDisplay,
 
@@ -3442,7 +3248,6 @@
 
         createCycle,
 
-        updateCycleStatus,
 
         updateCycleWarehouses,
 
@@ -3484,7 +3289,6 @@
 
         importBookStockLines,
 
-        importBookStockLinesMerge,
 
         insertBookStockPayloads,
 
@@ -3524,15 +3328,12 @@
 
         acceptReconciliationAsMatch,
 
-        acceptReconciliationAsMatchBatch,
 
         clearAdjustmentsAndMatchAcceptancesForSkus,
 
-        fetchBookQtySums,
 
         previewAdjustmentsToBookTargets,
 
-        applyAdjustmentsToBookTargets,
 
         importBookAndRecompute,
 

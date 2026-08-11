@@ -55,8 +55,8 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `warehouses-shared.js` | `window.warehouseService` | registry คลัง (ตาราง `warehouses`), cache 30 วิ, fallback 3 คลัง hardcode, CRUD + event `warehouseRegistryChanged` |
 | `sku-utils.js` | `window.SkuUtils` | มาตรฐาน SKU: `normalizeSku` = trim + UPPERCASE |
 | `db-errors.js` | `window.DbErrors` | แปล error Postgres (23505/23502/23503/23514) เป็นภาษาไทย |
-| `ui-confirm-modal.js` | `window.uiConfirm` | modal ยืนยัน (แทน `confirm()`) รองรับ 2 ขั้น — คู่กับ `Css/ui-confirm.css` |
-| `reconcile-shared.js` | `window.reconcileService` | service ใหญ่สุด (~3,231 บรรทัด ~95 exports): cycle CRUD, Book import, active cycle, เวลา Bangkok, reconciliation, adjustments — ดูรายละเอียดใน [pages/reconcile.md](pages/reconcile.md) |
+| `ui-confirm-modal.js` | `window.uiConfirm` | modal ยืนยัน (แทน `confirm()`) รองรับ 2 ขั้น (`show`, `twoStep`) — คู่กับ `Css/ui-confirm.css` |
+| `reconcile-shared.js` | `window.reconcileService` | service ใหญ่สุด (~78 exports): cycle CRUD, Book import, active cycle, เวลา Bangkok, reconciliation, adjustments — ดูรายละเอียดใน [pages/reconcile.md](pages/reconcile.md) |
 | `dashboard-shared.js` | `window.dashboardShared` | helper คำนวณ bucket/สถิติ + สร้าง Chart.js (ไม่มี I/O) |
 | `audit-dedupe.js` | `window.AuditDedupe` | นิยาม "แถวซ้ำ" ของ `inventory_counts` ตามนโยบาย migration 011 (ใช้โดย audit_check — แยกออกมาให้เทสได้) |
 | `audit-book-impact.js` | audit_check | คำนวณผลกระทบของแถวทับซ้อนต่อ Match + สถานะ "ยืนยันว่าปกติ" |

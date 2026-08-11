@@ -134,4 +134,7 @@ node tests/run.mjs
   - เพิ่ม `tests/unit/scope-guard.test.mjs` — **รัน `submitGroup` + `handleEdConfirm` จริงทั้ง 2 เส้นทาง** (พิสูจน์แล้วว่าเอาบั๊กกลับมาแล้วแดง)
   - ⚠️ **`tests/helpers/lift.mjs` เคยยกผิดฟังก์ชันเงียบ ๆ** — `includes('function handleEdConfirm')` ไปแมตช์ `handleEdConfirmInner` · เพิ่มเช็คขอบคำแล้ว
   - ⛔ **กติกาใหม่: แก้บรรทัดในฟังก์ชันไหน ต้องมีเทสที่ *รัน* ฟังก์ชันนั้น** ไม่ใช่แค่เทสที่อ่านซอร์สของมัน
+  - ✅ **ปิดช่องปุ่มที่เขียนข้อมูลครบทั้ง 5 ตัวแล้ว** — `tests/unit/write-path-runtime.test.mjs` รัน `applySwapSkuLocSelected` · `saveLocationChanges` · `applyLocCompareUpdates` · `runImport` จริง (คู่กับ `scope-guard` ที่รัน `submitGroup` + `handleEdConfirm`) · mutation 6 แบบแดง 5 (อีก 1 พิสูจน์แล้วว่าเป็น no-op — flush audit log กลางลูปหายไปแต่ตัวปิดท้ายยังบังคับเขียนอยู่)
+  - ตัวเลขล่าสุด: ฟังก์ชันที่แก้ในชุด 1–5 มี 90 จุด **มีเทสรันจริง 36** (เดิม 29) — ที่เหลือส่วนใหญ่เป็น helper เล็ก ๆ ที่ไม่เขียน DB
+  - ⚠️ **`deepStrictEqual` ใช้ข้าม realm ของ `vm` ไม่ได้** — object ที่สร้างใน sandbox มี prototype คนละตัว · เทียบผ่าน `JSON.stringify` แทน (เจอซ้ำครั้งที่ 2)
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

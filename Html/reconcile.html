@@ -524,6 +524,10 @@
                             <i data-lucide="check-check"></i> ยอมรับเกิน (Apply เป็นชุด)
                         </button>
 
+                        <button type="button" class="rc-btn rc-btn-green rc-btn-auto" id="btnBulkAcceptShort" style="display:none;" title="เลือกรายการสถานะ ขาด ที่ต่างไม่เกินเพดานที่กำหนด ดูรายการ/Export แล้วยอมรับผลนับทั้งชุดในครั้งเดียว — Excel ใช้เทียบจะถูกปรับลงเท่าผลนับ">
+                            <i data-lucide="check-check"></i> ยอมรับขาด (Apply เป็นชุด)
+                        </button>
+
                         <div class="rc-adj-hint" id="adjHint"></div>
 
                         <div class="rc-form-group">
@@ -652,9 +656,9 @@
 <!-- ยอมรับผลนับสถานะ "เกิน" เป็นชุด ตามเพดานค่าต่าง -->
 <div class="rc-modal" id="bulkAcceptModal">
     <div class="rc-modal-box">
-        <h3><i data-lucide="check-check"></i> ยอมรับผลนับ (Apply ทันที) — สถานะ เกิน</h3>
+        <h3><i data-lucide="check-check"></i> ยอมรับผลนับ (Apply ทันที) — สถานะ <span id="bulkAcceptTitleMode">เกิน</span></h3>
         <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-            <label for="bulkAcceptMax" style="font-size:0.85rem;">เลือกรายการที่ ต่าง +1 ถึง</label>
+            <label for="bulkAcceptMax" style="font-size:0.85rem;" id="bulkAcceptRangeLabel">เลือกรายการที่ ต่าง +1 ถึง</label>
             <input type="number" id="bulkAcceptMax" min="1" step="1" value="10" style="width:90px;">
             <span class="rc-modal-hint" id="bulkAcceptSummary">—</span>
         </div>
@@ -942,12 +946,16 @@
             ? `สร้าง Draft ปรับยอดทุก SKU โหมด${label} ตามจำนวนที่ต่าง`
             : 'เลือกโหมด ขาด หรือ เกิน ก่อน';
 
-        // ปุ่ม "ยอมรับเกินเป็นชุด" ทำงานกับสถานะเกินเท่านั้น — โผล่เฉพาะตอนเลือกโหมดเกิน
-        // ไม่งั้นคนอยู่โหมดขาด/ทั้งหมดจะเห็นปุ่มที่ไม่เกี่ยวกับสิ่งที่กำลังดู
+        // ปุ่มยอมรับแบบชุด โผล่เฉพาะโหมดของตัวเอง — คนอยู่โหมดอื่นต้องไม่เห็นปุ่มที่ไม่เกี่ยว
         const bulkBtn = document.getElementById('btnBulkAcceptOver');
         if (bulkBtn) {
             bulkBtn.style.display = adjustViewMode === 'over' ? '' : 'none';
             bulkBtn.disabled = !linesCache.length;
+        }
+        const bulkShortBtn = document.getElementById('btnBulkAcceptShort');
+        if (bulkShortBtn) {
+            bulkShortBtn.style.display = adjustViewMode === 'short' ? '' : 'none';
+            bulkShortBtn.disabled = !linesCache.length;
         }
     }
 
@@ -2492,26 +2500,42 @@
     /* ── ยอมรับเกินเป็นชุด (ตามเพดานค่าต่าง) ───────────────────────────── */
 
     /**
-     * เลือกแถวสถานะ "เกิน" ที่ ต่าง +1 ถึง +maxDiff — ข้ามแถวที่ยืนยันไปแล้ว
-     * (count_only ไม่เข้าเพราะสถานะไม่ใช่ over · แถว Book 0 ที่อยู่ใน Book = over จริง จึงเข้า)
+     * เลือกแถวตามสถานะ (over/short) ที่ขนาดค่าต่างอยู่ใน 1..maxDiff — ข้ามที่ยืนยันแล้ว
+     * เกิน: ต่าง +1 ถึง +max · ขาด: ต่าง −1 ถึง −max
+     * (count_only ไม่เข้าเพราะสถานะไม่ใช่ over/short · book_only ไม่เข้าเช่นกัน)
+     * เกณฑ์อยู่ที่เดียว — สองปุ่มใช้ฟังก์ชันเดียวกัน แก้ทีเดียวได้ทั้งคู่
      */
-    function selectOverRowsForBulkAccept(lines, maxDiff) {
+    function selectRowsForBulkAccept(lines, maxDiff, mode) {
         const max = Number(maxDiff);
         if (!Number.isFinite(max) || max < 1) return [];
+        if (mode !== 'over' && mode !== 'short') return [];
         return (lines || []).filter(l => {
             if (isLineAcceptedMatch(l.sku_id)) return false;
-            if (resolveDisplayStatus(l) !== 'over') return false;
+            if (resolveDisplayStatus(l) !== mode) return false;
             const v = computeDisplayVariance(l);
-            return v >= 1 && v <= max;
+            return mode === 'over'
+                ? (v >= 1 && v <= max)
+                : (v <= -1 && v >= -max);
         });
     }
 
+    function selectOverRowsForBulkAccept(lines, maxDiff) {
+        return selectRowsForBulkAccept(lines, maxDiff, 'over');
+    }
+
+    /** ป้ายเพดานตามโหมด — 'เกินไม่เกิน +10' / 'ขาดไม่เกิน −10' */
+    function bulkAcceptRangeText(maxDiff, mode) {
+        return mode === 'short'
+            ? `ขาดไม่เกิน −${Number(maxDiff)}`
+            : `เกินไม่เกิน +${Number(maxDiff)}`;
+    }
+
     /** แถว Excel ของรายการที่กำลังจะยอมรับ — ใช้ทั้งแสดงในโมดัลและ Export */
-    function buildBulkAcceptExportRows(rows, maxDiff) {
-        let sumOver = 0;
+    function buildBulkAcceptExportRows(rows, maxDiff, mode = 'over') {
+        let sumVar = 0;
         const data = rows.map((l, i) => {
             const m = getExportLineMetrics(l);
-            sumOver += m.variance;
+            sumVar += m.variance;
             return {
                 '#': i + 1,
                 SKU: l.sku_id,
@@ -2523,36 +2547,40 @@
             };
         });
         data.push({
-            '#': '', SKU: 'รวม', 'ชื่อ': `เกินไม่เกิน +${Number(maxDiff)}`,
-            'Excel ใช้เทียบ (ก่อน)': '', 'ผลนับ': '', 'ต่าง': sumOver,
+            '#': '', SKU: 'รวม', 'ชื่อ': bulkAcceptRangeText(maxDiff, mode),
+            'Excel ใช้เทียบ (ก่อน)': '', 'ผลนับ': '', 'ต่าง': sumVar,
             'ยอดหลัง Apply': `${rows.length.toLocaleString()} SKU`
         });
         return data;
     }
 
     let bulkAcceptRows = [];
+    let bulkAcceptMode = 'over';   // 'over' | 'short' — ตั้งตอนเปิดโมดัล
 
     function refreshBulkAcceptList() {
         const max = Number(document.getElementById('bulkAcceptMax').value);
-        bulkAcceptRows = selectOverRowsForBulkAccept(linesCache, max);
+        bulkAcceptRows = selectRowsForBulkAccept(linesCache, max, bulkAcceptMode);
+        const isShort = bulkAcceptMode === 'short';
         const body = document.getElementById('bulkAcceptList');
         const sum = bulkAcceptRows.reduce((t, l) => t + computeDisplayVariance(l), 0);
+        const varColor = isShort ? '#f87171' : '#fbbf24';
         body.innerHTML = bulkAcceptRows.map((l, i) => {
             const m = getExportLineMetrics(l);
             return `<tr><td>${i + 1}</td><td>${RS.escapeHtml(l.sku_id)}</td>` +
                 `<td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;">${RS.escapeHtml(skuNameMap[l.sku_id] || '')}</td>` +
                 `<td style="text-align:right">${m.effective.toLocaleString()}</td>` +
                 `<td style="text-align:right">${m.counted.toLocaleString()}</td>` +
-                `<td style="text-align:right;color:#fbbf24;">+${m.variance.toLocaleString()}</td></tr>`;
-        }).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem;">ไม่มีรายการเกินในช่วงนี้</td></tr>';
-        document.getElementById('bulkAcceptSummary').textContent =
-            `${bulkAcceptRows.length.toLocaleString()} SKU · รวมเกิน +${sum.toLocaleString()} ชิ้น`;
+                `<td style="text-align:right;color:${varColor};">${m.variance > 0 ? '+' : ''}${m.variance.toLocaleString()}</td></tr>`;
+        }).join('') || `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem;">ไม่มีรายการ${isShort ? 'ขาด' : 'เกิน'}ในช่วงนี้</td></tr>`;
+        document.getElementById('bulkAcceptSummary').textContent = isShort
+            ? `${bulkAcceptRows.length.toLocaleString()} SKU · รวมขาด −${Math.abs(sum).toLocaleString()} ชิ้น`
+            : `${bulkAcceptRows.length.toLocaleString()} SKU · รวมเกิน +${sum.toLocaleString()} ชิ้น`;
         document.getElementById('bulkAcceptCount').textContent = bulkAcceptRows.length.toLocaleString();
         document.getElementById('btnBulkAcceptConfirm').disabled = bulkAcceptRows.length === 0;
         lucide.createIcons();
     }
 
-    function openBulkAcceptOverModal() {
+    function openBulkAcceptModal(mode) {
         if (!currentCycle?.id || !linesCache.length) {
             return showToast('เลือกรอบและคำนวณ Match ก่อน', 'error');
         }
@@ -2561,13 +2589,20 @@
         if (drafts.length) {
             return showToast(`มี Draft ค้าง ${drafts.length} รายการ — Apply ทั้งหมด หรือลบ Draft ก่อน จึงจะใช้โหมดชุดได้`, 'error');
         }
+        bulkAcceptMode = mode === 'short' ? 'short' : 'over';
+        document.getElementById('bulkAcceptTitleMode').textContent = bulkAcceptMode === 'short' ? 'ขาด' : 'เกิน';
+        document.getElementById('bulkAcceptRangeLabel').textContent = bulkAcceptMode === 'short'
+            ? 'เลือกรายการที่ ต่าง −1 ถึง −'
+            : 'เลือกรายการที่ ต่าง +1 ถึง +';
         document.getElementById('bulkAcceptModal').classList.add('active');
         refreshBulkAcceptList();
     }
 
+    function openBulkAcceptOverModal() { openBulkAcceptModal('over'); }
+
     async function runBulkAcceptOver() {
         const max = Number(document.getElementById('bulkAcceptMax').value);
-        const rows = selectOverRowsForBulkAccept(linesCache, max);
+        const rows = selectRowsForBulkAccept(linesCache, max, bulkAcceptMode);
         if (!rows.length) return showToast('ไม่มีรายการในช่วงที่เลือก', 'error');
 
         // เช็คซ้ำก่อนเขียนจริง — ระหว่างเปิดโมดัลอาจมีคนสร้าง draft เพิ่ม
@@ -2579,15 +2614,19 @@
         const cycleId = lockCycleId();
         if (!cycleId) return;
 
+        const isShort = bulkAcceptMode === 'short';
         const sum = rows.reduce((t, l) => t + computeDisplayVariance(l), 0);
-        const bullets = rows.slice(0, 8).map(l =>
-            `${l.sku_id}: +${computeDisplayVariance(l)} → ยอด ${Number(l.counted_qty)}`);
+        const sumLabel = isShort ? `รวมขาด −${Math.abs(sum).toLocaleString()}` : `รวมเกิน +${sum.toLocaleString()}`;
+        const bullets = rows.slice(0, 8).map(l => {
+            const v = computeDisplayVariance(l);
+            return `${l.sku_id}: ${v > 0 ? '+' : ''}${v} → ยอด ${Number(l.counted_qty)}`;
+        });
         if (rows.length > 8) bullets.push(`… และอีก ${rows.length - 8} SKU`);
         const okBulk = await uiConfirm.twoStep({
-            title: `ยอมรับผลนับ เกินไม่เกิน +${max}`,
+            title: `ยอมรับผลนับ ${bulkAcceptRangeText(max, bulkAcceptMode)}`,
             variant: 'amber',
             step1: {
-                intro: `ยอมรับผลนับ ${rows.length.toLocaleString()} SKU (รวมเกิน +${sum.toLocaleString()} ชิ้น)`,
+                intro: `ยอมรับผลนับ ${rows.length.toLocaleString()} SKU (${sumLabel} ชิ้น)`,
                 bullets,
                 confirmLabel: 'ดำเนินการต่อ'
             },
@@ -2612,14 +2651,14 @@
                     skuId: l.sku_id,
                     adjustmentQty: computeAutoAdjustmentQty(l),
                     varianceBefore: computeDisplayVariance(l),
-                    note: `ยอมรับผลนับ (เกินไม่เกิน +${max})`,
+                    note: `ยอมรับผลนับ (${bulkAcceptRangeText(max, bulkAcceptMode)})`,
                     reason: 'reconcile'
                 }));
                 await RS.createStockAdjustmentsBatch(toCreate);
                 const applied = await RS.applyAllDraftsForCycle(cycleId);
                 document.getElementById('bulkAcceptModal').classList.remove('active');
                 await runRefresh({ skipReconciliationRefresh: true });
-                showToast(`ยอมรับผลนับแล้ว ${applied} SKU (+${sum.toLocaleString()} ชิ้น) — ดู/คืนค่าได้ที่ปุ่ม "ประวัติ / คืนค่า"`);
+                showToast(`ยอมรับผลนับแล้ว ${applied} SKU (${sumLabel} ชิ้น) — ดู/คืนค่าได้ที่ปุ่ม "ประวัติ / คืนค่า"`);
             } catch (err) {
                 showToast(err.message, 'error');
             } finally {
@@ -2806,7 +2845,8 @@
     });
     document.getElementById('btnApplyAll').addEventListener('click', applyAllDrafts);
 
-    document.getElementById('btnBulkAcceptOver').addEventListener('click', openBulkAcceptOverModal);
+    document.getElementById('btnBulkAcceptOver').addEventListener('click', () => openBulkAcceptModal('over'));
+    document.getElementById('btnBulkAcceptShort').addEventListener('click', () => openBulkAcceptModal('short'));
     document.getElementById('bulkAcceptMax').addEventListener('input', refreshBulkAcceptList);
     document.getElementById('btnBulkAcceptClose').addEventListener('click', () =>
         document.getElementById('bulkAcceptModal').classList.remove('active'));
@@ -2814,12 +2854,14 @@
     document.getElementById('btnBulkAcceptExport').addEventListener('click', () => {
         if (!bulkAcceptRows.length) return showToast('ไม่มีรายการให้ Export', 'error');
         const max = Number(document.getElementById('bulkAcceptMax').value);
-        const data = buildBulkAcceptExportRows(bulkAcceptRows, max);
+        const data = buildBulkAcceptExportRows(bulkAcceptRows, max, bulkAcceptMode);
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'ยอมรับเกิน');
+        const sheetName = bulkAcceptMode === 'short' ? 'ยอมรับขาด' : 'ยอมรับเกิน';
+        XLSX.utils.book_append_sheet(wb, ws, sheetName);
         const ym = currentCycle?.year_month || 'cycle';
-        XLSX.writeFile(wb, `ยอมรับเกิน_ไม่เกิน+${max}_${ym}.xlsx`);
+        const cap = bulkAcceptMode === 'short' ? `ไม่เกิน-${max}` : `ไม่เกิน+${max}`;
+        XLSX.writeFile(wb, `${sheetName}_${cap}_${ym}.xlsx`);
         showToast(`Export ${bulkAcceptRows.length.toLocaleString()} SKU`);
     });
 

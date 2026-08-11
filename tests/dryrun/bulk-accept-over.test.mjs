@@ -21,7 +21,8 @@ const line = o => ({ sku_id: 'X', book_qty: 0, adjustment_applied: 0, counted_qt
 function liftSelector({ accepted = [], drafts = {} } = {}) {
     const acceptedSet = new Set(accepted.map(norm));
     return liftFunctions(RECONCILE, [
-        'selectOverRowsForBulkAccept', 'buildBulkAcceptExportRows',
+        'selectRowsForBulkAccept', 'selectOverRowsForBulkAccept',
+        'bulkAcceptRangeText', 'buildBulkAcceptExportRows',
         'getExportLineMetrics', 'getTotalAdjustment', 'computeDisplayVariance',
         'formatRowVariancePct', 'isExcludedFromPct',
     ], {
@@ -102,7 +103,8 @@ function fakeEl(extra = {}) {
     };
 }
 
-function liftBulkFlow({ lines, draftsInCache = [], confirm = true, max = 10 } = {}) {
+function liftBulkFlow({ lines, draftsInCache = [], confirm = true, max = 10, mode = 'over' } = {}) {
+    const arguments0_mode = mode;
     const calls = { batch: null, applyAll: 0, refresh: 0, confirms: 0 };
     const toasts = [];
     const els = {
@@ -113,8 +115,9 @@ function liftBulkFlow({ lines, draftsInCache = [], confirm = true, max = 10 } = 
         btnBulkAcceptConfirm: fakeEl(),
     };
     const fns = liftFunctions(RECONCILE, [
-        'runBulkAcceptOver', 'selectOverRowsForBulkAccept',
+        'runBulkAcceptOver', 'selectRowsForBulkAccept', 'bulkAcceptRangeText',
     ], {
+        bulkAcceptMode: arguments0_mode || 'over',
         RS: {
             normalizeSku: norm,
             createStockAdjustmentsBatch: async items => { calls.batch = items; },
@@ -125,7 +128,10 @@ function liftBulkFlow({ lines, draftsInCache = [], confirm = true, max = 10 } = 
         currentCycle: { id: 'cyc-1', year_month: '2026-08' },
         lockCycleId: () => 'cyc-1',
         isLineAcceptedMatch: () => false,
-        resolveDisplayStatus: l => (Number(l.counted_qty) > Number(l.book_qty) ? 'over' : 'match'),
+        resolveDisplayStatus: l => {
+            const c = Number(l.counted_qty), b = Number(l.book_qty);
+            return c > b ? 'over' : c < b ? 'short' : 'match';
+        },
         computeDisplayVariance: l => Number(l.counted_qty) - Number(l.book_qty),
         computeAutoAdjustmentQty: l => Number(l.counted_qty) - Number(l.book_qty) - Number(l.adjustment_applied),
         uiConfirm: { twoStep: async () => { calls.confirms++; return confirm; } },
@@ -261,6 +267,110 @@ test('[ui] ปุ่ม/โมดัลครบ และ Export ใช้ร�
     assert.match(RECONCILE, /id="btnBulkAcceptExport"/);
     assert.match(RECONCILE, /id="btnAdjHistory"/);
     assert.match(RECONCILE, /id="adjHistoryModal"/);
-    assert.match(RECONCILE, /buildBulkAcceptExportRows\(bulkAcceptRows, max\)/, 'Export ต้องใช้รายการที่แสดงอยู่');
+    assert.match(RECONCILE, /buildBulkAcceptExportRows\(bulkAcceptRows, max, bulkAcceptMode\)/, 'Export ต้องใช้รายการที่แสดงอยู่ตามโหมด');
     assert.match(RECONCILE, /uiConfirm\.twoStep/, 'ต้องยืนยัน 2 ขั้น');
+});
+
+// -----------------------------------------------------------------------------
+// ฝั่ง "ขาด" — โจทย์เดียวกัน กลับเครื่องหมาย (โค้ดชุดเดียวกับฝั่งเกิน)
+// -----------------------------------------------------------------------------
+test('ฝั่งขาด: เพดาน 10 ต้องได้เฉพาะขาด −1 ถึง −10', () => {
+    const f = liftSelector();
+    const rows = [
+        line({ sku_id: 'S1', book_qty: 11, counted_qty: 10 }),   // −1  ✓
+        line({ sku_id: 'S10', book_qty: 20, counted_qty: 10 }),  // −10 ✓ (ขอบรวม)
+        line({ sku_id: 'S11', book_qty: 21, counted_qty: 10 }),  // −11 ✗ เกินเพดาน
+        line({ sku_id: 'P1', book_qty: 10, counted_qty: 12 }),   // เกิน ✗
+        line({ sku_id: 'M1', book_qty: 5, counted_qty: 5 }),     // ตรง ✗
+        line({ sku_id: 'B1', book_qty: 9, counted_qty: 0, __status: 'book_only' }), // ยังไม่ได้นับ ✗
+    ];
+    const out = f.selectRowsForBulkAccept(rows, 10, 'short');
+    assert.equal(out.map(l => l.sku_id).join(','), 'S1,S10');
+});
+
+test('ฝั่งขาด: แถวที่ยืนยันแล้วไม่ถูกเลือก และโหมดที่ไม่รู้จัก = ว่าง', () => {
+    const f = liftSelector({ accepted: ['S1'] });
+    const rows = [
+        line({ sku_id: 'S1', book_qty: 12, counted_qty: 10 }),
+        line({ sku_id: 'S2', book_qty: 12, counted_qty: 10 }),
+    ];
+    assert.equal(f.selectRowsForBulkAccept(rows, 10, 'short').map(l => l.sku_id).join(','), 'S2');
+    assert.equal(f.selectRowsForBulkAccept(rows, 10, 'อะไรก็ไม่รู้').length, 0);
+});
+
+test('ฝั่งขาด: Export ป้ายรวมต้องบอก "ขาดไม่เกิน −N" และต่างติดลบ', () => {
+    const f = liftSelector();
+    const rows = [
+        line({ sku_id: 'S1', book_qty: 13, counted_qty: 10 }),
+        line({ sku_id: 'S2', book_qty: 25, counted_qty: 20 }),
+    ];
+    const out = f.buildBulkAcceptExportRows(rows, 10, 'short');
+    assert.equal(out[0]['ต่าง'], -3);
+    assert.equal(out[0]['ยอดหลัง Apply'], 10, 'หลัง Apply ยอดจริงคือผลนับ');
+    const total = out[out.length - 1];
+    assert.match(String(total['ชื่อ']), /ขาดไม่เกิน −10/);
+    assert.equal(total['ต่าง'], -8);
+});
+
+test('[flow] ฝั่งขาด: ยอดปรับต้องติดลบ และ note บอกขาดไม่เกิน', async () => {
+    const g = liftBulkFlow({
+        mode: 'short',
+        lines: [line({ sku_id: 'S1', book_qty: 13, counted_qty: 10 })],
+    });
+    // liftBulkFlow stub resolveDisplayStatus เดิมมองแค่ over — flow ฝั่งขาดใช้ selector จริง
+    await g.runBulkAcceptOver();
+    assert.ok(g.calls.batch, 'ต้องสร้างยอดปรับ');
+    assert.equal(g.calls.batch[0].adjustmentQty, -3, 'ขาด = ยอดปรับติดลบ (Excel ลดลงเท่าผลนับ)');
+    assert.match(g.calls.batch[0].note, /ขาดไม่เกิน −10/);
+    assert.equal(g.calls.applyAll, 1);
+});
+
+test('[ui] ปุ่มยอมรับขาดต้องโผล่เฉพาะโหมด "ขาด" เท่านั้น', () => {
+    assert.match(RECONCILE, /id="btnBulkAcceptShort" style="display:none;"/,
+        'ค่าเริ่มต้นใน markup ต้องซ่อน');
+    const at = RECONCILE.indexOf('function updateAutoAdjustButton');
+    const body = RECONCILE.slice(at, at + 1600);
+    assert.match(body, /bulkShortBtn\.style\.display = adjustViewMode === 'short' \? '' : 'none'/,
+        'ต้องโผล่เฉพาะโหมดขาด');
+});
+
+test('[flow] รายการที่แสดงในโมดัลต้องเป็นโหมดเดียวกับที่จะ Apply', () => {
+    // mutation พิสูจน์ว่า refreshBulkAcceptList hardcode 'over' ได้โดยเทสอื่นเขียวหมด
+    // = ผู้ใช้ตรวจรายการฝั่งเกิน แต่ตอนกดยืนยันระบบ Apply ฝั่งขาด — อันตรายมาก
+    const lines = [
+        line({ sku_id: 'P1', book_qty: 10, counted_qty: 12 }),   // เกิน +2
+        line({ sku_id: 'S1', book_qty: 12, counted_qty: 10 }),   // ขาด −2
+    ];
+    const els = {
+        bulkAcceptMax: fakeEl({ value: '10' }),
+        bulkAcceptList: fakeEl(),
+        bulkAcceptSummary: fakeEl(),
+        bulkAcceptCount: fakeEl(),
+        btnBulkAcceptConfirm: fakeEl(),
+    };
+    const fns = liftFunctions(RECONCILE, [
+        'refreshBulkAcceptList', 'selectRowsForBulkAccept',
+    ], {
+        RS: { normalizeSku: norm, escapeHtml: v => String(v ?? '') },
+        linesCache: lines,
+        bulkAcceptMode: 'short',
+        bulkAcceptRows: [],
+        skuNameMap: {},
+        isLineAcceptedMatch: () => false,
+        resolveDisplayStatus: l => {
+            const c = Number(l.counted_qty), b = Number(l.book_qty);
+            return c > b ? 'over' : c < b ? 'short' : 'match';
+        },
+        computeDisplayVariance: l => Number(l.counted_qty) - Number(l.book_qty),
+        getExportLineMetrics: l => ({
+            effective: Number(l.book_qty), counted: Number(l.counted_qty),
+            variance: Number(l.counted_qty) - Number(l.book_qty),
+        }),
+        lucide: { createIcons() {} },
+        document: { getElementById: id => els[id] || fakeEl() },
+    });
+    fns.refreshBulkAcceptList();
+    assert.match(els.bulkAcceptList.innerHTML, /S1/, 'โหมดขาดต้องแสดงแถวขาด');
+    assert.ok(!/P1/.test(els.bulkAcceptList.innerHTML), 'ห้ามแสดงแถวเกินในโหมดขาด');
+    assert.match(els.bulkAcceptSummary.textContent, /รวมขาด −2/);
 });

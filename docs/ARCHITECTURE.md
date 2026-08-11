@@ -45,7 +45,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 6. `reconcile.html` — กด "คำนวณ Match" → ปรับยอด/ยอมรับ → export
 7. `book_explorer.html` / `dashboard.html` / `live_count_wall.html` — ดูผล
 
-## Shared JS Layer (`Js/` — 16 ไฟล์)
+## Shared JS Layer (`Js/` — 17 ไฟล์)
 
 | ไฟล์ | Global ที่ export | หน้าที่ |
 |---|---|---|
@@ -56,6 +56,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `sku-utils.js` | `window.SkuUtils` | มาตรฐาน SKU: `normalizeSku` = trim + UPPERCASE |
 | `db-errors.js` | `window.DbErrors` | แปล error Postgres (23505/23502/23503/23514) เป็นภาษาไทย |
 | `ui-confirm-modal.js` | `window.uiConfirm` | modal ยืนยัน (แทน `confirm()`) รองรับ 2 ขั้น (`show`, `twoStep`) — คู่กับ `Css/ui-confirm.css` |
+| `count-scan-shared.js` | `window.countScanService` | อ่าน "เดือน/วันที่มีข้อมูลนับ" จาก `inventory_counts` (RPC ก่อน ไม่มีค่อยแบ่งหน้า) · ⛔ ห้ามใช้ `.limit()` กับตารางนี้ · **ต้องโหลดก่อน `reconcile-shared.js`** (invariant ข้อ 8) — ใช้โดย reconcile-shared (delegate), cycle_config, count_search, audit_check |
 | `reconcile-shared.js` | `window.reconcileService` | service ใหญ่สุด (~78 exports): cycle CRUD, Book import, active cycle, เวลา Bangkok, reconciliation, adjustments — ดูรายละเอียดใน [pages/reconcile.md](pages/reconcile.md) |
 | `dashboard-shared.js` | `window.dashboardShared` | helper คำนวณ bucket/สถิติ + สร้าง Chart.js (ไม่มี I/O) |
 | `audit-dedupe.js` | `window.AuditDedupe` | นิยาม "แถวซ้ำ" ของ `inventory_counts` ตามนโยบาย migration 011 (ใช้โดย audit_check — แยกออกมาให้เทสได้) |

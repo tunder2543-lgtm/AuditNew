@@ -220,14 +220,25 @@
 ### - [ ] M10. index: KPI แสดง 0%/0 ระหว่าง Book โหลด โดยแยกไม่ออกจาก "นับครบแล้ว"
 `Js/script.js:1345, 1363`
 
-### - [ ] M11. count_search: ตัวเลือกเดือนตัดที่ 8000 แถวเงียบ ๆ
-`Html/count_search.html:566` — เดือนเก่าหายจาก picker โดยไม่เตือน
+### - [x] M11. count_search: ตัวเลือกเดือนตัดที่ 8000 แถวเงียบ ๆ
+> **✅ แก้แล้ว 2026-08-11 (พร้อม M1)** — เป็นบั๊กตัวเดียวกับ M1 คนละหน้า · เปลี่ยนไปใช้ `fetchCountMonths` ที่ใช้ RPC + แบ่งหน้า · เจอเพราะ review ชี้ว่าเทส `.limit()` มองแค่ไฟล์ที่แก้ ตอนนี้สแกนทั้ง repo แล้ว
 
-### - [ ] M12. audit_check: guard ชนปลายทางเช็คจาก reference map ที่จำกัด scope
-`Html/audit_check.html:2017-2145` — มองไม่เห็นข้อมูลนอกคลัง/เดือนปัจจุบัน + O(n) scan ใน loop ช้ามากเมื่อข้อมูลเยอะ (`:1229, 2003-2011`)
+### - [x] M12. audit_check: guard ชนปลายทางเช็คจาก reference map ที่จำกัด scope
+> **✅ แก้แล้ว 2026-08-11** — เพิ่ม `fetchDestinationRowsFromDb()` ที่ **ถามฐานข้อมูลตรง ๆ ข้ามขอบเขตคลัง/เดือน** ก่อนตัดสิน แล้วรวมกับแถวที่อยู่ใน scope (dedupe ด้วย id) · `validateDestUpdateBatch` เป็น async แล้ว (call site 3 จุด)
+> ⚠️ **กรอง `sku_id` ฝั่ง DB ได้ แต่ `location` ต้องกรองฝั่ง client** — ฐานจริงมีตำแหน่งตัวพิมพ์เล็กอยู่ 142 แถว ถ้าใช้ `.in('location', ...)` จะพลาดแถวที่ต่างแค่ตัวพิมพ์ (มีเทสบังคับ)
+> อ่านปลายทางไม่สำเร็จ = บล็อกทั้งชุด ไม่ปล่อยผ่านเงียบ ๆ (ตรวจไม่ได้ ≠ ไม่ชน)
+> พ่วงแก้ O(n×m): เพิ่มดัชนี `refBySkuLocQty` สร้างครั้งเดียวตอนโหลด แทนการไล่ทั้ง map ทุกครั้งใน loop
+> วัดจริงในเบราว์เซอร์: query รูปนี้ (3 SKU) ใช้ 215 ms และเห็นแถวข้ามคลัง/เดือนจริง
+> **รูที่ review จับได้เพิ่ม (แก้แล้วในชุดเดียวกัน) 3 จุด:**
+> 1. **รอบของแถวที่กำลังย้าย** ยังอ่านจาก `refBySkuLoc` ⇒ แถวที่ `location` ว่าง (ซึ่ง `loadReferenceData` ข้ามไป และเป็นแถวที่คนเปิดโหมด "แก้ไขตำแหน่ง" มาเติมพอดี) จะได้รอบเป็น null ⇒ ชนรอบเดียวกันจริงแต่กลายเป็นแค่ "เตือน" แล้วปล่อยผ่าน · แก้ด้วย `fetchMovingRowsMeta()` อ่าน `cycle_id`/`created_at` จาก DB
+> 2. **แถวปลายทางที่ยังไม่ผูกรอบ** (`cycle_id = null`) ทั้งฐานถูกนับเป็น "รอบเดียวกัน" หมด (`cycleKey(null)` เป็นค่าเดียว) ⇒ แถวปีที่แล้วบล็อกการแก้ตำแหน่งของเดือนนี้ด้วยข้อความที่ไม่จริง และกดผ่านไม่ได้เลย · เกิดง่ายเพราะ FK เป็น `ON DELETE SET NULL` · แก้ด้วย `scopeNoCycleRowsToSameMonth()` — ไม่มีรอบทั้งคู่จะถือว่ารอบเดียวกันเฉพาะเดือนไทยเดียวกัน
+> 3. **ไม่มี index บน `inventory_counts(sku_id)`** ⇒ ทุก chunk เป็น full scan · แคบเพิ่มด้วย `.in('counted_qty', ...)` (คีย์ปลายทางใช้ qty อยู่แล้วจึงไม่พลาดแถวใด) — ระยะยาวควรมี migration เพิ่ม index (M36)
+> พ่วง: ใส่ overlay + กันกดซ้ำระหว่างรอ DB ทั้ง 3 call site (เดิมจอเงียบหลายวินาทีและกดปุ่มซ้ำได้ = 2 batch วิ่งพร้อมกัน)
 
-### - [ ] M13. audit_check: โหมดสลับ SKU↔Loc normalize ฝั่งเดียว
-`Html/audit_check.html:2742-2778` — SKU ใหม่ถูก UPPERCASE แต่ location ใหม่เขียนดิบ — สลับ 2 ครั้งไม่ได้ค่าเดิม
+### - [x] M13. audit_check: โหมดสลับ SKU↔Loc normalize ฝั่งเดียว
+> **✅ แก้แล้ว 2026-08-11** — `destLoc` ผ่าน `norm()` แล้ว (เดิมเขียนค่าดิบจากช่องกรอก)
+> ⚠️ **ตัวพิมพ์เดิมของตำแหน่งหายตั้งแต่สลับรอบแรกอยู่ดี** เพราะมันกลายเป็น SKU ซึ่งต้อง UPPERCASE ตาม invariant ข้อ 2 — ข้อมูลถูกทำลายโดยหลีกเลี่ยงไม่ได้ · สิ่งที่รับประกันได้คือ **ตั้งแต่รอบที่ 2 เป็นต้นไปสลับแล้วนิ่ง** (มีเทส round-trip)
+> **review ชี้ว่ายังเหลืออีก 2 ทางเขียน** (แก้แล้ว): "แก้ไขตำแหน่ง" และ "เทียบตำแหน่ง Excel" เขียน `location` ดิบ ⇒ guard ตรวจด้วย `norm()` แต่เขียนค่าอีกแบบ = "ค่าที่ตรวจ" กับ "ค่าที่เขียน" คนละตัว และเป็นต้นทางของตำแหน่งตัวพิมพ์ผสม 142 แถวที่บังคับให้ต้องกรอง location ฝั่ง client · ตอนนี้ทั้ง 3 ทางเขียนค่าที่ normalize แล้ว มีเทสไล่ย้อนจากจุด `.update()` ไปถึงที่มาของตัวแปร
 
 ### - [ ] M14. cycle_config: ยืนยัน link ขั้น 2 ไม่ reset ตอน cancel
 `Html/cycle_config.html:1969-1999` — cancel แล้วปุ่มค้าง "(2/2)" คลิกถัดไปผูกทันที
@@ -267,11 +278,16 @@
 `Js/reconcile-shared.js:177-187` `refreshStandardWarehousesFromRegistry()` ตั้ง `STANDARD_WAREHOUSES` จาก `warehouses.sort_order` ซึ่ง admin จัดลำดับใหม่ได้ในหน้า Settings (`Js/warehouses-shared.js` `sortWarehouseRows` / `compactActiveSortOrders`) ⇒ **ชุดคลังเดิมจะ encode ได้คนละสตริงหลังจัดลำดับใหม่** ⇒ unique index `uq_count_cycles_full_month` / `uq_count_cycles_date_range` เทียบสตริงตรง ๆ จึงจับไม่ได้ ⇒ สร้างรอบซ้ำ (อาการเดียวกับ M19)
 แก้ยาก: เรียงตามชื่อล้วนจะทำให้รอบเก่าใน DB encode ได้คนละค่า ต้องมี migration แปลงสตริงรอบเก่าพร้อมกัน — หรือเปลี่ยนไปเทียบด้วยชุดคลังที่เรียงแล้ว (generated column) แทนสตริงดิบ · **พบจาก review M19**
 
-### - [ ] M34. `audit_check` มี `fetchAvailableMonths` ซ้ำกับ `RS.fetchCountMonths` ทั้งดุ้น
+### - [x] M34. `audit_check` มี `fetchAvailableMonths` ซ้ำกับ `RS.fetchCountMonths` ทั้งดุ้น
+> **✅ แก้แล้ว 2026-08-11** — ยกออกมาเป็น `Js/count-scan-shared.js` (`window.countScanService`) · `reconcile-shared.js` delegate ต่อ จึงไม่ต้องแก้ call site เดิมทั้ง 3 หน้า · `audit_check` เรียก helper ร่วมแทนสำเนาของตัวเอง
+> ⚠️ **ต้องโหลดก่อน `reconcile-shared.js` เสมอ** (invariant ข้อ 8) — เพิ่ม `<script>` ใน 8 หน้า + audit_check แล้ว มีเทสบังคับลำดับ
 `Html/audit_check.html:1700-1730` — RPC ก่อน → regex เดียวกัน → paging 1,000 เหมือนกัน แต่หน้านี้ไม่โหลด `reconcile-shared.js` จึงใช้ helper กลางไม่ได้ทันที · แก้บั๊กตัวเดียวกันต้องแก้ 2 ที่ตลอดไป (หน้านี้รอดจาก regression "ทุกคลัง" เพราะส่งชื่อคลังเดี่ยวเสมอ) · **พบจาก review M1**
 
 ### - [ ] M35. reconcile: `renderTable` สแกน `adjustmentsCache` ซ้ำหลายรอบต่อแถว
 `Html/reconcile.html` — `getDraftAdjustmentSum` ทำ `.filter().reduce()` บนทั้ง cache ทุกครั้งที่ถูกเรียก และหลังแก้ M18 คอลัมน์ `%` ก็เรียกผ่าน `computeDisplayVariance` เพิ่มอีกชั้น ⇒ จาก ~4 เป็น ~7 รอบต่อแถว (O(N×A)) รอบ 3,000 SKU × 500 draft ≈ 10M ops ต่อการ render หนึ่งครั้ง · ยังไหวอยู่ แต่ถ้าเริ่มหน่วงให้ทำ `Map<sku, draftSum>` ครั้งเดียวต่อ render · **พบจาก review M18/M3**
+
+### - [ ] M36. `inventory_counts` ไม่มี index บน `sku_id`
+index ที่มีคือ `(cycle_id)`, `(warehouse, created_at DESC)`, `(client_request_id)` unique, partial `(import_batch_id)` — guard ปลายทางของ audit_check (`.in('sku_id', ...)`) จึงเป็น full scan ทุก chunk · แคบด้วย `counted_qty` ไปแล้วช่วยได้มาก แต่ batch ใหญ่ (~400 SKU = 10 chunk) ยังหนัก · `fetchAllInventoryCounts` ก็ได้ประโยชน์ด้วย · **พบจาก review ชุด 4**
 
 ### - [ ] M21. chat: ล้าง Storage จำกัด 500 ไฟล์ไม่มี pagination + ไฟล์แนบเป็น public URL ถาวร
 `Html/chat.html:565, 386-390`

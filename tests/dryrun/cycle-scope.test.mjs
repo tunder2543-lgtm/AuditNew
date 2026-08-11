@@ -19,7 +19,7 @@ import { liftFunctions } from '../helpers/lift.mjs';
 suite('dry-run: ขอบเขตรอบนับ (M1 แบ่งหน้า · M24 รอบปิด)');
 
 function setup(rows = [], rpcResults = {}) {
-    const sb = loadFresh('Js/sku-utils.js', 'Js/reconcile-shared.js');
+    const sb = loadFresh('Js/sku-utils.js', 'Js/count-scan-shared.js', 'Js/reconcile-shared.js');
     const mock = createMockClient({ inventory_counts: rows }, rpcResults);
     sb.apiService = { getClient: () => mock };
     return { RS: sb.reconcileService, mock, sb };
@@ -54,7 +54,7 @@ test('[M1] ไม่มี RPC → ตกมาแบ่งหน้า แล�
         ...rowsFor('2026-05', ['02'], 1000),
     ].map((r, i) => ({ ...r, id: i + 1 }));
 
-    const sb = loadFresh('Js/sku-utils.js', 'Js/reconcile-shared.js');
+    const sb = loadFresh('Js/sku-utils.js', 'Js/count-scan-shared.js', 'Js/reconcile-shared.js');
     const mock = createMockClient({ inventory_counts: rows });
     mock.rpc = async () => ({ data: null, error: { message: 'function get_inventory_count_months does not exist' } });
     sb.apiService = { getClient: () => mock };
@@ -66,7 +66,7 @@ test('[M1] ไม่มี RPC → ตกมาแบ่งหน้า แล�
 });
 
 test('[M1] query เดือนต้องมี .order("id") เป็น tiebreak (invariant ข้อ 13)', async () => {
-    const sb = loadFresh('Js/sku-utils.js', 'Js/reconcile-shared.js');
+    const sb = loadFresh('Js/sku-utils.js', 'Js/count-scan-shared.js', 'Js/reconcile-shared.js');
     const mock = createMockClient({ inventory_counts: rowsFor('2026-08', ['01'], 3) });
     mock.rpc = async () => ({ data: null, error: { message: 'function get_inventory_count_months does not exist' } });
     sb.apiService = { getClient: () => mock };
@@ -138,7 +138,7 @@ test('[M1] fetchCountMonths ต้องไม่ยัดค่า encode ("ค
         'ตึกกันตนา': [{ year_month: '2026-08' }],
         'คลังอะไหล่': [{ year_month: '2026-06' }],
     };
-    const sb = loadFresh('Js/sku-utils.js', 'Js/reconcile-shared.js');
+    const sb = loadFresh('Js/sku-utils.js', 'Js/count-scan-shared.js', 'Js/reconcile-shared.js');
     const mock = createMockClient({ inventory_counts: [] });
     mock.rpc = async (fn, params) => {
         seen.push(params.p_warehouse);

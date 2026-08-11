@@ -1377,6 +1377,7 @@
     <script src="../Js/db-errors.js?v=20260809j"></script>
     <script src="../Js/settings-shared.js?v=20260809j"></script>
     <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
+    <script src="../Js/count-scan-shared.js?v=20260811g"></script>
     <script src="../Js/audit-dedupe.js?v=20260810d"></script>
     <script src="../Js/audit-book-impact.js?v=20260810d"></script>
     <script src="../Js/audit-loc-compare.js?v=20260810f"></script>
@@ -1394,6 +1395,10 @@
 
         /** @type {Map<string, { sku_id, location, counted_qty, warehouse, counter_name, record_count }>} */
         let refBySkuLoc = new Map();
+        // ดัชนี 'SKU|ตำแหน่ง|จำนวน' -> entry[] · สร้างพร้อม refBySku (M12)
+        const refBySkuLocQty = new Map();
+        // คีย์สำหรับแถวปลายทางที่ยังไม่รู้คลัง — ต้องไม่ชนกับชื่อคลังจริง
+        const ANY_WAREHOUSE_KEY = '\u0000ANY';
         /** @type {Map<string, Array>} key = normalized sku */
         let refBySku = new Map();
         /** @type {Map<string, object>} reconciliation_lines · key = `${cycle_id}|${SKU}` */
@@ -1426,15 +1431,9 @@
         }
 
         function findRefEntriesBySkuLocQty(skuN, locN, qty) {
-            const matches = [];
-            for (const entry of refBySkuLoc.values()) {
-                if (norm(entry.sku_id) === skuN
-                    && norm(entry.location) === locN
-                    && Number(entry.counted_qty) === qty) {
-                    matches.push(entry);
-                }
-            }
-            return matches;
+            // ใช้ดัชนีที่สร้างครั้งเดียวตอนโหลด — เดิมไล่ทั้ง map ทุกครั้งที่ถูกเรียก
+            // ซึ่งอยู่ใน loop ของ validateDestUpdateBatch ⇒ O(n×m) ช้ามากเมื่อข้อมูลเยอะ (M12)
+            return refBySkuLocQty.get(`${skuN}|${locN}|${qty}`) || [];
         }
 
         function getScopedRefEntriesForSku(skuN) {
@@ -1690,53 +1689,13 @@
             return `${monthName} ${y + 543}`;
         }
 
-        function getThailandYearMonth(isoString) {
-            if (!isoString) return null;
-            const key = new Date(isoString).toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
-            return key && key.length >= 7 ? key.slice(0, 7) : null;
-        }
-
         /** ดึงเฉพาะเดือนที่มีข้อมูลการนับจริง */
+        /**
+         * M34: เดิมหน้านี้ถือสำเนาของ `fetchCountMonths` ไว้เองเกือบบรรทัดต่อบรรทัด
+         * ตอนนี้ใช้ `Js/count-scan-shared.js` ร่วมกับ reconcile — แก้บั๊กที่เดียวพอ
+         */
         async function fetchAvailableMonths(warehouse) {
-            const { data, error } = await supabaseClient.rpc('get_inventory_count_months', {
-                p_warehouse: warehouse || null
-            });
-            if (!error && Array.isArray(data)) {
-                return data
-                    .map(row => row.year_month || row)
-                    .filter(Boolean);
-            }
-            if (error && !/get_inventory_count_months|function.*does not exist/i.test(error.message)) {
-                throw error;
-            }
-
-            let allRows = [];
-            let from = 0;
-            const PAGE = 1000;
-
-            while (true) {
-                let query = supabaseClient
-                    .from('inventory_counts')
-                    .select('created_at')
-                    .order('created_at', { ascending: false })
-                    .order('id', { ascending: false });
-
-                if (warehouse) query = query.eq('warehouse', warehouse);
-
-                const { data: batchData, error: pageErr } = await query.range(from, from + PAGE - 1);
-                if (pageErr) throw pageErr;
-                const batch = batchData || [];
-                allRows = allRows.concat(batch);
-                if (batch.length < PAGE) break;
-                from += PAGE;
-            }
-
-            const months = new Set();
-            allRows.forEach(row => {
-                const ym = getThailandYearMonth(row.created_at);
-                if (ym) months.add(ym);
-            });
-            return [...months].sort().reverse();
+            return window.countScanService.fetchCountMonths(warehouse);
         }
 
         async function refreshAuditMonthSelect(preferredMonth) {
@@ -2398,10 +2357,15 @@
 
         function rebuildRefBySku() {
             refBySku.clear();
+            refBySkuLocQty.clear();
             for (const entry of refBySkuLoc.values()) {
                 const sku = norm(entry.sku_id);
                 if (!refBySku.has(sku)) refBySku.set(sku, []);
                 refBySku.get(sku).push(entry);
+
+                const k = `${sku}|${norm(entry.location)}|${Number(entry.counted_qty)}`;
+                if (!refBySkuLocQty.has(k)) refBySkuLocQty.set(k, []);
+                refBySkuLocQty.get(k).push(entry);
             }
         }
 
@@ -2438,7 +2402,7 @@
          * @param {string|null} movingCycleId รอบนับของแถวที่กำลังย้าย
          * @returns {null|{blocked:boolean, message?:string, warning?:string}} null = ไม่ชนเลย
          */
-        function getDestinationCollision(sku, loc, warehouse, qty, excludeRecordIds, movingCycleId) {
+        function getDestinationCollision(sku, loc, warehouse, qty, excludeRecordIds, movingCycleId, dbDestRows, movingMonth) {
             const skuN = norm(sku);
             const locN = norm(loc);
             const qtyN = qty === undefined || qty === null || qty === '' ? NaN : Number(qty);
@@ -2462,6 +2426,17 @@
             if (wh) {
                 entry = refBySkuLoc.get(refEntryKey(skuN, locN, wh, qtyN)) || null;
             } else {
+                // ⚠️ ไม่รู้คลังของแถวที่กำลังย้าย (เกิดเมื่อแถวอยู่นอก scope ที่โหลดมา)
+                //    ถ้า DB มีแถวปลายทางอยู่จริง แปลว่า "อาจชน" แต่ตัดสินไม่ได้ว่าคลังไหน
+                //    ⇒ ต้องบล็อกให้ผู้ใช้เลือกคลังก่อน ไม่ใช่ปล่อยผ่านเพราะมองไม่เห็น (M12)
+                const dbAny = (dbDestRows?.get(`${ANY_WAREHOUSE_KEY}|${skuN}|${locN}|${qtyN}`) || [])
+                    .filter(r => r && r.id && !exclude.has(String(r.id)));
+                if (dbAny.length) {
+                    return {
+                        blocked: true,
+                        message: `ปลายทางมีแถวค่าเดียวกันอยู่ ${dbAny.length} แถว แต่ระบุคลังของแถวนี้ไม่ได้ — เลือกคลังในตัวกรองก่อนบันทึก`
+                    };
+                }
                 const matches = findRefEntriesBySkuLocQty(skuN, locN, qtyN);
                 if (matches.length === 0) {
                     entry = null;
@@ -2475,12 +2450,19 @@
                 }
             }
 
-            if (!entry) return null;
-
-            const destRows = (entry.rawRows || []).filter(r => r && r.id && !exclude.has(String(r.id)));
+            // รวมแถวที่ได้จาก DB เข้ากับที่อยู่ใน scope — แถวเดียวกันมาจากทั้งสองทางได้
+            const fromDb = wh && dbDestRows ? (dbDestRows.get(refEntryKey(skuN, locN, wh, qtyN)) || []) : [];
+            const merged = new Map();
+            for (const r of [...(entry?.rawRows || []), ...fromDb]) {
+                if (r && r.id && !exclude.has(String(r.id))) merged.set(String(r.id), r);
+            }
+            const destRows = [...merged.values()];
             if (!destRows.length) return null;
 
-            const cls = window.AuditDedupe?.classifyDestinationCollision({ destRows, movingCycleId });
+            const cls = window.AuditDedupe?.classifyDestinationCollision({
+                destRows: scopeNoCycleRowsToSameMonth(destRows, movingCycleId, movingMonth),
+                movingCycleId
+            });
             if (!cls) {
                 // ไม่มีโมดูล = ไม่กล้าปล่อยผ่าน (พฤติกรรมเดิม)
                 return { blocked: true, message: `ปลายทางมีแถวค่าเดียวกันอยู่แล้ว ${destRows.length} แถว` };
@@ -2508,24 +2490,152 @@
         }
 
         /**
+         * ถามฐานข้อมูลว่าปลายทางของชุดนี้มีแถวอะไรอยู่บ้าง — **ข้ามขอบเขตคลัง/เดือน** (M12)
+         *
+         * ⚠️ ทำไมต้องมี: `refBySkuLoc` โหลดมาเฉพาะคลัง+เดือนที่เลือกในตัวกรอง
+         *    ถ้าย้ายแถวไปชนกับแถวที่อยู่นอก scope นั้น guard เดิมมองไม่เห็นเลย แล้วปล่อยผ่าน
+         *    ⇒ ได้แถวซ้ำจริงในรอบนับเดียวกัน = Match บวกยอดซ้ำ (ขัด invariant ข้อ 3)
+         *
+         * กรอง `sku_id` ฝั่ง DB ได้ (normalize เป็น UPPERCASE ตาม invariant ข้อ 2)
+         * แต่ `location` ต้องกรองฝั่ง client — ในฐานจริงยังมีตัวพิมพ์เล็กปนอยู่ 142 แถว
+         * ถ้าใช้ .in() กับ location จะพลาดแถวที่ต่างแค่ตัวพิมพ์
+         */
+        async function fetchDestinationRowsFromDb(updates) {
+            const byKey = new Map();
+            if (!supabaseClient || !updates.length) return byKey;
+
+            const skus = [...new Set(updates.map(u => norm(u.destSku)).filter(Boolean))];
+            const wanted = new Set(updates.map(u => `${norm(u.destSku)}|${norm(u.destLoc)}`));
+            // แคบด้วยจำนวนด้วย — คีย์ปลายทางใช้ qty อยู่แล้ว แถวที่ qty ไม่ตรงจึงไม่มีวันถูกใช้
+            // (ตาราง `inventory_counts` ไม่มี index บน sku_id ทุก chunk จึงเป็น full scan)
+            const qtys = [...new Set(updates.map(u => resolveDestQty(u)).filter(q => !Number.isNaN(q)))];
+            const CHUNK = 40;
+            const PAGE = 1000;
+
+            for (let i = 0; i < skus.length; i += CHUNK) {
+                const chunk = skus.slice(i, i + CHUNK);
+                let from = 0;
+                while (true) {
+                    let q = supabaseClient
+                        .from('inventory_counts')
+                        .select('id, sku_id, location, counted_qty, warehouse, cycle_id, created_at, counter_name')
+                        .in('sku_id', chunk);
+                    if (qtys.length) q = q.in('counted_qty', qtys);
+                    const { data, error } = await q
+                        .order('id')                       // invariant ข้อ 13
+                        .range(from, from + PAGE - 1);
+                    if (error) throw error;
+                    const rows = data || [];
+                    for (const r of rows) {
+                        const sku = norm(r.sku_id);
+                        const loc = norm(r.location);
+                        if (!wanted.has(`${sku}|${loc}`)) continue;
+                        const qty = Number(r.counted_qty);
+                        // เก็บ 2 คีย์: ระบุคลัง และ "ไม่ระบุคลัง"
+                        // ตัวหลังใช้ตอนหาคลังของแถวที่กำลังย้ายไม่เจอ (แถวอยู่นอก scope ที่โหลด)
+                        for (const k of [refEntryKey(sku, loc, norm(r.warehouse || ''), qty), `${ANY_WAREHOUSE_KEY}|${sku}|${loc}|${qty}`]) {
+                            if (!byKey.has(k)) byKey.set(k, []);
+                            byKey.get(k).push(r);
+                        }
+                    }
+                    if (!rows.length) break;
+                    from += rows.length;
+                }
+            }
+            return byKey;
+        }
+
+        /**
+         * รอบนับ + เวลาของ **แถวที่กำลังย้าย** อ่านจาก DB ตรง ๆ (review ชุด 4)
+         *
+         * ⚠️ `getCycleForRecordId` ไล่หาใน `refBySkuLoc` ซึ่งไม่มีแถวที่ `location` ว่าง
+         *    (`loadReferenceData` ข้ามแถวพวกนั้น) — แต่แถว location ว่างคือแถวที่คนเปิดโหมด
+         *    "แก้ไขตำแหน่ง" มาเติมพอดี ⇒ เส้นทางที่ใช้บ่อยที่สุดคือเส้นที่ guard ตาบอดที่สุด
+         *    ถ้ารอบของแถวที่ย้ายเป็น null ทั้งที่จริงมีรอบ การชนรอบเดียวกันจะกลายเป็นแค่ "เตือน"
+         */
+        async function fetchMovingRowsMeta(recordIds) {
+            const meta = new Map();
+            const ids = [...new Set(recordIds.map(String).filter(Boolean))];
+            if (!supabaseClient || !ids.length) return meta;
+            const CHUNK = 100;
+            for (let i = 0; i < ids.length; i += CHUNK) {
+                const { data, error } = await supabaseClient
+                    .from('inventory_counts')
+                    .select('id, cycle_id, created_at, warehouse')
+                    .in('id', ids.slice(i, i + CHUNK))
+                    .order('id');
+                if (error) throw error;
+                for (const r of data || []) meta.set(String(r.id), r);
+            }
+            return meta;
+        }
+
+        /** เดือนไทย 'YYYY-MM' ของ timestamp — ใช้ตัดสินแถวที่ยังไม่ผูกรอบ */
+        function bangkokMonthOf(iso) {
+            return window.countScanService?.bangkokYmdOf(iso)?.slice(0, 7) || null;
+        }
+
+        /**
+         * แถวปลายทางที่ยังไม่ผูกรอบ (`cycle_id = null`) ทั้งฐานจะถูก `classifyDestinationCollision`
+         * นับเป็น "รอบเดียวกัน" หมด เพราะ cycleKey(null) เป็นค่าเดียวกัน
+         * เดิมไม่มีปัญหาเพราะ guard เห็นแค่คลัง+เดือนที่เลือก แต่ M12 เปิดให้เห็นทั้งฐานแล้ว
+         * ⇒ แถวปีที่แล้วจะบล็อกการแก้ตำแหน่งของเดือนนี้ด้วยข้อความที่ไม่จริง และกดผ่านไม่ได้เลย
+         *
+         * ถ้าแถวที่ย้ายเองก็ไม่มีรอบ ให้ถือว่า "รอบเดียวกัน" เฉพาะแถวที่อยู่เดือนไทยเดียวกัน
+         * (รอบจริงจะมี cycle_id เสมอ เคสที่ M12 ต้องการปิดจึงไม่ถูกกระทบ)
+         */
+        function scopeNoCycleRowsToSameMonth(destRows, movingCycleId, movingMonth) {
+            if (movingCycleId) return destRows;
+            return destRows.map(r => {
+                if (r.cycle_id) return r;
+                const m = bangkokMonthOf(r.created_at);
+                if (movingMonth && m && m !== movingMonth) {
+                    return { ...r, cycle_id: `${ANY_WAREHOUSE_KEY}|เดือนอื่น|${m}` };
+                }
+                return r;
+            });
+        }
+
+        /**
          * แยกรายการที่อัปเดตได้ vs ชนปลายทาง (DB หรือภายในชุดเดียวกัน)
          * M26: `warned` = ปลายทางมีแถวค่าเหมือนกันแต่คนละรอบ — ทำได้ แต่ต้องให้ผู้ใช้เห็นก่อน
+         * M12: ถาม DB ตรง ๆ ก่อน เพื่อไม่ให้ scope ของตัวกรองบังแถวที่ชนกันจริง
          */
-        function validateDestUpdateBatch(updates) {
+        async function validateDestUpdateBatch(updates) {
             const batchIds = new Set(updates.map(u => String(u.recordId)));
             const pendingDest = new Set();
             const ok = [];
             const blocked = [];
             const warned = [];
 
+            let dbDestRows;
+            let movingMeta;
+            try {
+                dbDestRows = await fetchDestinationRowsFromDb(updates);
+                movingMeta = await fetchMovingRowsMeta(updates.map(u => u.recordId));
+            } catch (err) {
+                // อ่านปลายทางไม่ได้ = ตรวจไม่ครบ จึงไม่ปล่อยผ่านเงียบ ๆ (invariant ข้อ 1/3)
+                console.error(err);
+                return {
+                    ok: [],
+                    blocked: updates.map(u => ({ ...u, message: 'ตรวจปลายทางกับฐานข้อมูลไม่สำเร็จ — ลองใหม่อีกครั้ง' })),
+                    warned: []
+                };
+            }
+
             for (const u of updates) {
+                const mv = movingMeta.get(String(u.recordId)) || null;
                 const wh = u.warehouse != null && u.warehouse !== ''
                     ? u.warehouse
-                    : getWarehouseForRecordId(u.recordId);
+                    : (mv?.warehouse || getWarehouseForRecordId(u.recordId));
                 const qty = resolveDestQty(u);
                 const key = refEntryKey(u.destSku, u.destLoc, wh, qty);
 
-                const coll = getDestinationCollision(u.destSku, u.destLoc, wh, qty, batchIds, getCycleForRecordId(u.recordId));
+                // ค่าจาก DB มาก่อนเสมอ — memory เห็นไม่ครบ (ดู fetchMovingRowsMeta)
+                const movingCycle = mv ? mv.cycle_id : getCycleForRecordId(u.recordId);
+                const movingMonth = bangkokMonthOf(mv?.created_at);
+                const coll = getDestinationCollision(
+                    u.destSku, u.destLoc, wh, qty, batchIds, movingCycle, dbDestRows, movingMonth);
                 if (coll && coll.blocked) {
                     blocked.push({ ...u, message: coll.message });
                     continue;
@@ -2594,6 +2704,7 @@
             const filters = getAuditFilters();
             setLoading(true, 'กำลังโหลดข้อมูลอ้างอิง...', formatAuditScopeLabel(filters));
             refBySkuLoc.clear();
+            refBySkuLocQty.clear();
             refBySku.clear();
             recLineByCycleSku.clear();
             impactByCycleSku.clear();
@@ -3462,16 +3573,22 @@
             if (!okSwap) return;
             if (!ensureRefLoadedForDestCheck()) return;
 
+            // ตรวจปลายทางยิง DB หลาย request — ถ้าไม่กั้น จอจะเงียบและกดปุ่มซ้ำได้ (review ชุด 4)
+            setLoading(true, 'กำลังตรวจปลายทางกับฐานข้อมูล...', `${rows.length.toLocaleString()} รายการ`);
             const planned = rows.map(tr => {
                 const skuInput = tr.querySelector('[data-field="sku"]');
                 const locInput = tr.querySelector('[data-field="loc"]');
                 const oldSku = skuInput.value.trim();
                 const oldLoc = locInput.value.trim();
+                // ต้อง normalize ทั้งสองฝั่ง — เดิม SKU ใหม่ถูก UPPERCASE แต่ตำแหน่งใหม่เขียนดิบ
+                // ตามที่พิมพ์ในช่อง จึงสลับ 2 ครั้งไม่ได้ค่าเดิม และได้ตำแหน่งที่ต่างจากของเดิม
+                // แค่ตัวพิมพ์ (ในฐานจริงมีตำแหน่งตัวพิมพ์เล็กอยู่ 142 แถว) (M13)
                 const newSkuId = window.SkuUtils.normalizeSku(oldLoc);
+                const newLoc = norm(oldSku);
                 return {
                     recordId: tr.dataset.recordId,
                     destSku: newSkuId,
-                    destLoc: oldSku,
+                    destLoc: newLoc,
                     warehouse: getWarehouseForRecordId(tr.dataset.recordId),
                     label: `${oldSku} ↔ ${oldLoc}`,
                     tr,
@@ -3480,7 +3597,12 @@
                     newSkuId
                 };
             });
-            const { ok: toApply, blocked, warned } = validateDestUpdateBatch(planned);
+            let toApply, blocked, warned;
+            try {
+                ({ ok: toApply, blocked, warned } = await validateDestUpdateBatch(planned));
+            } finally {
+                setLoading(false);
+            }
             const proceedSwap = await confirmDestUpdatesWithSkips('สลับ SKU↔ตำแหน่ง', toApply, blocked, warned);
             if (!proceedSwap) return;
 
@@ -3639,9 +3761,12 @@
             if (!okLoc) return;
             if (!ensureRefLoadedForDestCheck()) return;
 
+            setLoading(true, 'กำลังตรวจปลายทางกับฐานข้อมูล...', `${dirtyRows.length.toLocaleString()} รายการ`);
             const planned = dirtyRows.map(tr => {
                 const sku = tr.querySelector('[data-field="sku"]').value.trim();
-                const newLoc = tr.querySelector('[data-field="loc"]').value.trim();
+                // guard เทียบด้วย norm() ⇒ ต้องเขียนค่าเดียวกันลง DB ไม่งั้น "ค่าที่ตรวจ" กับ
+                // "ค่าที่เขียน" คนละตัว และเป็นต้นทางของตำแหน่งตัวพิมพ์ผสมในฐาน (M13)
+                const newLoc = norm(tr.querySelector('[data-field="loc"]').value);
                 const oldLoc = tr.dataset.originalLoc || '';
                 return {
                     recordId: tr.dataset.recordId,
@@ -3653,7 +3778,12 @@
                     newLoc
                 };
             });
-            const { ok: toApply, blocked, warned } = validateDestUpdateBatch(planned);
+            let toApply, blocked, warned;
+            try {
+                ({ ok: toApply, blocked, warned } = await validateDestUpdateBatch(planned));
+            } finally {
+                setLoading(false);
+            }
             const proceedLoc = await confirmDestUpdatesWithSkips('บันทึกตำแหน่ง', toApply, blocked, warned);
             if (!proceedLoc) return;
 
@@ -4529,15 +4659,21 @@
             if (!ok2) return;
             if (!ensureRefLoadedForDestCheck()) return;
 
+            setLoading(true, 'กำลังตรวจปลายทางกับฐานข้อมูล...', `${items.length.toLocaleString()} รายการ`);
             const planned = items.map(item => ({
                 recordId: item.id,
                 destSku: item.sku,
-                destLoc: item.newLocation,
+                destLoc: norm(item.newLocation),
                 warehouse: item.warehouse,
                 label: `${item.sku}: ${item.dbLocation} → ${item.newLocation}`,
                 item
             }));
-            const { ok: toApply, blocked, warned } = validateDestUpdateBatch(planned);
+            let toApply, blocked, warned;
+            try {
+                ({ ok: toApply, blocked, warned } = await validateDestUpdateBatch(planned));
+            } finally {
+                setLoading(false);
+            }
             const proceedCmp = await confirmDestUpdatesWithSkips('แก้ตำแหน่งจาก Excel', toApply, blocked, warned);
             if (!proceedCmp) return;
 
@@ -4557,7 +4693,7 @@
                     const item = entry.item;
                     const { error } = await supabaseClient
                         .from('inventory_counts')
-                        .update({ location: item.newLocation })
+                        .update({ location: norm(item.newLocation) })
                         .eq('id', item.id);
 
                     if (error) {

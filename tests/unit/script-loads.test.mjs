@@ -32,6 +32,7 @@ const PROVIDERS = {
     uiConfirm: 'ui-confirm-modal.js',
     warehouseService: 'warehouses-shared.js',
     reconcileService: 'reconcile-shared.js',
+    countScanService: 'count-scan-shared.js',
     apiService: 'api.js',
     dashboardShared: 'dashboard-shared.js',
     sidebarShared: 'sidebar-shared.js',

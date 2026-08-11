@@ -410,6 +410,20 @@
 
         .status-overlap { color: #c2410c; font-weight: 600; }
 
+        /* SKU+จำนวนเดียวกัน คนละตำแหน่ง — สีม่วง แยกจาก "ทับซ้อน" (ส้ม) ให้ชัด */
+        tr.row-crossloc td.col-sku,
+        tr.row-crossloc td.col-loc,
+        tr.row-crossloc td.col-qty,
+        tr.row-crossloc td.col-wh,
+        tr.row-crossloc td.col-dt {
+            background: rgba(168, 85, 247, 0.12);
+        }
+        .status-crossloc { color: #7e22ce; font-weight: 600; }
+
+        /* เส้นคั่นระหว่างคู่ — แถวแรกของคู่มีเส้นบน แถวถัดมาในคู่เดียวกันไม่มี */
+        tr.crossloc-pair-start > td { border-top: 2px solid rgba(168, 85, 247, 0.55); }
+        tr.crossloc-pair-mid > td { border-top: 1px dashed rgba(168, 85, 247, 0.35); }
+
         .audit-impact-bar {
             display: flex;
             align-items: center;
@@ -1115,6 +1129,9 @@
                     <div class="audit-stat audit-stat-filter" data-filter="overlap" style="border-color: rgba(249,115,22,0.45)" title="ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน — Match บวกรวมทุกแถว · กดเพื่อกรอง">
                         <span style="color:#fb923c">●</span> ทับซ้อน: <strong id="statOverlap">0</strong>
                     </div>
+                    <div class="audit-stat audit-stat-filter" data-filter="crossloc" style="border-color: rgba(168,85,247,0.45)" title="SKU เดียวกัน จำนวนเท่ากันเป๊ะ แต่คนละตำแหน่ง — มักเกิดจากนับชั้นเดิมซ้ำใต้ป้ายคนละชื่อ · กดเพื่อกรอง">
+                        <span style="color:#c084fc">●</span> ซ้ำข้ามตำแหน่ง: <strong id="statCrossLoc">0</strong>
+                    </div>
                     <div class="audit-stat audit-stat-filter" data-filter="pending" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
                         รอตรวจ: <strong id="statPending">0</strong>
                     </div>
@@ -1144,6 +1161,7 @@
                         <select id="sortLocation">
                             <option value="num-asc">1 → 10</option>
                             <option value="num-desc">10 → 1</option>
+                            <option value="crossloc">จับคู่ SKU ที่ซ้ำข้ามตำแหน่ง</option>
                             <option value="none">ไม่เรียง</option>
                         </select>
                     </label>
@@ -1378,7 +1396,7 @@
     <script src="../Js/settings-shared.js?v=20260809j"></script>
     <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
     <script src="../Js/count-scan-shared.js?v=20260811g"></script>
-    <script src="../Js/audit-dedupe.js?v=20260810d"></script>
+    <script src="../Js/audit-dedupe.js?v=20260811j"></script>
     <script src="../Js/audit-book-impact.js?v=20260810d"></script>
     <script src="../Js/audit-loc-compare.js?v=20260810f"></script>
     <script src="../Js/audit-log.js?v=20260809j"></script>
@@ -1409,6 +1427,8 @@
         let impactByCycleSku = new Map();
         /** @type {Map<string, {key:string, location:string}>} record id → กลุ่มทับซ้อนที่แถวนั้นอยู่ */
         let overlapRowIndex = new Map();
+        /** recordId -> กลุ่ม "SKU+จำนวนเดียวกัน คนละตำแหน่ง" ที่แถวนั้นอยู่ */
+        let crossLocByRecordId = new Map();
         /** @type {Map<string, object>} inventory_count_acceptances · key = `${cycle}|${SKU}|${LOC}` */
         let acceptanceByKey = new Map();
         /** ตาราง acceptances ยังไม่ได้สร้างใน DB (ยังไม่ได้รัน docs/sql/019) */
@@ -1630,7 +1650,10 @@
         function updateSortForSelectedZone() {
             const zone = document.getElementById('filterLocation').value.trim();
             if (!zone) return;
-            document.getElementById('sortLocation').value = autoSortDirectionForZone(zone);
+            const sortEl = document.getElementById('sortLocation');
+            // ผู้ใช้เลือกโหมดจับคู่ไว้เอง — เลือกโซนแล้วห้ามเด้งกลับ ไม่งั้นคู่กระจายทันที
+            if (sortEl.value === 'crossloc') return;
+            sortEl.value = autoSortDirectionForZone(zone);
         }
 
         /** เลขแถวหลังโซน: A1-01 → 1, A5-03 → 5, A10 → 10 */
@@ -1898,6 +1921,7 @@
         function buildImpactMap(allRows) {
             impactByCycleSku.clear();
             overlapRowIndex.clear();
+            buildCrossLocIndex(allRows);
             const bySkuCycle = new Map();
             for (const r of allRows || []) {
                 const sku = norm(r.sku_id);
@@ -1914,6 +1938,61 @@
                     for (const r of ov.rows) overlapRowIndex.set(String(r.id), { key, location: ov.location });
                 }
             }
+        }
+
+        /**
+         * ดัชนี "SKU เดียวกัน จำนวนเท่ากัน แต่คนละตำแหน่ง" (ในรอบ+คลังเดียวกัน)
+         *
+         * Match รวมยอดด้วย SUM ต่อ SKU ต่อรอบ โดยไม่สนตำแหน่ง ⇒ ถ้าเป็นการนับชั้นเดิม
+         * ซ้ำใต้ป้ายคนละชื่อ ยอดจะถูกบวกซ้ำเต็ม ๆ · เตือนอย่างเดียว ไม่ลบ (นโยบายข้อ 3)
+         */
+        function buildCrossLocIndex(allRows) {
+            crossLocByRecordId.clear();
+            const groups = window.AuditDedupe?.findCrossLocationDuplicates(allRows || []) || [];
+            for (const g of groups) {
+                for (const r of g.rows) {
+                    if (r && r.id != null) crossLocByRecordId.set(String(r.id), g);
+                }
+            }
+        }
+
+        /**
+         * คีย์ "ยืนยันว่าปกติ" ของกลุ่มซ้ำข้ามตำแหน่ง — ใช้ช่อง location เก็บรายการตำแหน่ง
+         * ทั้งหมด + จำนวน เพื่อให้ 1 กลุ่ม = 1 แถวใน inventory_count_acceptances
+         */
+        function crossLocAckLocation(g) {
+            return `${g.locations.join('+')}@${g.qty}`;
+        }
+
+        /** บริบทของแถวนี้ในกลุ่มซ้ำข้ามตำแหน่ง (พร้อมสถานะการยืนยัน) */
+        function getCrossLocContext(recordId) {
+            const g = recordId ? crossLocByRecordId.get(String(recordId)) : null;
+            if (!g) return null;
+            const ack = getAcceptanceState(
+                g.cycleId, g.sku, crossLocAckLocation(g), g.rows.length, g.qty * g.rows.length
+            );
+            return { group: g, ack };
+        }
+
+        /** ข้อความอธิบายกลุ่มซ้ำข้ามตำแหน่ง — ผ่าน innerHTML จึงต้อง escape ทุกค่าจาก DB */
+        function formatCrossLocNote(ctx, recordId, exact) {
+            const g = ctx.group;
+            const me = recordId ? String(recordId) : '';
+            const others = g.rows
+                .filter(r => String(r.id) !== me)
+                .map(r => `${escapeHtml(r.location)}${r.counter_name ? ` (${escapeHtml(r.counter_name)})` : ''}`);
+            const parts = [
+                `<strong>${escapeHtml(g.sku)} จำนวน ${Number(g.qty)} ชิ้น เท่ากันที่ ${g.locations.length} ตำแหน่ง</strong>`,
+                `อีกที่: ${others.join(' · ') || '—'}`,
+                `ถ้าเป็นการนับชั้นเดิมซ้ำใต้ป้ายคนละชื่อ ยอดใน Match จะเกินมา ${Number(g.suspectedExtraQty)} ชิ้น`
+            ];
+            if (ctx.ack.state === 'stale') {
+                parts.unshift(`⚠️ <strong>เคยยืนยันว่าปกติไว้แล้ว แต่ข้อมูลเปลี่ยน</strong> (ตอนยืนยัน ${Number(ctx.ack.wasRowCount)} แถว รวม ${Number(ctx.ack.wasTotalQty)} ชิ้น)`);
+            } else {
+                parts.push('ตรวจแล้วถ้าวางจริง 2 ที่ ให้ติ๊กแถวนี้แล้วกด "ยืนยันว่าปกติ" เพื่อปิดรายการ');
+            }
+            if (exact) parts.push(`inventory_counts: ${formatRefNote(exact)}`);
+            return parts.join(' · ');
         }
 
         /** คีย์ของกลุ่มที่ยืนยันได้ = รอบ + SKU + ตำแหน่ง (ตรงกับ unique index ใน docs/sql/019) */
@@ -2045,6 +2124,34 @@
                 (rowHasData(tr) ? filled : empty).push(tr);
             });
 
+            // จับคู่แถวที่ซ้ำข้ามตำแหน่งให้มาอยู่ติดกัน — ไม่งั้นคู่ของ PK011 อยู่แถว 941
+            // กับ 1005 คนละหน้าจอ ผู้ใช้เทียบด้วยตาไม่ได้เลย
+            if (sortMode === 'crossloc') {
+                const groupOf = tr => crossLocByRecordId.get(String(tr.dataset.recordId || '')) || null;
+                const locOf = tr => tr.querySelector('[data-field="loc"]').value.trim();
+                const skuOf = tr => tr.querySelector('[data-field="sku"]').value.trim();
+                filled.sort((a, b) => {
+                    const ga = groupOf(a);
+                    const gb = groupOf(b);
+                    // แถวที่อยู่ในกลุ่มขึ้นก่อนเสมอ
+                    if (ga && !gb) return -1;
+                    if (!ga && gb) return 1;
+                    if (ga && gb) {
+                        if (ga.key !== gb.key) {
+                            const c = ga.sku.localeCompare(gb.sku, 'en', { sensitivity: 'base' });
+                            return c !== 0 ? c : ga.key.localeCompare(gb.key);
+                        }
+                        return compareLocation(locOf(a), locOf(b));   // ในคู่เดียวกัน เรียงตามตำแหน่ง
+                    }
+                    const c = skuOf(a).localeCompare(skuOf(b), 'en', { sensitivity: 'base' });
+                    return c !== 0 ? c : compareLocation(locOf(a), locOf(b));
+                });
+                [...filled, ...empty].forEach(tr => sheetBody.appendChild(tr));
+                renumberRows();
+                markCrossLocPairEdges();
+                return;
+            }
+
             if (sortMode && sortMode !== 'none') {
                 const desc = sortMode === 'num-desc';
                 filled.sort((a, b) => {
@@ -2077,6 +2184,25 @@
 
             [...filled, ...empty].forEach(tr => sheetBody.appendChild(tr));
             renumberRows();
+            markCrossLocPairEdges();
+        }
+
+        /**
+         * ตีเส้นคั่นระหว่าง "คู่" ที่ซ้ำข้ามตำแหน่ง เมื่อแถวของกลุ่มเดียวกันอยู่ติดกัน
+         * ช่วยให้อ่านออกว่าอันไหนเป็นคู่กัน โดยไม่ต้องไล่อ่าน SKU ทีละแถว
+         */
+        function markCrossLocPairEdges() {
+            const rows = [...sheetBody.querySelectorAll('tr')];
+            let prevKey = null;
+            for (const tr of rows) {
+                tr.classList.remove('crossloc-pair-start', 'crossloc-pair-mid');
+                const g = crossLocByRecordId.get(String(tr.dataset.recordId || ''));
+                const key = g ? g.key : null;
+                if (key) {
+                    tr.classList.add(key === prevKey ? 'crossloc-pair-mid' : 'crossloc-pair-start');
+                }
+                prevKey = key;
+            }
         }
 
         function getRowStatus(tr) {
@@ -2084,6 +2210,7 @@
             if (tr.classList.contains('row-ok')) return 'ok';
             if (tr.classList.contains('row-warn')) return 'warn';
             if (tr.classList.contains('row-overlap')) return 'overlap';
+            if (tr.classList.contains('row-crossloc')) return 'crossloc';
             if (tr.classList.contains('row-error')) return 'err';
             return 'pending';
         }
@@ -2094,8 +2221,26 @@
             });
         }
 
+        /** ค่าเรียงเดิมก่อนสลับไปโหมดจับคู่ — ไว้คืนให้ตอนปิดตัวกรอง */
+        let sortBeforeCrossLoc = null;
+
         function toggleStatusFilter(status) {
-            activeStatusFilter = activeStatusFilter === status ? null : status;
+            const turningOn = activeStatusFilter !== status;
+            activeStatusFilter = turningOn ? status : null;
+
+            // เปิดตัวกรอง "ซ้ำข้ามตำแหน่ง" → จัดคู่ให้อยู่ติดกันทันที (นั่นคือสิ่งที่คนกดต้องการดู)
+            // ปิดแล้วคืนค่าเรียงเดิม เพื่อไม่ให้มุมมองปกติเปลี่ยนไปโดยไม่ได้ตั้งใจ
+            const sortEl = document.getElementById('sortLocation');
+            if (sortEl) {
+                if (status === 'crossloc' && turningOn) {
+                    if (sortEl.value !== 'crossloc') sortBeforeCrossLoc = sortEl.value;
+                    sortEl.value = 'crossloc';
+                } else if (sortEl.value === 'crossloc' && !activeStatusFilter) {
+                    sortEl.value = sortBeforeCrossLoc || 'num-asc';
+                    sortBeforeCrossLoc = null;
+                }
+            }
+
             updateStatusFilterUI();
             applyTableView();
         }
@@ -2105,6 +2250,7 @@
             err: 'ผิดพลาด',
             warn: 'ตำแหน่งน่าจะผิด',
             overlap: 'ทับซ้อน',
+            crossloc: 'ซ้ำข้ามตำแหน่ง',
             pending: 'รอตรวจ',
             impact: 'ผลกระทบต่อ Match'
         };
@@ -2973,6 +3119,17 @@
             if (exact) {
                 // ตรวจแล้วยืนยันว่าปกติ → เงียบทันที ไม่ว่าจะเป็นเคสไหน
                 // (ถ้าข้อมูลเปลี่ยนหลังยืนยัน classifyAcceptance จะคืน 'stale' แล้วกลับมาเตือนเอง)
+                const clAccepted = getCrossLocContext(recordId);
+                if (clAccepted && clAccepted.ack.state === 'accepted') {
+                    return {
+                        status: 'ok',
+                        message: 'ยืนยันแล้วว่าปกติ',
+                        note: `${formatAcceptanceNote(clAccepted.ack)} · ${escapeHtml(clAccepted.group.sku)} จำนวน ${Number(clAccepted.group.qty)} ชิ้น ที่ ${clAccepted.group.locations.length} ตำแหน่ง · ${formatRefNote(exact)}`,
+                        rowClass: 'row-ok',
+                        accepted: true
+                    };
+                }
+
                 const ctx = getOverlapContext(exact, recordId);
                 if (ctx && ctx.ack.state === 'accepted') {
                     return {
@@ -3013,6 +3170,18 @@
                 // H11 — ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน · Match บวกรวมทุกแถว (SUM ต่อ SKU ต่อรอบ)
                 // อาจถูก (ทยอยนับทีละกล่อง) หรือผิด (คีย์ผิดแล้วคีย์ใหม่ แถวเก่าค้าง) → ให้คนตัดสิน
                 // มาทีหลัง exact.cycleDup เสมอ เพราะเคสค่าเท่ากันเป๊ะร้ายแรงกว่า (แดง)
+                // SKU+จำนวนเท่ากันเป๊ะ แต่คนละตำแหน่ง — Match บวกซ้ำเต็มจำนวน
+                // มาก่อน overlap เพราะ "จำนวนตรงกันเป๊ะข้ามตำแหน่ง" เป็นสัญญาณที่แรงกว่า
+                const cl = getCrossLocContext(recordId);
+                if (cl) {
+                    return {
+                        status: 'crossloc',
+                        message: cl.ack.state === 'stale' ? 'ข้อมูลเปลี่ยนหลังยืนยัน' : 'ซ้ำข้ามตำแหน่ง',
+                        note: formatCrossLocNote(cl, recordId, exact),
+                        rowClass: 'row-crossloc'
+                    };
+                }
+
                 if (ctx && !ctx.overlap.sameQty) {
                     return {
                         status: 'overlap',
@@ -3099,6 +3268,7 @@
                 result.status === 'ok' ? 'status-ok' :
                 result.status === 'warn' ? 'status-warn' :
                 result.status === 'overlap' ? 'status-overlap' :
+                result.status === 'crossloc' ? 'status-crossloc' :
                 result.status === 'error' ? 'status-error' : 'status-empty'
             );
             statusTd.textContent = result.message;
@@ -3119,7 +3289,7 @@
         }
 
         function updateStats() {
-            let ok = 0, err = 0, warn = 0, overlap = 0, pending = 0;
+            let ok = 0, err = 0, warn = 0, overlap = 0, crossloc = 0, pending = 0;
             sheetBody.querySelectorAll('tr').forEach(tr => {
                 const sku = tr.querySelector('[data-field="sku"]').value.trim();
                 const loc = tr.querySelector('[data-field="loc"]').value.trim();
@@ -3129,6 +3299,7 @@
                 if (tr.classList.contains('row-ok')) ok++;
                 else if (tr.classList.contains('row-warn')) warn++;
                 else if (tr.classList.contains('row-overlap')) overlap++;
+                else if (tr.classList.contains('row-crossloc')) crossloc++;
                 else if (tr.classList.contains('row-error')) err++;
                 else pending++;
             });
@@ -3136,6 +3307,8 @@
             document.getElementById('statErr').textContent = err;
             document.getElementById('statWarn').textContent = warn;
             document.getElementById('statOverlap').textContent = overlap;
+            const crossEl = document.getElementById('statCrossLoc');
+            if (crossEl) crossEl.textContent = crossloc;
             document.getElementById('statPending').textContent = pending;
             updateImpactBar();
         }
@@ -3197,7 +3370,9 @@
             // "ยืนยันว่าปกติ" ใช้ได้เฉพาะแถวที่อยู่ในกลุ่มที่ระบบเตือน (มีอยู่ใน overlapRowIndex)
             const btnAccept = document.getElementById('btnAcceptNormal');
             if (btnAccept) {
-                const acceptable = withDb.filter(tr => overlapRowIndex.has(String(tr.dataset.recordId)));
+                const acceptable = withDb.filter(tr =>
+                    overlapRowIndex.has(String(tr.dataset.recordId))
+                    || crossLocByRecordId.has(String(tr.dataset.recordId)));
                 btnAccept.disabled = acceptable.length === 0 || swapSkuLocMode || editLocationMode;
             }
             if (swapCountEl) swapCountEl.textContent = withDb.length;
@@ -5022,6 +5197,26 @@
             for (const tr of getCheckedRows()) {
                 const id = tr.dataset.recordId;
                 if (!id) continue;
+                // กลุ่มซ้ำข้ามตำแหน่ง — ยืนยันทั้งกลุ่มด้วยคีย์ของตัวเอง
+                const cl = crossLocByRecordId.get(String(id));
+                if (cl) {
+                    const clKey = acceptanceKey(cl.cycleId, cl.sku, crossLocAckLocation(cl));
+                    if (!groups.has(clKey)) {
+                        const prev = acceptanceByKey.get(clKey) || null;
+                        groups.set(clKey, {
+                            cycleId: cl.cycleId == null ? null : cl.cycleId,
+                            sku: cl.sku,
+                            location: crossLocAckLocation(cl),
+                            warehouse: cl.warehouse || tr.dataset.warehouse || '',
+                            rowCount: cl.rows.length,
+                            totalQty: cl.qty * cl.rows.length,
+                            existingId: prev?.id || null,
+                            alreadyAccepted: !!prev
+                        });
+                    }
+                    continue;
+                }
+
                 const hit = overlapRowIndex.get(String(id));
                 if (!hit) continue;
                 const impact = impactByCycleSku.get(hit.key);

@@ -326,6 +326,59 @@
     }
 
     /**
+     * SKU เดียวกัน จำนวนเท่ากันเป๊ะ แต่อยู่คนละตำแหน่ง — ในรอบนับและคลังเดียวกัน
+     *
+     * ทำไมต้องเตือน: `refresh_reconciliation_for_cycle` รวมยอดด้วย `SUM(counted_qty)`
+     * ต่อ SKU ต่อรอบ **โดยไม่สนตำแหน่ง** ⇒ ถ้าเป็นการนับชั้นเดิมซ้ำใต้ป้ายคนละชื่อ
+     * ยอดจะถูกบวกซ้ำเต็ม ๆ
+     *
+     * พบจากข้อมูลจริง 2026-08-11: `PK089` = 256 ชิ้นทั้งที่ K3-03 และ L4-03 (Book 258)
+     * และเป็นชุด — K3-01/L4-01, K3-02/L4-02, K3-03/L4-03 … คือชั้นเดียวกันถูกนับ 2 ป้าย
+     * ในรอบนั้นรวม 19 SKU / 1,376 ชิ้น ซึ่งเกือบเท่ายอด "เกิน" ของ SKU กลุ่มเดียวกันพอดี
+     *
+     * ⚠️ **เป็นการเตือนเท่านั้น** — ตามนโยบายข้อ 3 ระบบไม่ลบ ไม่แก้ ไม่แนะนำให้ลบ
+     *    เพราะ SKU เดียวกันวางจริง 2 ที่แล้วจำนวนบังเอิญเท่ากันก็เป็นไปได้ · ให้คนตัดสิน
+     *
+     * @param {Array<object>} rows แถวจาก inventory_counts
+     * @returns {Array<{key,cycleId,warehouse,sku,qty,rows,locations,suspectedExtraQty}>}
+     */
+    function findCrossLocationDuplicates(rows) {
+        const groups = new Map();
+        for (const r of rows || []) {
+            const sku = norm(r?.sku_id);
+            const loc = norm(r?.location);
+            const qty = Number(r?.counted_qty);
+            // qty ต้อง > 0 — ศูนย์ที่สองตำแหน่งไม่ใช่การนับซ้ำ และไม่กระทบยอด Match
+            if (!sku || !loc || !Number.isFinite(qty) || qty <= 0) continue;
+
+            const key = [cycleKey(r.cycle_id), norm(r.warehouse), sku, qty].join('|');
+            if (!groups.has(key)) {
+                groups.set(key, {
+                    key,
+                    cycleId: r.cycle_id ?? null,
+                    warehouse: r.warehouse || '',
+                    sku,
+                    qty,
+                    rows: [],
+                    locations: new Set()
+                });
+            }
+            const g = groups.get(key);
+            g.rows.push(r);
+            g.locations.add(loc);
+        }
+
+        return [...groups.values()]
+            .filter(g => g.locations.size > 1)
+            .map(g => ({
+                ...g,
+                locations: [...g.locations].sort(),
+                // ถ้าเป็นการนับซ้ำจริง ยอดที่เกินมาคือทุกแถวยกเว้นแถวเดียว
+                suspectedExtraQty: g.qty * (g.rows.length - 1)
+            }));
+    }
+
+    /**
      * คีย์ระดับ (รอบ, SKU, ตำแหน่ง) — รูปแบบเดียวกับ acceptanceKey ในหน้า audit_check
      * และ unique index ของ docs/sql/019
      */
@@ -402,6 +455,7 @@
         classifyRefDuplicate,
         classifyCycleDuplicate,
         classifyDestinationCollision,
+        findCrossLocationDuplicates,
         findSameCycleDuplicates,
         locationShapeKey,
         buildLocationShapes

@@ -291,11 +291,11 @@ drawer ดึง `inventory_audit_logs` แค่ 100 แถวล่าสุ�
 
 ## 🟢 Low — ความสะอาดโค้ด / dead code / ป้ายผิด
 
-### - [x] L1. Dead code ก้อนใหญ่ใน index/script.js
+### - [ ] L1. Dead code ก้อนใหญ่ใน index/script.js — **ปิดไปครึ่งข้อ**
 - ✅ **แก้แล้ว 2026-08-10** — Extra-SKU drawer ลบครบทั้งฟีเจอร์ (`buildExtraCountedItems` + 6 ฟังก์ชัน + cache + `toggleModal` + `clearListBtn` + 2 สาขา progress) รวม −205 บรรทัด
 - ⬜ **ยังเหลือ** — Dashboard modal ทั้งชุดเข้าถึงไม่ได้: `index.html:316-412` + `Js/script.js` (`openDashboard()` ทำ `location.href = 'Html/dashboard.html'` ไม่ได้เปิด `#dashboardModal`) — และโหลด Chart.js CDN ฟรี ๆ (`index.html:18`)
 
-### - [x] L2. Dead code กระจาย
+### - [ ] L2. Dead code กระจาย — **ปิดไปเกือบหมด เหลือ 4 จุด**
 - ✅ **แก้แล้ว 2026-08-10** — `dashboard.html` (`renderFilters`, `buildLookup`, `getSkuWarehouse`, `.status-chip.bad`), `reconcile.html` (`resolveAdjustmentQtyFromInput`), `import_counts.html` (`hasPartial`), CSS/id ตายรายหน้าอีก 12 จุด
 - ⬜ **ยังเหลือ** — `audit_check.html` (`verifyAll`/`btnLoadCounts` binding ที่ปุ่มไม่มีจริง, `skuLocKey`, `countDataRowsInZone`, `.audit-toolbar-left`, `historySubtitle`, `audit_check_warehouse` เขียนแล้วไม่อ่าน) · `dashboard.html:1614` (`bookSku` write-only) · `live-count-wall.js` (`bangkokTodayRange`, `skuMatchesScope`, `window.liveCountWall`) · `settings.html:374` (`window.RS` ไม่มีอยู่จริง) · `reconcile.html:1326-1346` (preview ไม่เคยแสดง), `:693` (`adjInputMode`) · `reconcile-shared.js` 6 ฟังก์ชันตายสนิท ~180 บรรทัด (`applyAdjustmentsToBookTargets`, `acceptReconciliationAsMatchBatch`, `fetchBookQtySums`, `updateCycleStatus`, `isMultiWarehouseCycle`, `importBookStockLinesMerge`) — ⚠️ ลบแล้วต้องลด `shared-smoke.test.mjs:32` จาก `>= 80` เป็น `>= 75` ในคอมมิตเดียวกัน · `ui-confirm-modal.js` (`parseMessage`) · `db-errors.js:24` (`SERIALIZATION`) · `Css/style.css` บล็อก KPI ~164 บรรทัด + `.sidebar-*-flat` 32 บรรทัด + `--input-focus`
 

@@ -130,7 +130,7 @@
 
 ## localStorage keys
 
-`audit_check_year_month` (อ่าน/เขียน), `audit_check_warehouse` (**เขียนอย่างเดียว ไม่เคยอ่าน** — `:1649, 1674`)
+`audit_check_year_month` (อ่าน/เขียน) เท่านั้น — `audit_check_warehouse` และ `audit_check_all_time` ถูกถอดออก 2026-08-11 (key เก่าอาจค้างในเบราว์เซอร์ แต่ไม่มีโค้ดอ่าน/เขียนแล้ว)
 
 ## ความสัมพันธ์กับหน้าอื่น
 

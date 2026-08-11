@@ -3054,7 +3054,6 @@
                 showToast(`ตรวจสอบครบ ${rows.length.toLocaleString()} แถวแล้ว`);
             } finally {
                 setLoading(false);
-                if (btn) btn.disabled = false;
             }
         }
 
@@ -5182,7 +5181,6 @@
                 throw err;
             } finally {
                 if (!silent) setLoading(false);
-                if (btn) btn.disabled = false;
             }
         }
 

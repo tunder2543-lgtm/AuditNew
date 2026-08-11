@@ -108,7 +108,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `count_page_selected_cycle_v1` | index | index |
 | `import_counts_warehouse` | import_counts | import_counts, count_search |
 | `audit_check_year_month` | audit_check | audit_check |
-| ~~`audit_check_all_time`~~ | — | — | 🚫 checkbox "ทุกช่วงเวลา" ถอดออก 2026-08-11 · key เก่าอาจค้างในเบราว์เซอร์ผู้ใช้ แต่ไม่มีโค้ดอ่านแล้ว |
+| ~~`audit_check_all_time`~~ · ~~`audit_check_warehouse`~~ | — (เลิกเขียนแล้ว 2026-08-11) | — (ไม่มีโค้ดอ่าน) |
 | `audit_check_warehouse` | audit_check | ⚠️ ไม่มีใครอ่าน |
 | `dashboard_scope_warehouse` / `dashboard_cycle_id` | dashboard | dashboard |
 | `live_wall_warehouse` / `live_wall_cycle_id` | live_count_wall | live_count_wall |
@@ -132,7 +132,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 
 | ไฟล์ | บรรทัด | โหลดโดย |
 |---|---|---|
-| `Css/style.css` | ~1,863 | ทุกหน้า (global) |
+| `Css/style.css` | ~1,770 | ทุกหน้า (global) |
 | `Css/ui-confirm.css` | ~181 | 5 หน้าที่ใช้ uiConfirm |
 | `Css/chat-notify.css` | ~114 | inject runtime โดย sidebar-shared |
 

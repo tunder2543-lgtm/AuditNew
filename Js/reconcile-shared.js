@@ -19,7 +19,6 @@
     let STANDARD_WAREHOUSES = ['ตึกกันตนา', 'หน้าไลฟ์(บางกรวย)', 'คลังอะไหล่'];
 
     const BOOK_CHUNK = 200;
-    const ADJ_APPLY_PARALLEL = 25;
 
     /** แบ่ง skuIds เป็น chunk สำหรับ .in() — ลด URL/query ใหญ่เกิน */
     function uniqueSkuIds(skuIds) {
@@ -2777,7 +2776,6 @@
         return { skuId: sku };
     }
 
-    const ACCEPT_MATCH_CHUNK = 200;
 
     /** action_type ใน inventory_audit_logs สำหรับการล้างยอดปรับตอน Import Excel (docs/ISSUES.md H6) */
     const ADJ_CLEAR_ACTION = 'RECONCILE_ADJ_CLEAR';

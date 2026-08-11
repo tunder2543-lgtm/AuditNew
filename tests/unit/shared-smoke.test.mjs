@@ -25,7 +25,7 @@ test('Js/dashboard-shared.js โหลดได้ + export window.dashboardShar
     assert.equal(typeof sb.dashboardShared.bucketSubmissionsByInterval, 'function');
 });
 
-test('Js/reconcile-shared.js โหลดได้ + export window.reconcileService (~78 ฟังก์ชัน)', () => {
+test('Js/reconcile-shared.js โหลดได้ + export window.reconcileService (~79 ฟังก์ชัน)', () => {
     const sb = loadFresh('Js/sku-utils.js', 'Js/reconcile-shared.js');
     assert.ok(sb.reconcileService);
     const keys = Object.keys(sb.reconcileService);

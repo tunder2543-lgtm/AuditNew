@@ -235,6 +235,17 @@
             background: #fffef5;
         }
 
+        #auditSheet.edit-qty-mode .col-status,
+        #auditSheet.edit-qty-mode .col-note {
+            opacity: 0.25;
+        }
+        #auditSheet.edit-qty-mode tr[data-record-id] .col-qty .gs-cell {
+            background: rgba(59, 130, 246, 0.12);
+        }
+        #auditSheet.edit-qty-mode tr.qty-dirty .col-qty .gs-cell {
+            background: rgba(59, 130, 246, 0.28);
+            font-weight: 700;
+        }
         #auditSheet.edit-loc-mode tr.loc-dirty .col-loc .gs-cell {
             box-shadow: inset 0 0 0 2px #f59e0b;
             background: #fffbeb;
@@ -1082,6 +1093,14 @@
                                 <i data-lucide="save" style="width:16px;height:16px"></i>
                                 บันทึกตำแหน่ง (<span id="locDirtyCount">0</span>)
                             </button>
+                            <button type="button" class="btn-gs btn-edit-loc" id="btnEditQtyMode" title="เปิดโหมดแก้ไขจำนวนใน Supabase — บันทึกแล้วสถานะจะไม่ค้างที่ ตำแหน่ง/จำนวนไม่ตรง เพราะฐานข้อมูลถูกแก้จริง">
+                                <i data-lucide="calculator" style="width:16px;height:16px"></i>
+                                แก้ไขจำนวน
+                            </button>
+                            <button type="button" class="btn-gs btn-save-loc" id="btnSaveQtyChanges" style="display:none;" disabled>
+                                <i data-lucide="save" style="width:16px;height:16px"></i>
+                                บันทึกจำนวน (<span id="qtyDirtyCount">0</span>)
+                            </button>
                         </div>
                     </div>
 
@@ -1168,6 +1187,9 @@
                     <span class="filter-hint" id="filterHint">กรอกข้อมูลได้ตามปกติ · เลือกโซน/เรียงแล้วทำงานทันที</span>
                 </div>
 
+                <div class="edit-loc-banner" id="editQtyBanner">
+                    <strong>โหมดแก้ไขจำนวน</strong> — แก้เฉพาะแถวที่โหลดจากระบบ (มี ID) · SKU/ตำแหน่งล็อก · กด「บันทึกจำนวน」แล้วยืนยัน 2 ครั้ง · ทุกการแก้ถูกบันทึกลงประวัติ
+                </div>
                 <div class="edit-loc-banner" id="editLocBanner">
                     <strong>โหมดแก้ไขตำแหน่ง</strong> — แก้เฉพาะแถวที่โหลดจากระบบ (มี ID) · ไม่แสดงสถานะ/หมายเหตุ · กด「บันทึกตำแหน่ง」แล้วยืนยัน 2 ครั้ง
                 </div>
@@ -1399,7 +1421,7 @@
     <script src="../Js/audit-dedupe.js?v=20260811j"></script>
     <script src="../Js/audit-book-impact.js?v=20260810d"></script>
     <script src="../Js/audit-loc-compare.js?v=20260810f"></script>
-    <script src="../Js/audit-log.js?v=20260809j"></script>
+    <script src="../Js/audit-log.js?v=20260811k"></script>
     <script>
         lucide.createIcons();
 
@@ -1409,6 +1431,7 @@
         let supabaseClient = null;
         let activeStatusFilter = null;
         let editLocationMode = false;
+        let editQtyMode = false;
         let swapSkuLocMode = false;
 
         /** @type {Map<string, { sku_id, location, counted_qty, warehouse, counter_name, record_count }>} */
@@ -3277,7 +3300,7 @@
         }
 
         function verifyRowElement(tr) {
-            if (editLocationMode) return { status: 'empty', message: '', note: '', rowClass: '' };
+            if (editLocationMode || editQtyMode) return { status: 'empty', message: '', note: '', rowClass: '' };
             const sku = tr.querySelector('[data-field="sku"]').value;
             const loc = tr.querySelector('[data-field="loc"]').value;
             const qty = tr.querySelector('[data-field="qty"]').value;
@@ -3316,6 +3339,10 @@
         async function verifyAll() {
             if (editLocationMode) {
                 showToast('ปิดโหมดแก้ไขตำแหน่งก่อนตรวจสอบ', 'error');
+                return;
+            }
+            if (editQtyMode) {
+                showToast('ปิดโหมดแก้ไขจำนวนก่อนตรวจสอบ', 'error');
                 return;
             }
             if (!refBySkuLoc.size) {
@@ -3373,7 +3400,7 @@
                 const acceptable = withDb.filter(tr =>
                     overlapRowIndex.has(String(tr.dataset.recordId))
                     || crossLocByRecordId.has(String(tr.dataset.recordId)));
-                btnAccept.disabled = acceptable.length === 0 || swapSkuLocMode || editLocationMode;
+                btnAccept.disabled = acceptable.length === 0 || swapSkuLocMode || editLocationMode || editQtyMode;
             }
             if (swapCountEl) swapCountEl.textContent = withDb.length;
             if (btnSwapApply) btnSwapApply.disabled = withDb.length === 0;
@@ -3588,7 +3615,7 @@
         }
 
         function clearRowAuditUI(tr) {
-            tr.classList.remove('row-ok', 'row-warn', 'row-error', 'row-overlap', 'row-dup-partner', 'loc-dirty');
+            tr.classList.remove('row-ok', 'row-warn', 'row-error', 'row-overlap', 'row-dup-partner', 'loc-dirty', 'qty-dirty');
             tr.removeAttribute('data-dup-partner');
             const statusTd = tr.querySelector('.col-status');
             const noteTd = tr.querySelector('.col-note');
@@ -3665,6 +3692,241 @@
             updateLocDirtyUI();
         }
 
+        function syncRowEditQtyState(tr) {
+            const skuInput = tr.querySelector('[data-field="sku"]');
+            const locInput = tr.querySelector('[data-field="loc"]');
+            const qtyInput = tr.querySelector('[data-field="qty"]');
+            if (!skuInput || !locInput || !qtyInput) return;
+
+            if (editQtyMode && tr.dataset.recordId) {
+                if (tr.dataset.originalQty === undefined) {
+                    tr.dataset.originalQty = qtyInput.value.trim();
+                }
+                skuInput.readOnly = true;
+                locInput.readOnly = true;
+                qtyInput.readOnly = false;
+                markQtyDirty(tr);
+                return;
+            }
+
+            if (!editLocationMode) {
+                skuInput.readOnly = false;
+                locInput.readOnly = false;
+                qtyInput.readOnly = false;
+            }
+            tr.classList.remove('qty-dirty');
+        }
+
+        function markQtyDirty(tr) {
+            if (!editQtyMode || !tr.dataset.recordId) return;
+            const qtyInput = tr.querySelector('[data-field="qty"]');
+            const current = qtyInput ? qtyInput.value.trim() : '';
+            const original = tr.dataset.originalQty || '';
+            const dirty = current !== '' && Number(current) !== Number(original);
+            tr.classList.toggle('qty-dirty', dirty);
+            updateQtyDirtyUI();
+        }
+
+        function updateQtyDirtyUI() {
+            const dirtyRows = getDirtyQtyRows();
+            const countEl = document.getElementById('qtyDirtyCount');
+            const saveBtn = document.getElementById('btnSaveQtyChanges');
+            if (countEl) countEl.textContent = String(dirtyRows.length);
+            if (saveBtn) saveBtn.disabled = dirtyRows.length === 0;
+        }
+
+        function getDirtyQtyRows() {
+            return Array.from(sheetBody.querySelectorAll('tr')).filter(tr => {
+                if (!tr.dataset.recordId) return false;
+                const qtyInput = tr.querySelector('[data-field="qty"]');
+                const current = qtyInput ? qtyInput.value.trim() : '';
+                const original = tr.dataset.originalQty || '';
+                return current !== '' && Number(current) !== Number(original);
+            });
+        }
+
+        function applyEditQtyModeToAllRows() {
+            sheetBody.querySelectorAll('tr').forEach(tr => {
+                if (editQtyMode) clearRowAuditUI(tr);
+                syncRowEditQtyState(tr);
+            });
+            updateQtyDirtyUI();
+        }
+
+        async function setEditQtyMode(enabled) {
+            // โหมดแก้ไขเปิดได้ทีละอย่าง — ซ้อนกันแล้ว readOnly ของช่องจะตีกัน
+            if (enabled && editLocationMode) await setEditLocationMode(false);
+            if (enabled && swapSkuLocMode) setSwapSkuLocMode(false);
+
+            editQtyMode = !!enabled;
+            const table = document.getElementById('auditSheet');
+            const btnMode = document.getElementById('btnEditQtyMode');
+            const btnSave = document.getElementById('btnSaveQtyChanges');
+            const banner = document.getElementById('editQtyBanner');
+            const hint = document.getElementById('sheetToolbarHint');
+
+            if (table) table.classList.toggle('edit-qty-mode', editQtyMode);
+            if (btnMode) btnMode.classList.toggle('active-mode', editQtyMode);
+            if (btnSave) btnSave.style.display = editQtyMode ? '' : 'none';
+            if (banner) banner.classList.toggle('active', editQtyMode);
+
+            if (hint) {
+                hint.textContent = editQtyMode
+                    ? '· แก้จำนวนในแถวที่โหลดจากระบบ · SKU/ตำแหน่งล็อก · กดบันทึกแล้วยืนยัน 2 ครั้ง'
+                    : '· กรอกรหัสสินค้า | ตำแหน่ง | จำนวน แล้วกด Tab หรือปุ่มตรวจสอบ';
+            }
+
+            applyEditQtyModeToAllRows();
+
+            if (!editQtyMode) {
+                // ออกจากโหมด → ตรวจใหม่ทั้งหมดกับข้อมูลอ้างอิงที่อัปเดตแล้ว
+                // แถวที่แก้สำเร็จจะขึ้น "ข้อมูลถูกต้อง" ไม่ค้างที่ "ตำแหน่ง/จำนวนไม่ตรง" อีก
+                const rows = Array.from(sheetBody.querySelectorAll('tr')).filter(tr => rowHasData(tr));
+                rows.forEach(tr => verifyRowElement(tr));
+                updateStats();
+                applyTableView();
+            }
+        }
+
+        async function saveQtyChanges() {
+            const dirtyRows = getDirtyQtyRows();
+            if (!dirtyRows.length) {
+                showToast('ไม่มีจำนวนที่เปลี่ยนแปลง', 'error');
+                return;
+            }
+            if (!supabaseClient) {
+                showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
+                return;
+            }
+
+            // จำนวนต้องเป็นเลขจำนวนเต็ม ≥ 0 — บอกให้ครบทุกแถวที่ผิดก่อนเริ่ม
+            const invalid = dirtyRows.filter(tr => {
+                const q = Number(tr.querySelector('[data-field="qty"]').value.trim());
+                return !Number.isInteger(q) || q < 0;
+            });
+            if (invalid.length) {
+                showToast(`มี ${invalid.length} แถวที่จำนวนไม่ใช่เลขจำนวนเต็ม 0 ขึ้นไป — แก้ก่อนบันทึก`, 'error');
+                return;
+            }
+
+            const lines = dirtyRows.slice(0, 10).map(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim() || '-';
+                const oldQty = tr.dataset.originalQty || '-';
+                const newQty = tr.querySelector('[data-field="qty"]').value.trim();
+                return `${sku} @ ${tr.querySelector('[data-field="loc"]').value.trim() || '-'}: ${oldQty} → ${newQty}`;
+            });
+            if (dirtyRows.length > 10) lines.push(`… และอีก ${dirtyRows.length - 10} รายการ`);
+            const okQty = await uiConfirm.twoStep({
+                title: 'บันทึกจำนวนใหม่',
+                variant: 'amber',
+                step1: {
+                    intro: `แก้จำนวน ${dirtyRows.length.toLocaleString()} รายการใน Supabase`,
+                    bullets: lines,
+                    confirmLabel: 'ดำเนินการต่อ'
+                },
+                step2: {
+                    intro: `อัปเดต inventory_counts ${dirtyRows.length.toLocaleString()} แถว (counted_qty)`,
+                    note: 'ผลนับคือหลักฐาน — ทุกการแก้ถูกบันทึกลงประวัติ (ค่าเดิม → ค่าใหม่) และย้อนดูได้เสมอ',
+                    noteVariant: 'danger',
+                    confirmLabel: 'บันทึกจำนวน'
+                }
+            });
+            if (!okQty) return;
+            if (!ensureRefLoadedForDestCheck()) return;
+
+            // guard เดียวกับทุกทางแก้ไข (M12): จำนวนใหม่ไปตรงกับแถวอื่นที่ รอบ+คลัง+SKU+
+            // ตำแหน่ง เดียวกัน = สร้างแถวซ้ำจริง ต้องบล็อก (invariant ข้อ 3)
+            setLoading(true, 'กำลังตรวจปลายทางกับฐานข้อมูล...', `${dirtyRows.length.toLocaleString()} รายการ`);
+            const planned = dirtyRows.map(tr => {
+                const sku = tr.querySelector('[data-field="sku"]').value.trim();
+                const loc = norm(tr.querySelector('[data-field="loc"]').value);
+                const newQty = Number(tr.querySelector('[data-field="qty"]').value.trim());
+                return {
+                    recordId: tr.dataset.recordId,
+                    destSku: sku,
+                    destLoc: loc,
+                    destQty: newQty,
+                    warehouse: getWarehouseForRecordId(tr.dataset.recordId),
+                    label: `${sku} @ ${loc}: ${tr.dataset.originalQty} → ${newQty}`,
+                    tr,
+                    newQty
+                };
+            });
+            let toApply, blocked, warned;
+            try {
+                ({ ok: toApply, blocked, warned } = await validateDestUpdateBatch(planned));
+            } finally {
+                setLoading(false);
+            }
+            const proceedQty = await confirmDestUpdatesWithSkips('บันทึกจำนวน', toApply, blocked, warned);
+            if (!proceedQty) return;
+
+            const btnSave = document.getElementById('btnSaveQtyChanges');
+            if (btnSave) btnSave.disabled = true;
+            setLoading(true, 'กำลังบันทึกจำนวน...', `0 / ${toApply.length}`);
+
+            let ok = 0;
+            let fail = 0;
+            let skipped = blocked.length;
+            let lastUpdateError = null;
+            const changed = [];   // before/after ของแถวที่แก้สำเร็จ ไว้เขียน audit log
+
+            try {
+                for (let i = 0; i < toApply.length; i++) {
+                    const item = toApply[i];
+                    const tr = item.tr;
+                    const id = item.recordId;
+                    const before = rowSnapshotFromTr(tr);   // counted_qty ใช้ dataset.originalQty
+
+                    const { error } = await supabaseClient
+                        .from('inventory_counts')
+                        .update({ counted_qty: item.newQty })
+                        .eq('id', id);
+
+                    if (error) {
+                        console.error(error);
+                        lastUpdateError = error;
+                        fail += 1;
+                    } else {
+                        tr.dataset.originalQty = String(item.newQty);
+                        tr.classList.remove('qty-dirty');
+                        changed.push({ before, after: { counted_qty: item.newQty } });
+                        ok += 1;
+                    }
+
+                    await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.EDIT_QTY);
+                    setLoadingProgress(i + 1, toApply.length, 'กำลังบันทึกจำนวน...');
+                    if ((i + 1) % 20 === 0) await yieldToBrowser();
+                }
+
+                await flushAuditLogsIfNeeded(changed, window.AuditLog.ACTIONS.EDIT_QTY, true);
+                await loadReferenceData();
+
+                const skipPart = skipped > 0 ? ` · ข้ามปลายทางซ้ำ ${skipped}` : '';
+                if (fail > 0 && lastUpdateError) {
+                    const info = window.DbErrors?.formatDbError(lastUpdateError, { context: 'บันทึกจำนวน' });
+                    showToast(
+                        `บันทึกสำเร็จ ${ok} รายการ (ล้มเหลว ${fail})${skipPart}\n${info?.message || lastUpdateError.message || ''}`,
+                        'error'
+                    );
+                } else {
+                    showToast(
+                        `บันทึกจำนวนสำเร็จ ${ok} รายการ${fail > 0 ? ` (ล้มเหลว ${fail})` : ''}${skipPart} — ปิดโหมดแล้วสถานะจะตรวจใหม่กับค่าที่แก้`,
+                        fail > 0 || skipped > 0 ? 'error' : 'success'
+                    );
+                }
+            } catch (err) {
+                console.error(err);
+                const info = window.DbErrors?.formatDbError(err, { context: 'บันทึกจำนวน' });
+                showToast(info?.message || `บันทึกล้มเหลว: ${err.message}`, 'error');
+                await loadReferenceData();
+            } finally {
+                setLoading(false);
+                updateQtyDirtyUI();
+                applyTableView();
+            }
+        }
+
         function syncRowSwapModeState(tr) {
             const hasId = !!tr.dataset.recordId;
             tr.classList.toggle('swap-eligible', swapSkuLocMode && hasId);
@@ -3680,6 +3942,7 @@
 
         function setSwapSkuLocMode(enabled) {
             if (enabled && editLocationMode) setEditLocationMode(false);
+            if (enabled && editQtyMode) setEditQtyMode(false);
             swapSkuLocMode = !!enabled;
 
             const table = document.getElementById('auditSheet');
@@ -3871,6 +4134,7 @@
                 });
                 if (!ok) return;
             }
+            if (enabled && editQtyMode) await setEditQtyMode(false);
             editLocationMode = !!enabled;
             const table = document.getElementById('auditSheet');
             const btnMode = document.getElementById('btnEditLocMode');
@@ -4050,6 +4314,10 @@
             if (locInput) {
                 locInput.addEventListener('input', () => markLocDirty(tr));
             }
+            const qtyDirtyInput = tr.querySelector('[data-field="qty"]');
+            if (qtyDirtyInput) {
+                qtyDirtyInput.addEventListener('input', () => markQtyDirty(tr));
+            }
 
             const inputs = tr.querySelectorAll('.gs-cell');
             inputs.forEach((input, idx) => {
@@ -4060,12 +4328,16 @@
                     if (e.key === 'Enter') {
                         const next = inputs[idx + 1] || tr.nextElementSibling?.querySelector('[data-field="sku"]');
                         if (next) { next.focus(); next.select?.(); }
-                        else if (idx === inputs.length - 1 && !editLocationMode) verifyRowElement(tr);
+                        else if (idx === inputs.length - 1 && !editLocationMode && !editQtyMode) verifyRowElement(tr);
                     }
                 });
                 input.addEventListener('blur', () => {
                     if (editLocationMode) {
                         markLocDirty(tr);
+                        return;
+                    }
+                    if (editQtyMode) {
+                        markQtyDirty(tr);
                         return;
                     }
                     const sku = tr.querySelector('[data-field="sku"]').value.trim();
@@ -4177,6 +4449,11 @@
             showToast(editLocationMode ? 'เปิดโหมดแก้ไขตำแหน่ง' : 'ปิดโหมดแก้ไขตำแหน่ง — กลับโหมดตรวจสอบ');
         });
         document.getElementById('btnSaveLocChanges').addEventListener('click', saveLocationChanges);
+        document.getElementById('btnEditQtyMode').addEventListener('click', () => {
+            setEditQtyMode(!editQtyMode);
+            showToast(editQtyMode ? 'เปิดโหมดแก้ไขจำนวน' : 'ปิดโหมดแก้ไขจำนวน — กลับโหมดตรวจสอบ');
+        });
+        document.getElementById('btnSaveQtyChanges').addEventListener('click', saveQtyChanges);
         document.getElementById('btnSwapSkuLocMode').addEventListener('click', () => {
             setSwapSkuLocMode(!swapSkuLocMode);
             showToast(swapSkuLocMode ? 'เปิดโหมดสลับ SKU/ตำแหน่ง' : 'ปิดโหมดสลับ — กลับโหมดตรวจสอบ');

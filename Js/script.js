@@ -987,6 +987,7 @@ document.addEventListener('DOMContentLoaded', () => {
     /** ป้าย/คำอธิบายของ log ที่มาจากหน้า audit_check (ดู Js/audit-log.js) */
     const AUDIT_ACTION_LABELS = {
         AUDIT_EDIT_LOC: 'แก้ตำแหน่งจากหน้าตรวจสอบ',
+        AUDIT_EDIT_QTY: 'แก้จำนวนจากหน้าตรวจสอบ',
         AUDIT_SWAP: 'สลับ SKU ↔ ตำแหน่ง จากหน้าตรวจสอบ',
         AUDIT_LOC_COMPARE: 'แก้ตำแหน่งจากการเทียบไฟล์ Excel',
         AUDIT_DELETE: 'ลบรายการจากหน้าตรวจสอบ',
@@ -994,6 +995,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     const AUDIT_ACTION_BADGES = {
         AUDIT_EDIT_LOC: 'แก้ตำแหน่ง',
+        AUDIT_EDIT_QTY: 'แก้จำนวน',
         AUDIT_SWAP: 'สลับ SKU/LOC',
         AUDIT_LOC_COMPARE: 'Excel LOC',
         AUDIT_DELETE: 'ลบ (ตรวจสอบ)',

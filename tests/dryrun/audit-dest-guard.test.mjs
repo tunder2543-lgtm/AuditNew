@@ -211,7 +211,7 @@ test('[M12] ทุก call site ต้อง await validateDestUpdateBatch', () 
     // ลืม await = ได้ Promise แล้ว toApply.length เป็น undefined ⇒ หน้าพังตอนรันจริง
     // โดยเทสพฤติกรรมทั้งหมดยังเขียว (บทเรียนเดียวกับ `const btn` ที่เคยทำ audit_check พังเงียบ)
     const calls = [...AUDIT.matchAll(/(\w+\s+)?validateDestUpdateBatch\(planned\)/g)];
-    assert.equal(calls.length, 3, `เจอ call site ${calls.length} จุด — เทสนี้ล้าสมัย`);
+    assert.equal(calls.length, 4, `เจอ call site ${calls.length} จุด — เทสนี้ล้าสมัย (4 = สลับ/บันทึกตำแหน่ง/เทียบ Excel/บันทึกจำนวน)`);
     for (const c of calls) {
         assert.equal(c[1]?.trim(), 'await', `call site ที่ index ${c.index} ไม่มี await`);
     }

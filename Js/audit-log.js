@@ -21,6 +21,7 @@
     /** action_type ที่หน้า audit_check ใช้ — แยกจาก INSERT/UPDATE/DELETE ของหน้านับ */
     const ACTIONS = {
         EDIT_LOC: 'AUDIT_EDIT_LOC',       // แก้ตำแหน่ง (โหมดแก้ Location)
+        EDIT_QTY: 'AUDIT_EDIT_QTY',       // แก้จำนวน (โหมดแก้ Quantity)
         SWAP: 'AUDIT_SWAP',               // สลับ SKU ↔ Location
         LOC_COMPARE: 'AUDIT_LOC_COMPARE', // แก้ตำแหน่งจากการเทียบไฟล์ Excel
         DELETE: 'AUDIT_DELETE',           // ลบแถวที่เลือกในตาราง

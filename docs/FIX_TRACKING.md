@@ -117,23 +117,22 @@
 
 | ไฟล์ที่แก้ | หน้าที่ได้รับผลกระทบ |
 |---|---|
-| `Js/api.js` | **ทั้ง 12 หน้า** |
-| `Js/sidebar-shared.js` | **ทั้ง 12 หน้า** (เมนู + ระบบแจ้งเตือนแชท) — แตะแล้วต้อง bump `ASSET_VER` + `?v=` ของ `sidebar-shared.js` **และ** `style.css` ทุกหน้า |
+| `Js/api.js` | **ทั้ง 11 หน้า** |
+| `Js/sidebar-shared.js` | **ทั้ง 11 หน้า** (เมนู + ระบบแจ้งเตือนแชท) — แตะแล้วต้อง bump `ASSET_VER` + `?v=` ของ `sidebar-shared.js` **และ** `style.css` ทุกหน้า |
 | `Js/reconcile-shared.js` | index, import_counts, count_search, reconcile, book_explorer, dashboard, live_count_wall, cycle_config |
 | `Js/warehouses-shared.js` | **8 หน้า** — index, import_counts, count_search, audit_check, dashboard, live_count_wall, settings, cycle_config |
-| `Js/settings-shared.js` | **8 หน้า** — index, import_counts, count_search, audit_check, reconcile, live_count_wall, settings, cycle_config (ยกเว้น book_explorer, chat, user_manual, **dashboard** — dashboard มี connection pill ของตัวเอง) |
+| `Js/settings-shared.js` | **8 หน้า** — index, import_counts, count_search, audit_check, reconcile, live_count_wall, settings, cycle_config (ยกเว้น book_explorer, chat, **dashboard** — dashboard มี connection pill ของตัวเอง) |
 | `Js/sku-utils.js` | **8 หน้า** — index, import_counts, count_search, audit_check, reconcile, dashboard, live_count_wall, cycle_config |
 | `Js/db-errors.js` | **3 หน้า** — index, import_counts, audit_check (ถอดออกจาก 5 หน้าเมื่อ 2026-08-10 เพราะไม่มีการเรียกใช้ · มีเทส `unit/script-loads` คุ้ม) |
-| `Js/ui-confirm-modal.js` | import_counts, audit_check, reconcile, cycle_config, chat, user_manual |
-| `Js/chat-notify-shared.js` | **ทั้ง 12 หน้า** (inject ผ่าน sidebar) |
+| `Js/ui-confirm-modal.js` | **5 หน้า** — import_counts, audit_check, reconcile, cycle_config, chat |
+| `Js/chat-notify-shared.js` | **ทั้ง 11 หน้า** (inject ผ่าน sidebar) |
 | `Js/dashboard-shared.js` | dashboard |
 | `Js/audit-dedupe.js` | audit_check |
 | `Js/audit-log.js` | audit_check (และรูปแบบ log กระทบ drawer ประวัติใน index) |
 | `Js/script.js` | index เท่านั้น |
 | `Js/live-count-wall.js` | live_count_wall เท่านั้น |
-| `Js/manual-editor.js` | user_manual เท่านั้น |
-| `Css/style.css` | **ทั้ง 13 หน้า** |
-| `Css/ui-confirm.css` | 6 หน้าที่ใช้ uiConfirm |
+| `Css/style.css` | **ทั้ง 11 หน้า** |
+| `Css/ui-confirm.css` | **5 หน้า**ที่ใช้ uiConfirm — import_counts, audit_check, reconcile, cycle_config, chat |
 | `docs/sql/*` (ถ้า admin อนุมัติในอนาคต) | ตาม RPC/ตารางที่แตะ — ปัจจุบัน **ห้ามแตะ DB** |
 
 **ตัวอย่างการใช้:** จะแก้ H6 (`Js/reconcile-shared.js`) → แถว reconcile-shared บอกว่า 8 หน้าใช้ไฟล์นี้ → หลังแก้ รันเทสอัตโนมัติ + ไล่ smoke มือ 8 หน้า (โฟกัส reconcile ที่เรียกฟังก์ชันนี้ตรง ๆ 2 จุด: Excel import และ ลบรายการ Book)
@@ -170,7 +169,6 @@
 | settings | badge เชื่อมต่อเขียว, รายการคลังโหลด (อย่ากดลบคลัง) |
 | chat | ข้อความเก่าโหลด, ส่งข้อความทดสอบ 1 ข้อความได้ (ห้องรวม — ลบไม่ได้รายข้อความ) |
 | live_count_wall | สองฝั่งโหลด, ลองสลับคลัง/รอบ, ดู realtime ขึ้นเมื่อมีคนบันทึก |
-| user_manual | โหมดอ่านแสดงครบ, สลับโหมดแก้ไขได้, ปุ่มสำรองดาวน์โหลดไฟล์ |
 
 ---
 

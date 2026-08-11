@@ -58,8 +58,7 @@ const INJECTED_BY = { 'chat-notify-shared.js': 'sidebar-shared.js' };
 /** ไฟล์ JS ที่เป็น "โค้ดของหน้านั้น" ไม่ใช่ shared layer */
 const PAGE_JS = {
     'index.html': 'script.js',
-    'live_count_wall.html': 'live-count-wall.js',
-    'user_manual.html': 'manual-editor.js'
+    'live_count_wall.html': 'live-count-wall.js'
 };
 
 function htmlPages() {

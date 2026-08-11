@@ -29,7 +29,7 @@
 > **เทสคุ้มกัน 7 ข้อ** ใน `tests/unit/xss-guard.test.mjs` — สแกน source อัตโนมัติหา pattern อันตราย (`onclick` ที่ต่อค่า, `setAttribute('on*')`, escape function ที่ไม่ครอบ `'`) + pin test จุดที่เคยพลาด
 > **ทดสอบจริง**: ยิง payload `<img src=x onerror=...>` เข้า toast และ note ในเบราว์เซอร์ → ไม่ execute แสดงเป็นข้อความ และ `<strong>` ที่ตั้งใจใส่ยังทำงาน
 >
-> ⚠️ **ยังเหลือ (นอกขอบเขต C2):** `Js/manual-editor.js:243` `root.innerHTML = state.html` จาก localStorage — เป็น self-XSS (ผู้ใช้ทำร้ายตัวเองเท่านั้น) จะเป็นปัญหาก็ต่อเมื่อทำฟีเจอร์ import ไฟล์ backup กลับ
+> ✅ **ปิดแล้ว 2026-08-11** — จุด self-XSS ที่เหลือ (`manual-editor.js` `root.innerHTML = state.html` จาก localStorage) หายไปพร้อมการถอดหน้าคู่มือ
 **ยืนยันแล้วทุกจุด:** ข้อมูลจากผู้ใช้/Excel/DB ถูกใส่ `innerHTML` หรือ `onclick="..."` โดยไม่ escape:
 - `Html/settings.html:352` (ชื่อคลัง), `:348, :359` (escape เฉพาะ `'` — `"` และ `<` หลุด)
 - `Js/script.js:553-554, 562, 565, 785, 1034-1035, 1330, 1333, 1423 (toast), 1771, 1777, 1801-1802`
@@ -225,7 +225,8 @@
 ### - [ ] M19. `encodeCycleWarehouses` เรียงไม่เสถียร — ชุดคลังเดียวกัน encode ได้ 2 แบบ = 2 รอบใน DB
 `Js/reconcile-shared.js:143-161` (คลังนอกรายการมาตรฐาน map เป็น 99 เท่ากันหมด)
 
-### - [ ] M20. user_manual: รูปเก็บซ้ำ 2 ชุดใน localStorage + backup กู้กลับไม่ได้ + toast quota ไม่ทำงาน
+### - [x] M20. user_manual: รูปเก็บซ้ำ 2 ชุดใน localStorage + backup กู้กลับไม่ได้ + toast quota ไม่ทำงาน
+> 🚫 **ตกไป 2026-08-11** — ถอดหน้าคู่มือออกจากระบบทั้งฟีเจอร์ (มติ admin) · key `stock_audit_user_manual_v2` / `stock_audit_manual_mode_v1` อาจค้างในเบราว์เซอร์ผู้ใช้แต่ไม่มีโค้ดอ่านแล้ว
 `Js/manual-editor.js:37-41, 205-218, 44-53`
 
 ### - [ ] M21. chat: ล้าง Storage จำกัด 500 ไฟล์ไม่มี pagination + ไฟล์แนบเป็น public URL ถาวร
@@ -302,7 +303,7 @@ drawer ดึง `inventory_audit_logs` แค่ 100 แถวล่าสุ�
 รวมเป็น util กลางชุดเดียว (เกี่ยวพันกับ C2)
 
 ### - [ ] L4. ป้าย/ข้อความผิด
-`dashboard.html:2443` "รวม 3 คลัง" hardcode; `live-count-wall.js:607` "วันนี้" (จริงคือรายเดือน); `user_manual.html:220` "ภาคผนิ"→"ภาคผนวก", `:314` สอน anon key; `settings.html:192` ป้าย "(anon/public)" ขัดค่าจริง
+`dashboard.html:2443` "รวม 3 คลัง" hardcode; `live-count-wall.js:607` "วันนี้" (จริงคือรายเดือน); `settings.html:192` ป้าย "(anon/public)" ขัดค่าจริง
 
 ### - [ ] L5. `readAsBinaryString` deprecated 3 จุด
 `import_counts.html:954`, `audit_check.html:3844`, `cycle_config.html:1781` — เปลี่ยนเป็น arrayBuffer (reconcile ใช้แล้ว)

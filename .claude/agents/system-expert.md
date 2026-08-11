@@ -39,7 +39,7 @@ tools: Read, Grep, Glob, Bash
 
 ## โครงสร้าง (แผนที่หาไฟล์)
 
-- **12 หน้า**: `index.html` (root) + `Html/` 11 หน้า · เมนู 3 กลุ่ม (นับสต็อก/ตรวจสอบ/ตั้งค่า) ใน `Js/sidebar-shared.js` `GROUPS`
+- **11 หน้า**: `index.html` (root) + `Html/` 10 หน้า · เมนู 3 กลุ่ม (นับสต็อก/ตรวจสอบ/ตั้งค่า) ใน `Js/sidebar-shared.js` `GROUPS`
 - **Shared JS** `Js/`: `reconcile-shared.js` (service ใหญ่สุด ~84 exports — cycle/Book/Match/adjustments), `script.js` (index เท่านั้น), `warehouses-shared.js` (registry คลัง), `audit-*.js` 4 ตัว (audit_check), `chat-notify-shared.js` (inject โดย sidebar ทุกหน้า)
 - **DB 11 ตาราง + 1 view**: หลักคือ `inventory_counts`, `count_cycles`, `book_stock_lines`, `reconciliation_lines`, `stock_adjustments`, `inventory_audit_logs`, `warehouses`, `chat_messages` — schema เต็ม + RPC 8 ตัว: `docs/DATABASE.md` · ⚠️ Supabase project ใช้ร่วมกับระบบอื่นอีก 30 ตาราง ห้ามแตะ · `sku_master` ยังอยู่ใน DB แต่เว็บเลิกเชื่อมต่อแล้ว (2026-08-10)
 - **เทส**: `node tests/run.mjs` — Dry Run 100% (267 PASS ณ 2026-08-10) · workflow บังคับ: `docs/FIX_TRACKING.md`

@@ -27,7 +27,7 @@ Static HTML + vanilla JS + Supabase (UI ภาษาไทย) — ไม่ม�
 
 ### ภาพรวม
 - [docs/PURPOSE.md](docs/PURPOSE.md) — **จุดประสงค์ระบบ + workflow 7 ขั้นตามที่ admin ใช้จริง + ตารางความสอดคล้อง + ข้อเสนอ UX/UI 10 ข้อ** (จัดทำ 2026-08-10 จากคำอธิบาย admin โดยตรง — อ่านก่อนตัดสินใจเชิงฟีเจอร์เสมอ)
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — สถาปัตยกรรม, data flow, shared JS layer 13 ไฟล์, matrix การโหลดต่อหน้า, localStorage keys ทั้งหมด, เมนู sidebar
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — สถาปัตยกรรม, data flow, shared JS layer 16 ไฟล์, matrix การโหลดต่อหน้า, localStorage keys ทั้งหมด, เมนู sidebar
 - [docs/DATABASE.md](docs/DATABASE.md) — schema 8 ตาราง + views + RPC 8 ตัว, ความสัมพันธ์, รายการ migration, จุดที่โค้ดกับ DB ไม่ตรงกัน
 - [docs/ISSUES.md](docs/ISSUES.md) — **รายการสิ่งที่ควรแก้ทั้งหมด (Critical 2 / High 8 / Medium 23 / Low 11 กลุ่ม)** พร้อมช่องติ๊กให้ admin เลือก — Critical/High ผ่านการ verify กับโค้ดจริงครบทุกข้อ
 
@@ -45,7 +45,6 @@ Static HTML + vanilla JS + Supabase (UI ภาษาไทย) — ไม่ม�
 | `Html/settings.html` | [docs/pages/settings.md](docs/pages/settings.md) | ตั้งค่า Supabase + registry คลัง |
 | `Html/chat.html` | [docs/pages/chat.md](docs/pages/chat.md) | แชททีม + ระบบแจ้งเตือนข้ามหน้า |
 | `Html/live_count_wall.html` | [docs/pages/live_count_wall.md](docs/pages/live_count_wall.md) | จอแสดงผลนับสด (realtime) |
-| `Html/user_manual.html` | [docs/pages/user_manual.md](docs/pages/user_manual.md) | คู่มือแก้ไขได้ในเบราว์เซอร์ (localStorage ล้วน) |
 
 ### เอกสารเดิม (แก้ให้ตรงโค้ดแล้ว 2026-08-10 — เหลือ 1 จุดใน ISSUES.md ข้อ L8)
 - [docs/SYSTEM_GUIDE.md](docs/SYSTEM_GUIDE.md) — คู่มือระบบฉบับเดิม
@@ -93,8 +92,8 @@ node tests/run.mjs
 - ✅ **ถอดฟีเจอร์ SKU Master ออกจากเว็บ เสร็จ** (2026-08-10): ลบ `Html/sku_master.html` + เมนู + lookup ทั้งหมด — **ตาราง `sku_master` ยังอยู่ใน Supabase ครบ 1,179 แถว (มติ admin ห้ามลบ)** ไม่มีโค้ดใดเรียกอีก · หน้าเว็บ 13 → **12** · **เทส 261 PASS**
   - ⚠️ **บทเรียน:** `reconcile.html` เขียน `namePro: masterNames[sku] || skuNameMap[sku] || null` ดูเหมือนมี fallback แต่ **ตายสนิท** (`canAddToBookLine` บังคับ `!bookSkuSet.has(sku)` และทั้ง 2 map มาจาก `book_stock_lines` ของ cycle เดียวกัน) — ตัด lookup ทิ้งเฉย ๆ = `name_pro` เป็น null 100% เขียนลง DB ถาวร · แหล่งใหม่คือ `fetchBookNamesBySkusAnyCycle` อ่าน `book_stock_lines` ข้ามรอบ (กว้างกว่าเดิม + ปิดบั๊ก query ไม่กรอง warehouse)
   - ⚠️ กลุ่มเมนูที่เหลือ 0 รายการจะกลายเป็นหัวข้อพับที่กดแล้วว่าง — ลบ item สุดท้ายต้องลบทั้งกลุ่ม · มีเทส `[menu-guard]` × 4 บังคับแล้ว
-  - ⚠️ **ต้องทำมือในเครื่องที่เคยเข้าโหมดแก้ไขคู่มือ**: `manual-editor.js` restore `innerHTML` จาก localStorage ทับ source ⇒ กด "สำรอง" แล้ว "รีเซ็ตคู่มือ" ใน `user_manual.html` ไม่งั้นยังเห็น section F1 SKU Master
 - ✅ **M4 เสร็จ** (2026-08-10): `parseBookExcelRows` เลิกใช้ `normalizeSku` กับ **ชื่อสินค้า** (invariant ข้อ 2 เป็นมาตรฐานของ *รหัส SKU* เท่านั้น) — คอลัมน์ SKU ยัง UPPERCASE เหมือนเดิม มีเทสบังคับ · เทสย้ายจาก knownIssue → ถาวร 3 ข้อ · **267 PASS / 2 KNOWN-OPEN**
   - ⚠️ **แก้โค้ดไม่ได้แก้ข้อมูลเก่า** — แถว `book_stock_lines.name_pro` ที่นำเข้าไปแล้วยังเป็น ALL CAPS · จะล้างต้องอัปโหลดไฟล์ Book ทับ (โหมด replace) หรือ UPDATE ใน DB
+- ✅ **ถอด checkbox "ทุกช่วงเวลา" + ถอดหน้าคู่มือ เสร็จ** (2026-08-11): audit_check เหลือกรองตามคลัง+เดือนเสมอ · ลบ `Html/user_manual.html` + `Js/manual-editor.js` + `assets/manual/` (~4 MB) — **หน้าเว็บ 12 → 11** · `ASSET_VER` `20260811a`
 - ✅ **PURPOSE.md + system-expert agent + Note ส่งมอบ** (2026-08-10 เย็น): เทสระบบ 267 PASS + smoke ผ่าน · งานถัดไป (ถอดคู่มือ + checkbox "ทุกช่วงเวลา" + dead code ชุด 6-9) **แผน+impact ครบแล้ว**ที่ [docs/notes/2026-08-10_handoff.md](docs/notes/2026-08-10_handoff.md)
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

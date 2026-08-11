@@ -45,7 +45,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 6. `reconcile.html` — กด "คำนวณ Match" → ปรับยอด/ยอมรับ → export
 7. `book_explorer.html` / `dashboard.html` / `live_count_wall.html` — ดูผล
 
-## Shared JS Layer (`Js/` — 13 ไฟล์)
+## Shared JS Layer (`Js/` — 16 ไฟล์)
 
 | ไฟล์ | Global ที่ export | หน้าที่ |
 |---|---|---|
@@ -65,7 +65,6 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `chat-notify-shared.js` | — | แจ้งเตือนแชทข้ามหน้า (realtime + polling) — ถูก inject โดย sidebar ทุกหน้า |
 | `script.js` | (IIFE) | logic ทั้งหมดของ index.html |
 | `live-count-wall.js` | (IIFE) | logic ของ live_count_wall — ⚠️ capture `RS` ตอน parse ลำดับ script สำคัญ |
-| `manual-editor.js` | (IIFE) | editor ของ user_manual (localStorage ล้วน) |
 
 ## Matrix การโหลด Shared JS ต่อหน้า
 
@@ -84,7 +83,6 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | settings | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ | ❌ | |
 | cycle_config | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | |
 | chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | |
-| user_manual | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | manual-editor.js |
 
 `chat-notify-shared.js` + `Css/chat-notify.css` ไม่มี tag ในหน้าไหนเลย — `sidebar-shared.js` inject ให้ทุกหน้าตอน runtime (จึงต้อง bump `ASSET_VER`)
 
@@ -92,7 +90,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 
 จุดที่ drift:
 - ลำดับ `<script>` ไม่มีมาตรฐาน (6 หน้า sidebar มาก่อน api, 7 หน้ามาหลัง) — ทำงานได้เพราะ sidebar รอ DOMContentLoaded ยกเว้น `live-count-wall.js` ที่ลำดับสำคัญจริง
-- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 12 หน้าด้วย
+- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 11 หน้าด้วย
 - `reconcile` และ `book_explorer` โหลด `reconcile-shared.js` โดยไม่โหลด `warehouses-shared.js` — ไม่พัง เพราะ `refreshStandardWarehousesFromRegistry()` ถูกเรียกจาก `cycle_config` / `settings` เท่านั้น ซึ่งโหลดครบ · `book_explorer` ไม่โหลด `sku-utils.js` ก็ไม่พัง เพราะ `reconcile-shared.js:70` มี fallback normalize ที่เหมือน `SkuUtils.normalizeSku` เป๊ะ
 - `escapeHtml` มี **5 เวอร์ชัน** คนละชุดอักขระ (warehouses-shared, ui-confirm-modal, chat.html, dashboard.html, live-count-wall.js)
 - Connection badge มี 3 implementation (settings-shared กลาง, dashboard `#connectionPill`, live_count_wall id-based)
@@ -116,7 +114,6 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `live_wall_warehouse` / `live_wall_cycle_id` | live_count_wall | live_count_wall |
 | `sidebar_groups_open_v1` | sidebar-shared | sidebar-shared |
 | `audit_chat_v2` / `audit_chat_name_v1` / `audit_chat_station_v1` / `audit_chat_session_v1` / `audit_chat_unread_v1` / `audit_chat_last_read_v1` | chat, chat-notify | chat, chat-notify |
-| `stock_audit_user_manual_v2` / `stock_audit_manual_mode_v1` | manual-editor | manual-editor |
 | `recon_import_accept_v1_<cycleId>` (sessionStorage) | reconcile | reconcile |
 
 ⚠️ precedence ของ `saved_warehouse` vs `import_counts_warehouse` สลับกันระหว่าง import_counts กับ count_search — สลับหน้าแล้วคลังที่เลือกอาจเปลี่ยน
@@ -127,16 +124,16 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 |---|---|
 | เมนูนับสต็อก | index (นับสต็อก), import_counts |
 | เมนูตรวจสอบ | audit_check, count_search, reconcile, book_explorer, dashboard, live_count_wall |
-| ตั้งค่า | settings, cycle_config, chat, user_manual |
+| ตั้งค่า | settings, cycle_config, chat |
 
-ลิงก์ครบทั้ง 12 หน้า ไม่มีลิงก์เสีย (มีเทส `[menu-guard]` บังคับว่าทุกรายการต้องชี้ไฟล์ที่มีจริง และทุกกลุ่มต้องมีอย่างน้อย 1 รายการ)
+ลิงก์ครบทั้ง 11 หน้า ไม่มีลิงก์เสีย (มีเทส `[menu-guard]` บังคับว่าทุกรายการต้องชี้ไฟล์ที่มีจริง และทุกกลุ่มต้องมีอย่างน้อย 1 รายการ)
 
 ## CSS
 
 | ไฟล์ | บรรทัด | โหลดโดย |
 |---|---|---|
 | `Css/style.css` | ~1,863 | ทุกหน้า (global) |
-| `Css/ui-confirm.css` | ~181 | 6 หน้าที่ใช้ uiConfirm |
+| `Css/ui-confirm.css` | ~181 | 5 หน้าที่ใช้ uiConfirm |
 | `Css/chat-notify.css` | ~114 | inject runtime โดย sidebar-shared |
 
 หน้าใหญ่ ๆ มี CSS inline อีกหลายพันบรรทัด (dashboard ~1,100, audit_check ~870, live_count_wall ~330) — ไม่ cache, ซ้ำ pattern กัน

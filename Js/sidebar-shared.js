@@ -9,7 +9,7 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260810h';
+    const ASSET_VER = '20260811a';
 
     /** จอที่แคบกว่านี้ เมนูซ้ายทำงานเป็นลิ้นชักสไลด์ — ต้องตรงกับ @media ใน Css/style.css */
     const MOBILE_QUERY = '(max-width: 900px)';
@@ -47,8 +47,7 @@
             items: [
                 { id: 'settings', label: 'ตั้งค่า', icon: 'settings' },
                 { id: 'cycle_config', label: 'ตั้งค่ารอบ', icon: 'calendar-range' },
-                { id: 'chat', label: 'หน้าต่างสนทนา', icon: 'messages-square' },
-                { id: 'user_manual', label: 'คู่มือ', icon: 'book-open' }
+                { id: 'chat', label: 'หน้าต่างสนทนา', icon: 'messages-square' }
             ]
         }
     ];
@@ -64,8 +63,7 @@
         live_count_wall: 'live_count_wall.html',
         settings: 'settings.html',
         cycle_config: 'cycle_config.html',
-        chat: 'chat.html',
-        user_manual: 'user_manual.html'
+        chat: 'chat.html'
     };
 
     function inHtmlFolder() {

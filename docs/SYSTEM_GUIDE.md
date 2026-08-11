@@ -174,6 +174,5 @@ SQL: ดูรายการ migration ครบทุกไฟล์พร้�
 ## 8) เอกสารอ้างอิงในโปรเจกต์
 
 - `docs/RECONCILIATION_DESIGN.md`
-- `Html/user_manual.html`
 - `docs/sql/*.sql`
 

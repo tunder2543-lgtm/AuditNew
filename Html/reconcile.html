@@ -423,6 +423,9 @@
                     <button type="button" class="rc-btn rc-btn-green" id="btnExport">
                         <i data-lucide="download"></i> Export Excel
                     </button>
+                    <button type="button" class="rc-btn rc-btn-green" id="btnExportFinal" title="สรุปต่อ SKU ว่ายอดจริงคือเท่าไร มาจากการยืนยันแบบไหน ใครยืนยัน — รายการที่ยังไม่ตัดสินจะบอกชัดว่ายังไม่ยืนยัน">
+                        <i data-lucide="badge-check"></i> Export ยอดจริง
+                    </button>
                     <button type="button" class="rc-btn rc-btn-ghost" id="btnExportAdjusted" style="display:none;" title="Export เฉพาะรายการที่ปรับจาก Import ล่าสุด">
                         <i data-lucide="file-output"></i> Export ปรับล่าสุด
                     </button>
@@ -2584,6 +2587,107 @@
         });
         return data;
     }
+
+    /**
+     * สรุป "ยอดจริงที่ใช้" ต่อ SKU — ตอบคำถามตอนสรุปยอดว่าแต่ละตัวต้องเชื่อเลขไหน
+     *
+     * กติกาตัดสิน (ตามความหมายจริงของปุ่มในหน้านี้):
+     *   1. กด "ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)" = ประกาศว่า **ยอด Excel ใช้เทียบ** คือยอดจริง
+     *   2. สถานะตรงกัน (รวมเคสที่ปรับยอดจน Excel ใช้เทียบ = ผลนับ เช่น "ยอมรับผลนับ")
+     *      = ยอดจริงคือค่าที่เท่ากันนั้น · ถ้ามียอดปรับ จะโชว์ให้เห็น (เช่น Book 31 ปรับ +10 → 41)
+     *   3. ขาด/เกิน/ยังไม่ได้นับ/ไม่พบใน Excel ที่ยังไม่กดอะไร = **ยังไม่ยืนยัน**
+     *      — จงใจเว้นช่องยอดจริงไว้ ไม่เดาแทนคน (นโยบายข้อ 3)
+     */
+    function buildFinalQtyExportRows(rows) {
+        const fmtDt = iso => {
+            if (!iso) return '';
+            try { return new Date(iso).toLocaleString('th-TH', { dateStyle: 'short', timeStyle: 'short' }); }
+            catch { return String(iso); }
+        };
+        const sum = { final: 0, confirmed: 0, pending: 0 };
+
+        const data = rows.map((l, i) => {
+            const m = getExportLineMetrics(l);
+            const skuKey = RS.normalizeSku(l.sku_id);
+            const ack = matchAcceptanceMap.get(skuKey) || null;
+            const adjNotes = adjustmentsCache
+                .filter(a => RS.normalizeSku(a.sku_id) === skuKey)
+                .map(a => `${Number(a.adjustment_qty) > 0 ? '+' : ''}${Number(a.adjustment_qty)}${a.status === 'draft' ? ' (draft)' : ''}${a.note ? ` — ${a.note}` : ''}`)
+                .join(' · ');
+
+            let final = null;
+            let source;
+            let who = '';
+
+            if (isLineAcceptedMatch(l.sku_id)) {
+                final = m.effective;
+                source = 'ยืนยันเป็นถูกต้อง — ใช้ยอด Excel';
+                who = ack ? `${ack.accepted_by || ''} ${fmtDt(ack.accepted_at)}`.trim() : '';
+                if (ack?.note) who = who ? `${who} — ${ack.note}` : ack.note;
+            } else if (m.displayStatus === 'match') {
+                final = m.counted;
+                source = m.totalAdj !== 0
+                    ? `ตรงกันหลังปรับยอด (${m.totalAdj > 0 ? '+' : ''}${m.totalAdj})`
+                    : 'Book ตรงกับผลนับ';
+                who = adjNotes;
+            } else if (m.displayStatus === 'book_only') {
+                source = 'ยังไม่ได้นับ — ยังไม่ยืนยัน';
+            } else if (m.displayStatus === 'count_only') {
+                source = 'นับเจอ แต่ไม่พบใน Excel — ยังไม่ยืนยัน';
+            } else {
+                const v = m.variance;
+                source = `ยังไม่ตัดสิน — ${v < 0 ? 'ขาด' : 'เกิน'} ${Math.abs(v).toLocaleString()}`;
+                who = adjNotes;
+            }
+            if (m.draft !== 0) source += ' · มี draft ยังไม่ Apply';
+
+            if (final != null) { sum.final += final; sum.confirmed++; }
+            else sum.pending++;
+
+            return {
+                '#': i + 1,
+                SKU: l.sku_id,
+                'ชื่อ': skuNameMap[l.sku_id] || '',
+                'ยอด Book (ไฟล์)': m.book,
+                'ปรับยอด': m.totalAdj,
+                'Excel ใช้เทียบ': m.effective,
+                'ผลนับ': m.counted,
+                'ยอดจริงที่ใช้': final != null ? final : '',
+                'ที่มาของยอดจริง': source,
+                'ผู้ยืนยัน / รายละเอียด': who
+            };
+        });
+
+        data.push({
+            '#': '',
+            SKU: 'รวม',
+            'ชื่อ': '',
+            'ยอด Book (ไฟล์)': '',
+            'ปรับยอด': '',
+            'Excel ใช้เทียบ': '',
+            'ผลนับ': '',
+            'ยอดจริงที่ใช้': sum.final,
+            'ที่มาของยอดจริง': `ยืนยันแล้ว ${sum.confirmed.toLocaleString()} SKU · ยังไม่ยืนยัน ${sum.pending.toLocaleString()} SKU`,
+            'ผู้ยืนยัน / รายละเอียด': sum.pending > 0
+                ? 'ยอดรวมนี้นับเฉพาะ SKU ที่ยืนยันแล้ว — รายการที่ช่อง "ยอดจริงที่ใช้" ว่างต้องกลับไปตัดสินก่อน'
+                : 'ยืนยันครบทุก SKU แล้ว'
+        });
+        return data;
+    }
+
+    document.getElementById('btnExportFinal').addEventListener('click', () => {
+        const rows = getVisibleLines();
+        if (!rows.length) return showToast('ไม่มีข้อมูลให้ Export', 'error');
+        const data = buildFinalQtyExportRows(rows);
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'ยอดจริง');
+        const ym = currentCycle?.year_month || 'cycle';
+        const wh = (currentCycle?.warehouse || 'wh').replace(/[^\w\u0E00-\u0E7F]+/g, '_');
+        XLSX.writeFile(wb, `ยอดจริง_${wh}_${ym}.xlsx`);
+        const pending = data[data.length - 1]['ที่มาของยอดจริง'];
+        showToast(`Export ยอดจริง ${rows.length.toLocaleString()} SKU — ${pending}`);
+    });
 
     document.getElementById('btnExport').addEventListener('click', () => {
         const rows = getVisibleLines();

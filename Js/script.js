@@ -119,7 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function filterCyclesCurrentMonth(cycles) {
         const ym = getCurrentYearMonthBangkok();
-        return (cycles || []).filter(c => c.year_month === ym);
+        // ซ่อนรอบที่ปิดแล้วด้วย — ต้องทำคู่กับ guard ใน isCycleRelevantNow (M24)
+        // ไม่งั้นผู้ใช้เลือกรอบที่ปิดได้ แต่ระบบเงียบ ๆ ไม่แนบ cycle_id แล้ววนเตือนซ้ำ
+        const isClosed = window.reconcileService?.isCycleClosed;
+        return (cycles || [])
+            .filter(c => c.year_month === ym)
+            .filter(c => !(isClosed ? isClosed(c) : false));
     }
 
     function updateCycleSubtitle() {
@@ -232,8 +237,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const RS = window.reconcileService;
         if (!RS?.isCycleRelevantNow || !activeCycleForPage) return true;
         if (RS.isCycleRelevantNow(activeCycleForPage)) return true;
+        // หลัง M24 มี 2 เหตุผล: รอบปิดแล้ว หรือ ข้ามเดือน — ต้องบอกให้ตรง ไม่งั้นหาสาเหตุผิดทาง
+        const closed = RS.isCycleClosed?.(activeCycleForPage);
         await populateAndResolveCycle(warehouse);
-        showToast('ข้ามเดือนแล้ว — รอบที่เลือกไว้ไม่ใช่ของเดือนนี้ ระบบโหลดรอบใหม่ให้แล้ว กรุณาตรวจรอบแล้วกดบันทึกอีกครั้ง', 'error');
+        showToast(closed
+            ? 'รอบที่เลือกไว้ถูกปิดแล้ว — บันทึกเข้ารอบที่ปิดไม่ได้ ระบบโหลดรอบใหม่ให้แล้ว กรุณาตรวจรอบแล้วกดบันทึกอีกครั้ง'
+            : 'ข้ามเดือนแล้ว — รอบที่เลือกไว้ไม่ใช่ของเดือนนี้ ระบบโหลดรอบใหม่ให้แล้ว กรุณาตรวจรอบแล้วกดบันทึกอีกครั้ง', 'error');
         return false;
     }
 

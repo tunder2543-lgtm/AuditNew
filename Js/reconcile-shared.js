@@ -141,18 +141,31 @@
 
 
 
+    /**
+     * รวมชุดคลังเป็นสตริงเดียวสำหรับเก็บใน `count_cycles.warehouse`
+     *
+     * ⚠️ ต้อง **เสถียร**: ชุดคลังเดียวกันต้องได้สตริงเดียวกันเสมอ ไม่ว่าจะส่งมาลำดับไหน
+     * เพราะ DB มองความซ้ำของรอบจากสตริงนี้ตรง ๆ — ถ้าไม่เสถียร "A|B" กับ "B|A"
+     * จะกลายเป็น 2 รอบแยกกัน แล้วผลนับกระจายคนละรอบ Match เพี้ยนทั้งคู่ (M19)
+     *
+     * เดิมคลังที่ไม่อยู่ใน STANDARD_WAREHOUSES ถูก map เป็น 99 เท่ากันหมด ⇒ comparator
+     * คืน 0 ⇒ Array.sort ของ V8 เสถียร จึงคงลำดับ input ไว้ = ไม่เสถียรในเชิงชุด
+     *
+     * ลำดับคลังมาตรฐานยังยึดตาม registry เหมือนเดิม (ห้ามเปลี่ยน — รอบเก่าใน DB
+     * เก็บสตริงตามลำดับนั้นอยู่ ถ้าสลับจะกลายเป็นสร้างรอบซ้ำเสียเอง)
+     * ที่เพิ่มคือ tiebreak ด้วยชื่อสำหรับคลังนอกรายการ + ตัดชื่อซ้ำทิ้ง
+     */
     function encodeCycleWarehouses(warehouses) {
-
         if (!warehouses?.length) return ALL_WAREHOUSES;
-
-        const sorted = [...warehouses].sort((a, b) => {
-
+        const unique = [...new Set(warehouses.map(w => String(w ?? '').trim()).filter(Boolean))];
+        if (!unique.length) return ALL_WAREHOUSES;
+        const sorted = unique.sort((a, b) => {
             const ia = STANDARD_WAREHOUSES.indexOf(a);
-
             const ib = STANDARD_WAREHOUSES.indexOf(b);
-
-            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-
+            if (ia >= 0 && ib >= 0) return ia - ib;      // มาตรฐานทั้งคู่ → ตาม registry
+            if (ia >= 0) return -1;                       // มาตรฐานมาก่อนเสมอ
+            if (ib >= 0) return 1;
+            return a.localeCompare(b, 'th');              // นอกรายการทั้งคู่ → เรียงตามชื่อ
         });
 
         if (sorted.length === 1) return sorted[0];
@@ -535,8 +548,18 @@
      *   2) เวลาปัจจุบันอยู่ในช่วง count_start_at..count_end_at (รองรับรอบที่คร่อมเดือน)
      * กันเคส active cycle ของเดือนเก่าค้างใน localStorage แล้วถูกแนบให้ผลนับเดือนใหม่
      */
+    /** สถานะที่ถือว่า "ปิดรับผลนับแล้ว" — ห้ามแนบ cycle_id ให้แถวใหม่ (M24) */
+    const CLOSED_CYCLE_STATUSES = ['closed', 'archived'];
+
+    function isCycleClosed(cycle) {
+        return CLOSED_CYCLE_STATUSES.includes(String(cycle?.status ?? '').trim().toLowerCase());
+    }
+
     function isCycleRelevantNow(cycle, now) {
         if (!cycle) return false;
+        // ⚠️ รอบที่ปิดแล้วต้องไม่รับผลนับใหม่ แม้จะยังอยู่ในเดือนปัจจุบัน — ไม่งั้นข้อมูล
+        //    ไหลเข้ารอบที่ reconcile/ปรับยอดไปแล้ว ทำให้ยอดที่สรุปไปแล้วเปลี่ยนย้อนหลัง (M24)
+        if (isCycleClosed(cycle)) return false;
         const at = now instanceof Date ? now : new Date();
         if (cycle.year_month && cycle.year_month === bangkokYearMonthNow(at)) return true;
         const range = getCycleLinkRange(cycle);
@@ -2165,6 +2188,105 @@
 
 
 
+    const COUNT_SCAN_PAGE = 1000;
+
+    /**
+     * เดือนที่มีข้อมูลการนับจริง (M1)
+     *
+     * ⚠️ ห้ามใช้ `.limit(10000)` — Supabase hosted จำกัด max-rows ไว้ที่ 1,000
+     * `.limit()` ที่มากกว่านั้นถูกตัดเงียบ ๆ ⇒ เดือน/วันที่มีการนับจริงจะหายไปจาก dropdown
+     * โดยไม่มีอะไรเตือน (นี่คือรากของ M1)
+     *
+     * ใช้ RPC `get_inventory_count_months` (013) ก่อน — คำนวณฝั่ง DB จึงไม่ติดเพดานแถว
+     * ถ้า DB ยังไม่มี RPC ตัวนี้ ค่อยตกมาแบ่งหน้าเอง
+     */
+    async function fetchCountMonths(warehouse) {
+        const client = getClient();
+        if (!client) return [];
+
+        // ⚠️ RPC เทียบ `warehouse = p_warehouse` ตรง ๆ (013) จึงรับได้แค่ **ชื่อคลังจริงตัวเดียว**
+        //    ค่าที่ส่งเข้ามาจาก cycle_config เป็นค่า encode ('คลังทั้งหมด' หรือ 'A|B')
+        //    ถ้ายัดเข้า RPC ดิบ ๆ จะไม่ match อะไรเลย = ได้ 0 เดือนทั้งที่มีข้อมูลเป็นหมื่นแถว
+        const list = parseCycleWarehouses(warehouse);   // null = ทุกคลัง
+        const rpcTargets = list?.length ? list : [null];
+
+        const results = await Promise.all(rpcTargets.map(wh =>
+            client.rpc('get_inventory_count_months', { p_warehouse: wh })
+        ));
+        if (results.every(r => !r.error && Array.isArray(r.data))) {
+            const months = new Set();
+            results.forEach(r => r.data.forEach(row => {
+                const ym = row.year_month || row;
+                if (ym) months.add(ym);
+            }));
+            return [...months].sort().reverse();
+        }
+        const fatal = results.find(r => r.error &&
+            !/get_inventory_count_months|function.*does not exist/i.test(r.error.message || ''));
+        if (fatal) throw fatal.error;
+
+        const months = new Set();
+        let from = 0;
+        while (true) {
+            let q = client.from('inventory_counts').select('created_at')
+                .order('created_at', { ascending: false })
+                .order('id', { ascending: false });
+            q = applyWarehouseFilterValue(q, warehouse);
+            const { data: page, error: err } = await q.range(from, from + COUNT_SCAN_PAGE - 1);
+            if (err) throw err;
+            const rows = page || [];
+            rows.forEach(r => {
+                const ym = bangkokYmdOf(r.created_at)?.slice(0, 7);
+                if (ym) months.add(ym);
+            });
+            // เดินหน้าตาม "จำนวนแถวที่ได้จริง" ไม่ใช่ขนาดหน้าที่ขอ — ถ้า PostgREST ตั้ง max-rows
+            // ต่ำกว่า COUNT_SCAN_PAGE การบวกทีละ COUNT_SCAN_PAGE จะข้ามแถวกลางหายเงียบ ๆ
+            if (!rows.length) break;
+            from += rows.length;
+        }
+        return [...months].sort().reverse();
+    }
+
+    /** 'YYYY-MM-DD' ตามเวลาไทยของ timestamp หนึ่ง ๆ */
+    function bangkokYmdOf(iso) {
+        if (!iso) return null;
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+    }
+
+    /**
+     * วันที่ (DD) ที่มีข้อมูลการนับจริงในเดือนนั้น — แบ่งหน้าเสมอ (M1)
+     * ไม่มี RPC สำหรับ "วัน" จึงต้องไล่อ่าน แต่ต้องไล่ให้ครบ ไม่ใช่ตัดที่ limit เดียว
+     */
+    async function fetchCountDaysInMonth(warehouse, yearMonth) {
+        const client = getClient();
+        const range = yearMonthToRangeISO(yearMonth);
+        if (!client || !range) return [];
+
+        const days = new Set();
+        let from = 0;
+        while (true) {
+            let q = client.from('inventory_counts').select('created_at')
+                .gte('created_at', range.start)
+                .lt('created_at', range.end)
+                .order('created_at', { ascending: true })
+                .order('id', { ascending: true });
+            q = applyWarehouseFilterValue(q, warehouse);
+            const { data: page, error } = await q.range(from, from + COUNT_SCAN_PAGE - 1);
+            if (error) throw error;
+            const rows = page || [];
+            rows.forEach(r => {
+                const ymd = bangkokYmdOf(r.created_at);
+                if (ymd && ymd.slice(0, 7) === yearMonth) days.add(ymd.slice(8, 10));
+            });
+            // ครบทุกวันของเดือนแล้ว ไม่ต้องอ่านต่อ · นอกนั้นเดินตามจำนวนแถวที่ได้จริง
+            if (days.size >= 31 || !rows.length) break;
+            from += rows.length;
+        }
+        return [...days].sort();
+    }
+
     const RECON_PAGE_SIZE = 1000;
 
 
@@ -3235,6 +3357,9 @@
         getCycleIdForWarehouse,
 
         isCycleRelevantNow,
+        isCycleClosed,
+        fetchCountMonths,
+        fetchCountDaysInMonth,
 
         attachCycleToPayload,
 

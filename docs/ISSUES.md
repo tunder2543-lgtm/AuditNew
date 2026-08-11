@@ -162,7 +162,14 @@
 
 ## 🟡 Medium — พฤติกรรมไม่คาดคิด / เปราะบาง
 
-### - [ ] M1. cycle_config: รายการ "วัน/เดือนที่มีข้อมูล" อาจขาดหายเงียบ ๆ
+### - [x] M1. cycle_config: รายการ "วัน/เดือนที่มีข้อมูล" อาจขาดหายเงียบ ๆ
+> **✅ แก้แล้ว 2026-08-11** — เพิ่ม `fetchCountMonths()` + `fetchCountDaysInMonth()` ใน `Js/reconcile-shared.js` แล้วให้ `cycle_config` เรียกใช้ทั้ง 3 จุด
+> เดือน: ใช้ RPC `get_inventory_count_months` (013) ก่อน — คำนวณฝั่ง DB จึงไม่ติดเพดานแถวเลย · ไม่มี RPC ค่อยตกมาแบ่งหน้า
+> วัน: ไม่มี RPC จึงแบ่งหน้าด้วย `.range()` + `.order('id')` (invariant ข้อ 13) จนครบ และหยุดเร็วเมื่อครบ 31 วัน
+> เทสคุ้มกัน 7 ข้อ `[M1]` ใน `tests/dryrun/cycle-scope.test.mjs` รวมข้อที่**บังคับว่าห้ามมี `.limit()` เกิน 1,000 หลงเหลือใน cycle_config**
+> **review จับ regression ได้ 1 ข้อ (แก้แล้วในชุดเดียวกัน)**: รุ่นแรกส่ง `p_warehouse` ดิบเข้า RPC แต่ RPC เทียบ `warehouse = p_warehouse` ตรง ๆ จึงรับได้แค่ชื่อคลังจริง ⇒ โหมด "ทุกคลัง"/หลายคลังได้ **0 เดือน** (แย่กว่าบั๊กเดิมที่ยังได้ 1,000 แถวแรก) · ตอนนี้ผ่าน `parseCycleWarehouses()` แล้วยิง RPC ทีละคลังจริงแล้ว union
+> พ่วงแก้จาก review: `count_search.html` มีฟังก์ชันชื่อเดียวกัน บั๊กเดียวกัน (`.limit(8000)`) — ย้ายมาใช้ helper แล้ว · เงื่อนไขหยุดแบ่งหน้าเปลี่ยนเป็น "เดินตามจำนวนแถวที่ได้จริง" (เดิมบวกทีละ 1,000 ซึ่งจะข้ามแถวกลางถ้า max-rows ต่ำกว่านั้น) · ข้อความเตือนแยก "รอบปิดแล้ว" ออกจาก "ข้ามเดือนแล้ว" ทั้ง index และ import_counts
+> พิสูจน์กับข้อมูลจริงในเบราว์เซอร์: ทุกคลัง/หลายคลัง/คลังเดียว ได้ 3 เดือนเท่ากันหมด (ก่อนแก้ ทุกคลัง = `[]`) · วัน 06–11 ของเดือนปัจจุบันครบ · `count_search` กด "โหลดเดือน" ขึ้น "พบ 3 เดือน" · ไม่มี 4xx/console error
 `Html/cycle_config.html:1001, 1152` (`.limit(10000)` — **2 จุด**), `:1224` (`.limit(5000)`) บน `inventory_counts` — Supabase hosted จำกัด max-rows (ปกติ 1000) และไม่มี paginate → เดือนที่ข้อมูลเยอะ วันที่มีนับจริงจะไม่โผล่ให้เลือก ทั้งที่มี RPC `get_inventory_count_months` (013) อยู่แล้วแต่หน้านี้ไม่ใช้ **[ยืนยันแล้ว]**
 **แก้:** ใช้ RPC + เพิ่ม RPC "days with counts"
 
@@ -228,8 +235,12 @@
 ### - [ ] M18. reconcile: `%` ใช้ค่าเก่าจาก DB ขัดกับคอลัมน์ "ต่าง" ที่คำนวณใหม่เมื่อมี draft
 `Html/reconcile.html:895`
 
-### - [ ] M19. `encodeCycleWarehouses` เรียงไม่เสถียร — ชุดคลังเดียวกัน encode ได้ 2 แบบ = 2 รอบใน DB
-`Js/reconcile-shared.js:143-161` (คลังนอกรายการมาตรฐาน map เป็น 99 เท่ากันหมด)
+### - [x] M19. `encodeCycleWarehouses` เรียงไม่เสถียร — ชุดคลังเดียวกัน encode ได้ 2 แบบ = 2 รอบใน DB
+> **✅ แก้แล้ว 2026-08-11** — comparator เดิม map คลังนอกรายการเป็น 99 เท่ากันหมด ⇒ คืน 0 ⇒ `Array.sort` ของ V8 เสถียรจึงคงลำดับ input ⇒ "A|B" กับ "B|A" เป็นคนละสตริง
+> เพิ่ม tiebreak ด้วย `localeCompare(.., 'th')` สำหรับคลังนอกรายการ + ตัดชื่อซ้ำ/ช่องว่างทิ้ง
+> ⚠️ **ลำดับคลังมาตรฐานคงเดิมโดยตั้งใจ** (ตาม registry) — ถ้าเปลี่ยนไปเรียงตามชื่อทั้งหมด รอบที่มีอยู่แล้วใน DB จะ encode ได้คนละค่า = สร้างรอบซ้ำเสียเอง · มีเทสบังคับข้อนี้
+> เทสย้ายจาก `knownIssue` → เทสถาวร 4 ข้อ
+> 🔶 **ยังเหลือครึ่งหนึ่ง → แตกเป็น M33** — review ชี้ว่าเส้นทางที่แก้ (คลังนอกรายการมาตรฐาน) แทบไม่เกิดจริง เพราะ `refreshStandardWarehousesFromRegistry()` เขียนทับ `STANDARD_WAREHOUSES` ด้วย registry ทั้งชุดก่อนสร้าง checkbox ⇒ ทุกคลังที่เลือกได้เป็น "มาตรฐาน" เสมอ · เคสที่เกิดจริงคือ admin จัดลำดับคลังใหม่ในหน้า Settings
 
 ### - [x] M20. user_manual: รูปเก็บซ้ำ 2 ชุดใน localStorage + backup กู้กลับไม่ได้ + toast quota ไม่ทำงาน
 > 🚫 **ตกไป 2026-08-11** — ถอดหน้าคู่มือออกจากระบบทั้งฟีเจอร์ (มติ admin) · key `stock_audit_user_manual_v2` / `stock_audit_manual_mode_v1` อาจค้างในเบราว์เซอร์ผู้ใช้แต่ไม่มีโค้ดอ่านแล้ว
@@ -240,6 +251,13 @@
 
 ### - [ ] M32. ไม่มี circuit breaker ตอน insert รายแถว
 `Js/script.js` `insertGroupRowsOneByOne` (25 แถว) และ `Html/import_counts.html` `importRowsOneByOne` (chunk 200) วน insert แบบ sequential ไม่มีเงื่อนไขเลิก — เน็ตตาย = ยิงต่อจนครบทุกแถว UI ค้างยาว · ควร break เมื่อเจอ network error ติดกัน 3 ครั้งแล้วโยนแถวที่เหลือเข้า `failed` · **พบจาก review M6/M9**
+
+### - [ ] M33. ลำดับคลังใน registry เป็น input ที่ไม่เสถียรของ `encodeCycleWarehouses`
+`Js/reconcile-shared.js:177-187` `refreshStandardWarehousesFromRegistry()` ตั้ง `STANDARD_WAREHOUSES` จาก `warehouses.sort_order` ซึ่ง admin จัดลำดับใหม่ได้ในหน้า Settings (`Js/warehouses-shared.js` `sortWarehouseRows` / `compactActiveSortOrders`) ⇒ **ชุดคลังเดิมจะ encode ได้คนละสตริงหลังจัดลำดับใหม่** ⇒ unique index `uq_count_cycles_full_month` / `uq_count_cycles_date_range` เทียบสตริงตรง ๆ จึงจับไม่ได้ ⇒ สร้างรอบซ้ำ (อาการเดียวกับ M19)
+แก้ยาก: เรียงตามชื่อล้วนจะทำให้รอบเก่าใน DB encode ได้คนละค่า ต้องมี migration แปลงสตริงรอบเก่าพร้อมกัน — หรือเปลี่ยนไปเทียบด้วยชุดคลังที่เรียงแล้ว (generated column) แทนสตริงดิบ · **พบจาก review M19**
+
+### - [ ] M34. `audit_check` มี `fetchAvailableMonths` ซ้ำกับ `RS.fetchCountMonths` ทั้งดุ้น
+`Html/audit_check.html:1700-1730` — RPC ก่อน → regex เดียวกัน → paging 1,000 เหมือนกัน แต่หน้านี้ไม่โหลด `reconcile-shared.js` จึงใช้ helper กลางไม่ได้ทันที · แก้บั๊กตัวเดียวกันต้องแก้ 2 ที่ตลอดไป (หน้านี้รอดจาก regression "ทุกคลัง" เพราะส่งชื่อคลังเดี่ยวเสมอ) · **พบจาก review M1**
 
 ### - [ ] M21. chat: ล้าง Storage จำกัด 500 ไฟล์ไม่มี pagination + ไฟล์แนบเป็น public URL ถาวร
 `Html/chat.html:565, 386-390`
@@ -291,7 +309,9 @@ loop `update` ทีละแถวไม่มี transaction — พังก�
 drawer ดึง `inventory_audit_logs` แค่ 100 แถวล่าสุดโดยไม่กรอง `action_type` (`Js/script.js:1787-1791`) — import ครั้งเดียวที่ล้างยอดปรับ 500 SKU จะเขียน log 500 แถวและกลบประวัติการนับหายจากหน้าจอ
 **แนวทางแก้:** เพิ่มตัวกรอง action_type/แท็บในหน้า index หรือเขียนเป็น log สรุปต่อ import 1 แถว (แบบที่ `IMPORT` ทำ) แล้วเก็บรายละเอียดรายแถวไว้ต่างหาก — ต้องชั่งกับกติกา "ทุกแถวที่ลบต้องมีหลักฐานรายแถว"
 
-### - [ ] M24. รอบที่ปิดแล้ว (`status = closed/archived`) ยังรับผลนับใหม่ได้
+### - [x] M24. รอบที่ปิดแล้ว (`status = closed/archived`) ยังรับผลนับใหม่ได้
+> **✅ แก้แล้ว 2026-08-11** — `isCycleRelevantNow()` เช็ค `isCycleClosed(cycle)` ก่อนเป็นอย่างแรก **และ** `filterCyclesCurrentMonth()` ใน `Js/script.js` กรองรอบที่ปิดออกจาก dropdown หน้านับ — ทำคู่กันตามที่แนวทางแก้ระบุไว้ ไม่งั้นผู้ใช้เลือกรอบที่ปิดได้แต่ระบบเงียบ ๆ ไม่แนบ แล้ววนเตือนซ้ำ
+> เทสคุ้มกัน 5 ข้อ `[M24]` (รวมข้อที่บังคับว่า dropdown ต้องกรองด้วย)
 พบระหว่าง review การแก้ H1 — `isCycleRelevantNow()` (`Js/reconcile-shared.js`) ดูแค่ช่วงเวลา **ไม่ดู `status`** ดังนั้นรอบที่ถูกปิดไปแล้วแต่ยังอยู่ในเดือนปัจจุบัน ยังถูกแนบให้ผลนับใหม่ได้ → ข้อมูลไหลเข้ารอบที่ปิด/กระทบยอดที่ reconcile ไปแล้ว
 **ผลกระทบตอนนี้: ยังไม่มี** — ตรวจแล้วทั้ง 6 รอบใน DB เป็น `open` ทั้งหมด
 **แนวทางแก้:** เพิ่มเงื่อนไข `if (['closed','archived'].includes(cycle.status)) return false;` **พร้อมกับ** กรองรอบที่ปิดออกจาก dropdown ในหน้านับ (`filterCyclesCurrentMonth` ใน `Js/script.js:120`) — ต้องทำคู่กัน ไม่งั้นผู้ใช้เลือกรอบที่ปิดได้แต่ระบบเงียบ ๆ ไม่แนบ แล้ววนเตือนซ้ำ

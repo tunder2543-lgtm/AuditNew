@@ -1,6 +1,6 @@
-// เทสระบบ encode/parse คลังของรอบนับ — รวม knownIssue M19 (encode ไม่เสถียร)
+// เทสระบบ encode/parse คลังของรอบนับ — [M19] แก้แล้ว 2026-08-11 (เทสถาวรกัน regression)
 import assert from 'node:assert/strict';
-import { suite, test, knownIssue } from '../helpers/harness.mjs';
+import { suite, test } from '../helpers/harness.mjs';
 import { loadFresh } from '../helpers/sandbox.mjs';
 
 suite('reconcile-shared: คลังของรอบ (encode/parse/match)');
@@ -49,12 +49,35 @@ test('parseYearMonth: รูปแบบถูก/ผิด', () => {
 });
 
 // -----------------------------------------------------------------------------
-// M19 (docs/ISSUES.md): คลังที่ไม่อยู่ใน STANDARD_WAREHOUSES ทุกตัว map เป็น 99
-// เท่ากันหมด → sort เสถียรของ V8 คงลำดับ input → "X|Y" กับ "Y|X" เป็นคนละ string
-// → DB (unique อิง string) มองเป็นคนละรอบ สร้างรอบซ้ำได้
+// M19 — ✅ แก้แล้ว 2026-08-11 (ย้ายจาก knownIssue → เทสถาวรกัน regression)
+//
+// เดิมคลังที่ไม่อยู่ใน STANDARD_WAREHOUSES ถูก map เป็น 99 เท่ากันหมด ⇒ comparator คืน 0
+// ⇒ Array.sort ของ V8 เสถียร จึงคงลำดับ input ⇒ "X|Y" กับ "Y|X" เป็นคนละสตริง
+// ⇒ DB มองเป็นคนละรอบ = สร้างรอบซ้ำ ผลนับกระจายคนละรอบ Match เพี้ยนทั้งคู่
 // -----------------------------------------------------------------------------
-knownIssue('M19', 'encodeCycleWarehouses ต้องเสถียรแม้คลังไม่อยู่ในรายการมาตรฐาน', () => {
+test('[M19] encodeCycleWarehouses เสถียรแม้คลังไม่อยู่ในรายการมาตรฐาน', () => {
     const a = RS.encodeCycleWarehouses(['คลังใหม่เอ', 'คลังใหม่บี']);
     const b = RS.encodeCycleWarehouses(['คลังใหม่บี', 'คลังใหม่เอ']);
     assert.equal(a, b, `ได้ "${a}" กับ "${b}" — ชุดเดียวกันต้อง encode เหมือนกัน`);
+});
+
+test('[M19] คลังมาตรฐานปนกับคลังนอกรายการ ก็ยังเสถียร', () => {
+    const a = RS.encodeCycleWarehouses(['คลังใหม่บี', 'ตึกกันตนา', 'คลังใหม่เอ']);
+    const b = RS.encodeCycleWarehouses(['คลังใหม่เอ', 'คลังใหม่บี', 'ตึกกันตนา']);
+    assert.equal(a, b);
+    assert.ok(a.startsWith('ตึกกันตนา'), 'คลังมาตรฐานต้องมาก่อนเสมอ — รอบเก่าใน DB เก็บลำดับนี้อยู่');
+});
+
+test('[M19] ลำดับคลังมาตรฐานต้องไม่เปลี่ยน (รอบเก่าใน DB พึ่งค่านี้)', () => {
+    // ถ้าเผลอเปลี่ยนไปเรียงตามชื่อทั้งหมด รอบที่มีอยู่แล้วจะ encode ได้คนละค่า = สร้างรอบซ้ำเสียเอง
+    assert.equal(
+        RS.encodeCycleWarehouses(['คลังอะไหล่', 'ตึกกันตนา']),
+        'ตึกกันตนา|คลังอะไหล่'
+    );
+});
+
+test('[M19] ชื่อซ้ำ/ช่องว่างเกิน ต้องไม่ทำให้ได้คนละสตริง', () => {
+    assert.equal(RS.encodeCycleWarehouses(['ตึกกันตนา', 'ตึกกันตนา']), 'ตึกกันตนา');
+    assert.equal(RS.encodeCycleWarehouses(['  ตึกกันตนา  ']), 'ตึกกันตนา');
+    assert.equal(RS.encodeCycleWarehouses(['', '   ']), 'คลังทั้งหมด');
 });

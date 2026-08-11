@@ -18,38 +18,12 @@ import vm from 'node:vm';
 import { suite, test } from '../helpers/harness.mjs';
 import { PROJECT_ROOT } from '../helpers/sandbox.mjs';
 import { createMockClient, findOps } from '../helpers/mock-supabase.mjs';
+import { liftFunctions, bodyOf } from '../helpers/lift.mjs';
 
 suite('บันทึกผลนับ: retry ต้อง idempotent + ไม่ล้มทั้งชุด (M6, M9)');
 
 const IMPORT = fs.readFileSync(path.join(PROJECT_ROOT, 'Html', 'import_counts.html'), 'utf8');
 const SCRIPT = fs.readFileSync(path.join(PROJECT_ROOT, 'Js', 'script.js'), 'utf8');
-
-/** ดึงเนื้อฟังก์ชันแบบนับวงเล็บให้สมดุล */
-function bodyOf(src, marker) {
-    const at = src.indexOf(marker);
-    assert.ok(at >= 0, `หา "${marker}" ไม่เจอ — เทสนี้ล้าสมัยแล้ว`);
-    const open = src.indexOf('{', at);
-    let depth = 0;
-    for (let i = open; i < src.length; i++) {
-        if (src[i] === '{') depth++;
-        else if (src[i] === '}') { depth--; if (depth === 0) return src.slice(open, i + 1); }
-    }
-    throw new Error('วงเล็บไม่สมดุล: ' + marker);
-}
-
-/** ยกฟังก์ชันจากซอร์สจริงมารันใน sandbox (ไม่ก็อปโค้ดมาเขียนใหม่ในเทส) */
-function liftFunctions(src, names, context = {}) {
-    const decls = names.map(n => {
-        const marker = src.includes(`async function ${n}`) ? `async function ${n}` : `function ${n}`;
-        const at = src.indexOf(marker);
-        assert.ok(at >= 0, `ยกฟังก์ชัน ${n} ไม่ได้`);
-        return src.slice(at, at + bodyOf(src, marker).length + (src.indexOf('{', at) - at));
-    });
-    const sandbox = { console: { warn() {}, info() {}, error() {} }, ...context };
-    vm.createContext(sandbox);
-    vm.runInContext(decls.join('\n') + `\n;globalThis.__fns = { ${names.join(', ')} };`, sandbox);
-    return sandbox.__fns;
-}
 
 // =============================================================================
 // [behaviour] รันโค้ดจริง — ข้อที่จ้องพฤติกรรม ไม่ใช่หน้าตาโค้ด

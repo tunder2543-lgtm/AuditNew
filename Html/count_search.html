@@ -339,7 +339,7 @@
 <script src="../Js/sku-utils.js?v=20260809k"></script>
 <script src="../Js/warehouses-shared.js?v=20260809k"></script>
 <script src="../Js/settings-shared.js?v=20260809k"></script>
-<script src="../Js/reconcile-shared.js?v=20260811c"></script>
+<script src="../Js/reconcile-shared.js?v=20260811f"></script>
 <script src="../Js/sidebar-shared.js?v=20260811b"></script>
 <script>
     lucide.createIcons();
@@ -566,15 +566,8 @@
         if (!client) return showToast('ยังไม่ได้เชื่อมต่อ Supabase', 'error');
         btn.disabled = true;
         try {
-            let q = client.from('inventory_counts').select('created_at');
-            if (wh) q = q.eq('warehouse', wh);
-            const { data, error } = await q.order('created_at', { ascending: false }).limit(8000);
-            if (error) throw error;
-            const months = new Set();
-            (data || []).forEach(function (r) {
-                if (r.created_at) months.add(bangkokYearMonth(r.created_at));
-            });
-            const sorted = Array.from(months).sort().reverse();
+            // M1: เดิม `.limit(8000)` ซึ่ง Supabase ตัดเหลือ 1,000 เงียบ ๆ (บั๊กตัวเดียวกับ cycle_config)
+            const sorted = await RS.fetchCountMonths(wh);
             if (!sorted.length) {
                 showToast('ไม่พบข้อมูลการนับ' + (wh ? ' ในคลังนี้' : ''), 'error');
             } else {

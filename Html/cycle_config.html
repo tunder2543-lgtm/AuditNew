@@ -852,7 +852,7 @@
 <script src="../Js/sku-utils.js?v=20260809k"></script>
 <script src="../Js/warehouses-shared.js?v=20260809k"></script>
 <script src="../Js/settings-shared.js?v=20260809k"></script>
-<script src="../Js/reconcile-shared.js?v=20260811c"></script>
+<script src="../Js/reconcile-shared.js?v=20260811f"></script>
 <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
 <script>
     lucide.createIcons();
@@ -990,22 +990,10 @@
         const client = RS.getClient();
         if (client) {
             try {
-                const range = RS.yearMonthToRangeISO(ym);
-                if (range) {
-                    let q = client.from('inventory_counts').select('created_at')
-                        .gte('created_at', range.start)
-                        .lt('created_at', range.end);
-                    q = RS.applyWarehouseFilterValue(q, cycle.warehouse);
-                    const { data, error } = await q.limit(10000);
-                    if (error) throw error;
-                    if (seq !== editDaySelectLoadSeq) return;
-                    const daySet = new Set();
-                    (data || []).forEach(r => {
-                        const { y, m, day } = createdAtToBangkokYmd(r.created_at);
-                        if (`${y}-${m}` === ym) daySet.add(day);
-                    });
-                    days = [...daySet].sort();
-                }
+                // M1: เดิม `.limit(10000)` แต่ Supabase คืนสูงสุด 1,000 แถว ⇒ วันที่มีการนับจริง
+                //     หายจาก dropdown เงียบ ๆ · helper กลางแบ่งหน้าให้ครบแล้ว
+                days = await RS.fetchCountDaysInMonth(cycle.warehouse, ym);
+                if (seq !== editDaySelectLoadSeq) return;
             } catch (err) {
                 if (seq !== editDaySelectLoadSeq) return;
                 showToast('โหลดวันที่มีข้อมูลล้มเหลว: ' + err.message, 'error');
@@ -1093,15 +1081,6 @@
         return y && mv ? `${y}-${mv}` : '';
     }
 
-    function createdAtToBangkokYmd(iso) {
-        const parts = new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Asia/Bangkok',
-            year: 'numeric', month: '2-digit', day: '2-digit'
-        }).formatToParts(new Date(iso));
-        const get = t => parts.find(p => p.type === t)?.value || '';
-        return { y: get('year'), m: get('month'), day: get('day') };
-    }
-
     let daySelectLoadSeq = 0;
     let cachedAvailableDays = [];
 
@@ -1141,22 +1120,10 @@
         const client = RS.getClient();
         if (client) {
             try {
-                const range = RS.yearMonthToRangeISO(ym);
-                if (range) {
-                    let q = client.from('inventory_counts').select('created_at')
-                        .gte('created_at', range.start)
-                        .lt('created_at', range.end);
-                    if (wh) q = RS.applyWarehouseFilterValue(q, wh);
-                    const { data, error } = await q.limit(10000);
-                    if (error) throw error;
-                    if (seq !== daySelectLoadSeq) return;
-                    const daySet = new Set();
-                    (data || []).forEach(r => {
-                        const { y, m, day } = createdAtToBangkokYmd(r.created_at);
-                        if (`${y}-${m}` === ym) daySet.add(day);
-                    });
-                    days = [...daySet].sort();
-                }
+                // M1: เดิม `.limit(10000)` แต่ Supabase คืนสูงสุด 1,000 แถว ⇒ วันที่มีการนับจริง
+                //     หายจาก dropdown เงียบ ๆ · helper กลางแบ่งหน้าให้ครบแล้ว
+                days = await RS.fetchCountDaysInMonth(wh, ym);
+                if (seq !== daySelectLoadSeq) return;
             } catch (err) {
                 if (seq !== daySelectLoadSeq) return;
                 showToast('โหลดวันที่มีข้อมูลล้มเหลว: ' + err.message, 'error');
@@ -1217,16 +1184,9 @@
         btn.innerHTML = '<i data-lucide="loader-2" style="width:11px;height:11px;animation:cc-spin 0.9s linear infinite;"></i> กำลังโหลด...';
         lucide.createIcons();
         try {
-            let q = client.from('inventory_counts').select('created_at');
-            if (wh) q = RS.applyWarehouseFilterValue(q, wh);
-            const { data } = await q.order('created_at', { ascending: false }).limit(5000);
-            const months = new Set();
-            (data || []).forEach(r => {
-                const bangkokDate = new Date(r.created_at);
-                const bkk = new Date(bangkokDate.getTime() + 7 * 60 * 60 * 1000);
-                months.add(`${bkk.getUTCFullYear()}-${String(bkk.getUTCMonth() + 1).padStart(2, '0')}`);
-            });
-            const sorted = [...months].sort().reverse();
+            // M1: เดิม `.limit(5000)` ซึ่งถูก Supabase ตัดเหลือ 1,000 เงียบ ๆ
+            //     ตอนนี้ใช้ RPC `get_inventory_count_months` (คำนวณฝั่ง DB ไม่ติดเพดานแถว)
+            const sorted = await RS.fetchCountMonths(wh);
             if (!sorted.length) {
                 showToast(RS.isAllWarehousesCycle(wh) ? 'ไม่พบข้อมูลการนับในทุกคลัง' : 'ไม่พบข้อมูลการนับในคลังนี้', 'error');
             } else {

@@ -541,7 +541,7 @@
     <script src="../Js/warehouses-shared.js?v=20260809k"></script>
     <script src="../Js/db-errors.js?v=20260809k"></script>
     <script src="../Js/settings-shared.js?v=20260809k"></script>
-    <script src="../Js/reconcile-shared.js?v=20260811c"></script>
+    <script src="../Js/reconcile-shared.js?v=20260811f"></script>
     <script src="../Js/sidebar-shared.js?v=20260811b"></script>
     <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
     <script>
@@ -605,9 +605,15 @@
             if (!cycleId) {
                 let detail = 'ยังไม่ได้เลือกรอบนับที่ตรงกับคลังนี้';
                 if (active?.warehouse) {
-                    const stale = RS.isCycleRelevantNow && !RS.isCycleRelevantNow(active);
-                    detail = stale
-                        ? `รอบที่เลือกอยู่ (${active.label || active.year_month || 'รอบเก่า'}) ไม่ใช่รอบของเดือนนี้แล้ว — เลือกรอบใหม่ที่ตั้งค่ารอบการนับ`
+                    // แยก "รอบปิดแล้ว" ออกจาก "ข้ามเดือนแล้ว" — หลัง M24 isCycleRelevantNow
+                    // คืน false ได้ 2 เหตุผล ถ้าบอกเหมารวมผู้ใช้จะไปหาสาเหตุผิดทาง
+                    const closed = RS.isCycleClosed?.(active);
+                    const stale = !closed && RS.isCycleRelevantNow && !RS.isCycleRelevantNow(active);
+                    const cycleLabel = active.label || active.year_month || 'รอบที่เลือก';
+                    if (closed) {
+                        detail = `รอบ ${cycleLabel} ปิดแล้ว — นำเข้าผลนับเข้ารอบที่ปิดไม่ได้ เลือกรอบที่ยังเปิดอยู่ที่ตั้งค่ารอบการนับ`;
+                    } else detail = stale
+                        ? `รอบที่เลือกอยู่ (${cycleLabel}) ไม่ใช่รอบของเดือนนี้แล้ว — เลือกรอบใหม่ที่ตั้งค่ารอบการนับ`
                         : `รอบที่เลือกอยู่ (${RS.formatWarehouseDisplay?.(active.warehouse) || active.warehouse}) ไม่ครอบคลัง "${warehouse}"`;
                 }
                 return {

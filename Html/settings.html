@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -36,7 +36,7 @@
             gap: 1rem;
             padding: 1rem 1.25rem;
             border-radius: 12px;
-            background: rgba(255,255,255,0.03);
+            background: var(--overlay-1);
             border: 1px solid var(--card-border);
             margin-bottom: 1.25rem;
         }
@@ -83,7 +83,7 @@
             grid-template-columns: 84px 1fr auto;
             align-items: center;
             gap: 0.65rem;
-            background: linear-gradient(165deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01));
+            background: linear-gradient(165deg, var(--overlay-1), transparent);
             padding: 0.7rem 0.78rem;
             border: 1px solid var(--card-border);
             border-radius: 11px;
@@ -108,8 +108,8 @@
             gap: 0.2rem;
         }
         .warehouse-item:hover {
-            border-color: rgba(59,130,246,0.45);
-            background: rgba(37,99,235,0.08);
+            border-color: var(--primary-border);
+            background: var(--primary-soft);
             transform: translateY(-1px);
         }
         .warehouse-name {
@@ -129,24 +129,24 @@
             border-radius: 999px;
             font-size: 0.74rem;
             padding: 0.15rem 0.5rem;
-            border: 1px solid rgba(148, 163, 184, 0.38);
-            color: #cbd5e1;
-            background: rgba(148, 163, 184, 0.12);
+            border: 1px solid var(--neutral-border);
+            color: var(--neutral-text);
+            background: var(--neutral-bg);
         }
         .warehouse-pill.active {
-            border-color: rgba(16, 185, 129, 0.55);
-            color: #6ee7b7;
-            background: rgba(16, 185, 129, 0.14);
+            border-color: var(--ok-border);
+            color: var(--ok-text);
+            background: var(--ok-bg);
         }
         .warehouse-del-btn {
             padding: 0.32rem 0.58rem !important;
-            color: #fca5a5;
-            border-color: rgba(239, 68, 68, 0.35) !important;
-            background: rgba(127, 29, 29, 0.12);
+            color: var(--bad-text);
+            border-color: var(--bad-border) !important;
+            background: var(--bad-bg);
         }
         .warehouse-del-btn:hover {
-            background: rgba(153, 27, 27, 0.22);
-            border-color: rgba(248, 113, 113, 0.55) !important;
+            background: var(--bad-bg-strong);
+            border-color: var(--bad-border) !important;
         }
         .warehouse-right {
             display: inline-flex;
@@ -325,14 +325,14 @@
         window.runTestConnection = async function () {
             const url = document.getElementById('sbUrl').value.trim();
             const key = document.getElementById('sbKey').value.trim();
-            setTestStatus('rgba(99,102,241,0.1)', '#a5b4fc', 'rgba(99,102,241,0.3)', '🔄 กำลังทดสอบ...');
+            setTestStatus('var(--info-bg)', 'var(--info-text)', 'var(--info-border)', '🔄 กำลังทดสอบ...');
             const result = await window.testSupabaseConnection(url, key);
             if (result.ok) {
-                setTestStatus('rgba(16,185,129,0.1)', '#6ee7b7', 'rgba(16,185,129,0.3)', result.message);
+                setTestStatus('var(--ok-bg)', 'var(--ok-text)', 'var(--ok-border)', result.message);
                 window.updateConnectionBadge(true);
                 updateStatusDetail(true);
             } else {
-                setTestStatus('rgba(239,68,68,0.1)', '#fca5a5', 'rgba(239,68,68,0.3)', result.message);
+                setTestStatus('var(--bad-bg)', 'var(--bad-text)', 'var(--bad-border)', result.message);
                 window.updateConnectionBadge(false);
                 updateStatusDetail(false);
             }

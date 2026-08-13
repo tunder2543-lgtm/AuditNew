@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,21 +27,21 @@
         }
         .ah-page .connection-badge svg { width: 11px; height: 11px; }
         .ah-panel {
-            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
             border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow-sm);
         }
         .ah-toolbar {
             display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: flex-end;
-            padding: 1rem 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+            padding: 1rem 1.15rem; border-bottom: 1px solid var(--border);
             background:
-                radial-gradient(at 0% 0%, rgba(59,130,246,0.07) 0, transparent 45%),
-                rgba(8,10,14,0.42);
+                radial-gradient(at 0% 0%, var(--bg-glow-1) 0, transparent 45%),
+                var(--overlay-1);
         }
-        .ah-toolbar + .ah-toolbar { background: rgba(8,10,14,0.28); }
+        .ah-toolbar + .ah-toolbar { background: var(--overlay-1); }
         .ah-field { display: flex; flex-direction: column; gap: 0.32rem; min-width: 140px; flex: 0 0 auto; }
         .ah-field label {
-            font-size: 0.7rem; color: #9ca3af; letter-spacing: 0.03em;
+            font-size: 0.7rem; color: var(--text-3); letter-spacing: 0.03em;
             text-transform: uppercase; line-height: 1;
         }
         .ah-field input, .ah-field select { height: 40px; box-sizing: border-box; }
@@ -51,8 +51,8 @@
             transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
         }
         .ah-field input:focus, .ah-field select:focus {
-            outline: none; border-color: rgba(96,165,250,0.9);
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.17); background: rgba(10,12,18,0.95);
+            outline: none; border-color: var(--primary);
+            box-shadow: var(--focus-ring); background: var(--input-bg);
         }
         .ah-field-grow { flex: 1 1 170px; min-width: 150px; }
         .ah-field-cycle { flex: 1 1 340px; min-width: 240px; }
@@ -63,15 +63,15 @@
             display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
             height: 40px; padding: 0 1.05rem; border-radius: 10px; border: none;
             font-size: 0.85rem; font-family: 'Kanit', sans-serif; font-weight: 500; cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            box-shadow: var(--shadow-sm);
             transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
             white-space: nowrap; flex: 0 0 auto;
         }
-        .ah-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,0.24); }
+        .ah-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
         .ah-btn:active:not(:disabled) { transform: translateY(0); }
         .ah-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
-        .ah-btn-primary { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: #fff; }
-        .ah-btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid rgba(255,255,255,0.14); }
+        .ah-btn-primary { background: linear-gradient(135deg, var(--primary-hover), var(--primary)); color: var(--primary-contrast); }
+        .ah-btn-ghost { background: var(--overlay-2); color: var(--text); border: 1px solid var(--border-strong); }
         .ah-btn-warn { background: linear-gradient(135deg, #b45309, #f59e0b); color: #fff; }
         .ah-btn svg { width: 15px; height: 15px; }
         .ah-summary {
@@ -79,51 +79,51 @@
             border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.12);
             display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; align-items: center;
         }
-        .ah-summary strong { color: #93c5fd; font-variant-numeric: tabular-nums; }
+        .ah-summary strong { color: var(--link-accent); font-variant-numeric: tabular-nums; }
         .ah-table-wrap { overflow: auto; max-height: 620px; }
         .ah-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         .ah-table th {
-            position: sticky; top: 0; background: #1e293b; text-align: left; white-space: nowrap;
-            padding: 0.55rem 0.75rem; color: #e2e8f0; border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: sticky; top: 0; background: var(--surface-3); text-align: left; white-space: nowrap;
+            padding: 0.55rem 0.75rem; color: var(--text-2); border-bottom: 1px solid var(--border-strong);
         }
         .ah-table th.ah-sortable { cursor: pointer; user-select: none; }
-        .ah-table th.ah-sortable:hover { background: #27364d; }
-        .ah-sort-mark { color: #60a5fa; font-size: 0.7rem; margin-left: 0.25rem; }
-        .ah-table td { padding: 0.48rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .ah-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
-        .ah-sku { font-family: ui-monospace, monospace; color: #e0f2fe; }
+        .ah-table th.ah-sortable:hover { background: var(--surface-2); }
+        .ah-sort-mark { color: var(--link-accent); font-size: 0.7rem; margin-left: 0.25rem; }
+        .ah-table td { padding: 0.48rem 0.75rem; border-bottom: 1px solid var(--border); }
+        .ah-table tbody tr:hover td { background: var(--primary-soft); }
+        .ah-sku { font-family: ui-monospace, monospace; color: var(--text); }
         .ah-num { text-align: right; font-variant-numeric: tabular-nums; }
-        .ah-pos { color: #4ade80; }
-        .ah-neg { color: #f87171; }
+        .ah-pos { color: var(--ok-text); }
+        .ah-neg { color: var(--bad-text); }
         .ah-detail { white-space: normal; max-width: 360px; }
         .ah-tag {
             display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px;
             font-size: 0.7rem; white-space: nowrap;
         }
-        .ah-tag-adj { background: rgba(59,130,246,0.16); color: #93c5fd; border: 1px solid rgba(147,197,253,0.3); }
-        .ah-tag-ack { background: rgba(34,197,94,0.14); color: #86efac; border: 1px solid rgba(134,239,172,0.3); }
-        .ah-tag-draft { background: rgba(148,163,184,0.16); color: #cbd5e1; border: 1px solid rgba(203,213,225,0.28); }
+        .ah-tag-adj { background: var(--primary-soft); color: var(--link-accent); border: 1px solid var(--primary-border); }
+        .ah-tag-ack { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-border); }
+        .ah-tag-draft { background: var(--neutral-bg); color: var(--neutral-text); border: 1px solid var(--neutral-border); }
         .ah-empty { text-align: center; padding: 2rem; color: var(--text-muted); }
         .ah-loading {
             position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
-            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+            background: var(--scrim-heavy); backdrop-filter: blur(6px);
         }
         .ah-loading.active { display: flex; }
         .ah-loading-box {
             width: min(360px, calc(100vw - 2rem)); padding: 1.35rem 1.4rem 1.2rem; border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: linear-gradient(165deg, rgba(24,24,27,0.98) 0%, rgba(15,15,18,0.99) 100%);
-            box-shadow: 0 24px 48px rgba(0,0,0,0.45); text-align: center;
+            border: 1px solid var(--border);
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+            box-shadow: var(--shadow-lg); text-align: center;
         }
         .ah-loading-spinner {
             width: 42px; height: 42px; margin: 0 auto 0.85rem;
-            border: 3px solid rgba(255,255,255,0.12); border-top-color: #60a5fa;
+            border: 3px solid var(--border-strong); border-top-color: var(--primary);
             border-radius: 50%; animation: ahSpin 0.85s linear infinite;
         }
         @keyframes ahSpin { to { transform: rotate(360deg); } }
         .ah-loading-title {
             margin: 0 0 0.35rem; font-family: 'Kanit', sans-serif; font-size: 1.05rem;
-            font-weight: 500; color: #f8fafc;
+            font-weight: 500; color: var(--text);
         }
         .ah-loading-status { margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
         @media (max-width: 900px) {
@@ -363,7 +363,7 @@
             clearSelection();
             applyView();
             document.getElementById('historyBody').innerHTML =
-                `<tr><td colspan="8" class="ah-empty" style="color:#f87171;">${RS.escapeHtml(err.message)}</td></tr>`;
+                `<tr><td colspan="8" class="ah-empty" style="color:var(--bad-text);">${RS.escapeHtml(err.message)}</td></tr>`;
             document.getElementById('summaryText').textContent = 'โหลดล้มเหลว';
             showToast(err.message, 'error');
         } finally {

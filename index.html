@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -238,9 +238,9 @@
                 </div>
             </div>
 
-            <div id="edWarningBox" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem 1rem; border-radius: 10px; display: none; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem;">
-                <i data-lucide="alert-triangle" style="color: #fca5a5; width: 20px; height: 20px; flex-shrink: 0;"></i>
-                <span id="edWarningText" style="font-size: 0.85rem; color: #fca5a5;"></span>
+            <div id="edWarningBox" style="background: var(--bad-bg); border: 1px solid var(--bad-border); padding: 0.75rem 1rem; border-radius: 10px; display: none; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem;">
+                <i data-lucide="alert-triangle" style="color: var(--bad-text); width: 20px; height: 20px; flex-shrink: 0;"></i>
+                <span id="edWarningText" style="font-size: 0.85rem; color: var(--bad-text);"></span>
             </div>
 
             <div style="display: flex; gap: 1rem;">
@@ -256,7 +256,7 @@
         <div class="log-drawer-header">
             <h2><i data-lucide="history"></i> ประวัติการทำงาน (Audit Logs)</h2>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <button class="settings-btn-cs" onclick="exportAuditLogs()" title="ส่งออก Audit Log เป็น Excel" style="color: var(--success); border-color: rgba(16, 185, 129, 0.3); padding: 0.4rem 0.75rem; font-size: 0.85rem; display: flex; gap: 0.4rem;">
+                <button class="settings-btn-cs" onclick="exportAuditLogs()" title="ส่งออก Audit Log เป็น Excel" style="color: var(--success); border-color: var(--ok-border); padding: 0.4rem 0.75rem; font-size: 0.85rem; display: flex; gap: 0.4rem;">
                     <i data-lucide="download-cloud" style="width: 16px; height: 16px;"></i> Export
                 </button>
                 <button class="icon-btn" onclick="closeLogDrawer()">
@@ -277,13 +277,13 @@
     <!-- Uncounted Items Drawer (Right Side) -->
     <div id="uncountedDrawerOverlay" class="log-drawer-overlay" onclick="closeUncountedDrawer()"></div>
     <div id="uncountedDrawer" class="log-drawer">
-        <div class="log-drawer-header" style="border-bottom-color: rgba(239, 68, 68, 0.2);">
-            <h2 style="color: #fca5a5;"><i data-lucide="file-warning"></i> รายการที่ยังไม่ได้นับ</h2>
+        <div class="log-drawer-header" style="border-bottom-color: var(--bad-border);">
+            <h2 style="color: var(--bad-text);"><i data-lucide="file-warning"></i> รายการที่ยังไม่ได้นับ</h2>
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                <button class="settings-btn-cs" onclick="exportUncountedExcel()" title="ส่งออก Excel" style="color: #10b981; border-color: rgba(255,255,255,0.1);">
+                <button class="settings-btn-cs" onclick="exportUncountedExcel()" title="ส่งออก Excel" style="color: var(--ok-text); border-color: var(--border);">
                     <i data-lucide="download" style="width: 16px; height: 16px;"></i>
                 </button>
-                <button class="settings-btn-cs" onclick="refreshUncounted()" title="รีเฟรชข้อมูล" style="color: #9ca3af; border-color: rgba(255,255,255,0.1);">
+                <button class="settings-btn-cs" onclick="refreshUncounted()" title="รีเฟรชข้อมูล" style="color: var(--text-3); border-color: var(--border);">
                     <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i>
                 </button>
                 <button class="icon-btn" onclick="closeUncountedDrawer()">

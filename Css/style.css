@@ -80,6 +80,41 @@
     --purple-text: #c084fc;
     --purple-bg: rgba(168, 85, 247, 0.10);
     --purple-border: rgba(168, 85, 247, 0.35);
+    --orange-text: #fdba74;
+    --orange-bg: rgba(249, 115, 22, 0.10);
+    --orange-border: rgba(249, 115, 22, 0.45);
+
+    /* โซนสเปรดชีตของ audit_check — กระดาษขาวแบบ Google Sheets
+       ตั้งใจให้ค่า "เท่ากันทั้ง 2 ธีม" (กระดาษคือกระดาษ) — อย่า map เข้า surface กลาง */
+    --sheet-bg: #ffffff;
+    --sheet-bg-soft: #f8f9fa;
+    --sheet-bg-soft-2: #f1f3f4;
+    --sheet-bg-colhead: #f3f3f3;
+    --sheet-border: #dadce0;
+    --sheet-border-2: #e0e0e0;
+    --sheet-text: #202124;
+    --sheet-text-2: #5f6368;
+    --sheet-text-3: #444444;
+    --sheet-text-dim: #80868b;
+    --sheet-text-muted: #9aa0a6;
+    --sheet-accent: #1a73e8;
+    --sheet-ok-bg: #e6f4ea;
+    --sheet-ok-text: #137333;
+    --sheet-bad-bg: #fce8e6;
+    --sheet-bad-text: #c5221f;
+    --sheet-bad-mark: #f28b82;
+    --sheet-warn-bg: #fef7e0;
+    --sheet-warn-text: #b06000;
+    --sheet-overlap-bg: #ffedd5;
+    --sheet-overlap-text: #c2410c;
+    --sheet-crossloc-bg: #f3e8ff;
+    --sheet-crossloc-bg-soft: #faf5ff;
+    --sheet-crossloc-text: #7e22ce;
+    --sheet-edit-bg: #fffef5;
+    --sheet-edit-focus-bg: #fffbeb;
+    --sheet-edit-focus-ring: #f59e0b;
+    --sheet-edit-loc-ring: #a855f7;
+    --sheet-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
 
     /* gradient ปุ่ม action ทึบ — สีอิ่มตัว ใช้ได้ทั้ง 2 ธีม (ตัวอักษรบนปุ่มขาว/เข้มคงที่) */
     --grad-primary: linear-gradient(135deg, var(--primary-hover), var(--primary));
@@ -164,6 +199,39 @@ html[data-theme="light"] {
     --purple-text: #6d28d9;
     --purple-bg: #f5f3ff;
     --purple-border: #ddd6fe;
+    --orange-text: #c2410c;
+    --orange-bg: #fff7ed;
+    --orange-border: #fed7aa;
+    /* โซนสเปรดชีต (audit_check): กระดาษขาวคงที่ ทั้ง 2 ธีมใช้ค่าเดียวกัน */
+    --sheet-bg: #ffffff;
+    --sheet-bg-soft: #f8f9fa;
+    --sheet-bg-soft-2: #f1f3f4;
+    --sheet-bg-colhead: #f3f3f3;
+    --sheet-border: #dadce0;
+    --sheet-border-2: #e0e0e0;
+    --sheet-text: #202124;
+    --sheet-text-2: #5f6368;
+    --sheet-text-3: #444444;
+    --sheet-text-dim: #80868b;
+    --sheet-text-muted: #9aa0a6;
+    --sheet-accent: #1a73e8;
+    --sheet-ok-bg: #e6f4ea;
+    --sheet-ok-text: #137333;
+    --sheet-bad-bg: #fce8e6;
+    --sheet-bad-text: #c5221f;
+    --sheet-bad-mark: #f28b82;
+    --sheet-warn-bg: #fef7e0;
+    --sheet-warn-text: #b06000;
+    --sheet-overlap-bg: #ffedd5;
+    --sheet-overlap-text: #c2410c;
+    --sheet-crossloc-bg: #f3e8ff;
+    --sheet-crossloc-bg-soft: #faf5ff;
+    --sheet-crossloc-text: #7e22ce;
+    --sheet-edit-bg: #fffef5;
+    --sheet-edit-focus-bg: #fffbeb;
+    --sheet-edit-focus-ring: #f59e0b;
+    --sheet-edit-loc-ring: #a855f7;
+    --sheet-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
     --grad-green: linear-gradient(135deg, #047857, #10b981);
     --grad-amber: linear-gradient(135deg, #b45309, #f59e0b);
     --grad-purple: linear-gradient(135deg, #6d28d9, #a855f7);

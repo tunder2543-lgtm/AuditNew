@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,7 +15,7 @@
         document.documentElement.dataset.theme = t;
     })();
     </script>
-    <link rel="stylesheet" href="../Css/style.css?v=20260813c">
+    <link rel="stylesheet" href="../Css/style.css?v=20260813d">
     <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260813b">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -63,39 +63,39 @@
         }
 
         .audit-stat-filter:hover {
-            background: rgba(255, 255, 255, 0.06);
+            background: var(--overlay-2);
         }
 
         .audit-stat-filter.audit-stat-active {
-            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+            box-shadow: 0 0 0 2px var(--border-strong);
         }
 
         .audit-stat-filter[data-filter="ok"].audit-stat-active {
-            background: rgba(16, 185, 129, 0.15);
-            border-color: rgba(16, 185, 129, 0.7);
+            background: var(--ok-bg);
+            border-color: var(--ok-text);
         }
 
         .audit-stat-filter[data-filter="err"].audit-stat-active {
-            background: rgba(239, 68, 68, 0.15);
-            border-color: rgba(239, 68, 68, 0.7);
+            background: var(--bad-bg);
+            border-color: var(--bad-text);
         }
 
         .audit-stat-filter[data-filter="warn"].audit-stat-active {
-            background: rgba(234, 179, 8, 0.15);
-            border-color: rgba(234, 179, 8, 0.7);
+            background: var(--warn-bg);
+            border-color: var(--warn-text);
         }
 
         .audit-stat-filter[data-filter="pending"].audit-stat-active {
-            background: rgba(148, 163, 184, 0.15);
-            border-color: rgba(148, 163, 184, 0.7);
+            background: var(--neutral-bg);
+            border-color: var(--neutral-text);
         }
 
         .gs-wrap {
-            background: #fff;
-            border: 1px solid #dadce0;
+            background: var(--sheet-bg);
+            border: 1px solid var(--sheet-border);
             border-radius: 4px;
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(60, 64, 67, 0.15);
+            box-shadow: var(--sheet-shadow);
         }
 
         .gs-toolbar {
@@ -103,17 +103,17 @@
             align-items: center;
             gap: 0.5rem;
             padding: 0.5rem 0.75rem;
-            background: #f8f9fa;
-            border-bottom: 1px solid #dadce0;
+            background: var(--sheet-bg-soft);
+            border-bottom: 1px solid var(--sheet-border);
             font-size: 0.8rem;
-            color: #5f6368;
+            color: var(--sheet-text-2);
         }
 
         .gs-toolbar .sheet-name {
             font-weight: 500;
-            color: #202124;
+            color: var(--sheet-text);
             padding: 0.2rem 0.5rem;
-            border-bottom: 3px solid #1a73e8;
+            border-bottom: 3px solid var(--sheet-accent);
         }
 
         .gs-scroll {
@@ -131,15 +131,15 @@
 
         .gs-table th,
         .gs-table td {
-            border: 1px solid #e0e0e0;
+            border: 1px solid var(--sheet-border-2);
             padding: 0;
             height: 28px;
             vertical-align: middle;
         }
 
         .gs-table thead th {
-            background: #f3f3f3;
-            color: #444;
+            background: var(--sheet-bg-colhead);
+            color: var(--sheet-text-3);
             font-weight: 500;
             text-align: center;
             position: sticky;
@@ -151,14 +151,14 @@
         .gs-table .col-check {
             width: 36px;
             min-width: 36px;
-            background: #f8f9fa;
+            background: var(--sheet-bg-soft);
             text-align: center;
         }
 
         .gs-table .col-check input[type="checkbox"] {
             width: 15px;
             height: 15px;
-            accent-color: #1a73e8;
+            accent-color: var(--sheet-accent);
             cursor: pointer;
             vertical-align: middle;
         }
@@ -166,8 +166,8 @@
         .gs-table .col-row-num {
             width: 42px;
             min-width: 42px;
-            background: #f8f9fa;
-            color: #80868b;
+            background: var(--sheet-bg-soft);
+            color: var(--sheet-text-dim);
             text-align: center;
             font-size: 11px;
         }
@@ -188,7 +188,7 @@
         .gs-table .meta-cell {
             padding: 2px 8px;
             font-size: 12px;
-            color: #5f6368;
+            color: var(--sheet-text-2);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -196,21 +196,21 @@
         }
 
         .gs-table tbody tr:hover td:not(.col-check):not(.col-row-num):not(.col-status):not(.col-note):not(.col-wh):not(.col-dt) {
-            background: #f1f3f4;
+            background: var(--sheet-bg-soft-2);
         }
 
         .gs-table tbody tr:hover td.col-wh,
         .gs-table tbody tr:hover td.col-dt {
-            background: #f1f3f4;
+            background: var(--sheet-bg-soft-2);
         }
 
         .btn-gs.btn-danger {
-            color: #f87171;
-            border-color: rgba(239, 68, 68, 0.45);
+            color: var(--bad-text);
+            border-color: var(--bad-border);
         }
 
         .btn-gs.btn-danger:hover:not(:disabled) {
-            background: rgba(239, 68, 68, 0.12);
+            background: var(--bad-bg);
         }
 
         .btn-gs.btn-danger:disabled {
@@ -219,15 +219,15 @@
         }
 
         .btn-gs.btn-edit-loc.active-mode {
-            background: rgba(245, 158, 11, 0.18);
-            border-color: rgba(245, 158, 11, 0.55);
-            color: #fcd34d;
+            background: var(--warn-bg);
+            border-color: var(--warn-border);
+            color: var(--warn-text);
         }
 
         .btn-gs.btn-save-loc {
-            background: rgba(30, 201, 138, 0.14);
-            border-color: rgba(30, 201, 138, 0.45);
-            color: #6ee7b7;
+            background: var(--ok-bg);
+            border-color: var(--ok-border);
+            color: var(--ok-text);
         }
 
         .btn-gs.btn-save-loc:disabled {
@@ -241,7 +241,7 @@
         }
 
         #auditSheet.edit-loc-mode tr[data-record-id] .col-loc .gs-cell {
-            background: #fffef5;
+            background: var(--sheet-edit-bg);
         }
 
         #auditSheet.edit-qty-mode .col-status,
@@ -249,15 +249,15 @@
             opacity: 0.25;
         }
         #auditSheet.edit-qty-mode tr[data-record-id] .col-qty .gs-cell {
-            background: rgba(59, 130, 246, 0.12);
+            background: var(--primary-soft);
         }
         #auditSheet.edit-qty-mode tr.qty-dirty .col-qty .gs-cell {
-            background: rgba(59, 130, 246, 0.28);
+            background: var(--primary-soft-strong);
             font-weight: 700;
         }
         #auditSheet.edit-loc-mode tr.loc-dirty .col-loc .gs-cell {
-            box-shadow: inset 0 0 0 2px #f59e0b;
-            background: #fffbeb;
+            box-shadow: inset 0 0 0 2px var(--sheet-edit-focus-ring);
+            background: var(--sheet-edit-focus-bg);
         }
 
         .edit-loc-banner {
@@ -265,9 +265,9 @@
             margin: 0 0 0.75rem;
             padding: 0.65rem 1rem;
             border-radius: 10px;
-            border: 1px solid rgba(245, 158, 11, 0.35);
-            background: rgba(245, 158, 11, 0.1);
-            color: #fcd34d;
+            border: 1px solid var(--warn-border);
+            background: var(--warn-bg);
+            color: var(--warn-text);
             font-size: 0.85rem;
         }
 
@@ -276,15 +276,15 @@
         }
 
         .btn-gs.btn-swap-sku-loc.active-mode {
-            background: rgba(168, 85, 247, 0.18);
-            border-color: rgba(168, 85, 247, 0.55);
-            color: #e9d5ff;
+            background: var(--purple-bg);
+            border-color: var(--purple-border);
+            color: var(--purple-text);
         }
 
         .btn-gs.btn-apply-swap {
-            background: rgba(168, 85, 247, 0.14);
-            border-color: rgba(168, 85, 247, 0.45);
-            color: #e9d5ff;
+            background: var(--purple-bg);
+            border-color: var(--purple-border);
+            color: var(--purple-text);
         }
 
         .btn-gs.btn-apply-swap:disabled {
@@ -297,9 +297,9 @@
             margin: 0 0 0.75rem;
             padding: 0.65rem 1rem;
             border-radius: 10px;
-            border: 1px solid rgba(168, 85, 247, 0.35);
-            background: rgba(168, 85, 247, 0.1);
-            color: #e9d5ff;
+            border: 1px solid var(--purple-border);
+            background: var(--purple-bg);
+            color: var(--purple-text);
             font-size: 0.85rem;
         }
 
@@ -309,13 +309,13 @@
 
         #auditSheet.swap-sku-loc-mode tr[data-record-id].swap-eligible .col-sku .gs-cell,
         #auditSheet.swap-sku-loc-mode tr[data-record-id].swap-eligible .col-loc .gs-cell {
-            background: #faf5ff;
+            background: var(--sheet-crossloc-bg-soft);
         }
 
         #auditSheet.swap-sku-loc-mode tr.swap-target .col-sku .gs-cell,
         #auditSheet.swap-sku-loc-mode tr.swap-target .col-loc .gs-cell {
-            box-shadow: inset 0 0 0 2px #a855f7;
-            background: #f3e8ff;
+            box-shadow: inset 0 0 0 2px var(--sheet-edit-loc-ring);
+            background: var(--sheet-crossloc-bg);
         }
 
         .gs-cell {
@@ -326,12 +326,12 @@
             padding: 0 6px;
             font: inherit;
             background: transparent;
-            color: #202124;
+            color: var(--sheet-text);
         }
 
         .gs-cell:focus {
-            box-shadow: inset 0 0 0 2px #1a73e8;
-            background: #fff;
+            box-shadow: inset 0 0 0 2px var(--sheet-accent);
+            background: var(--sheet-bg);
             z-index: 1;
             position: relative;
         }
@@ -350,29 +350,29 @@
         }
 
         .status-ok {
-            background: #e6f4ea !important;
-            color: #137333;
+            background: var(--sheet-ok-bg) !important;
+            color: var(--sheet-ok-text);
         }
 
         .status-error {
-            background: #fce8e6 !important;
-            color: #c5221f;
+            background: var(--sheet-bad-bg) !important;
+            color: var(--sheet-bad-text);
         }
 
         .status-warn {
-            background: #fef7e0 !important;
-            color: #b06000;
+            background: var(--sheet-warn-bg) !important;
+            color: var(--sheet-warn-text);
         }
 
         .status-empty {
-            background: #fff !important;
-            color: #9aa0a6;
+            background: var(--sheet-bg) !important;
+            color: var(--sheet-text-muted);
         }
 
         .note-cell {
             padding: 2px 8px;
             font-size: 11px;
-            color: #5f6368;
+            color: var(--sheet-text-2);
             line-height: 1.35;
             white-space: normal;
             word-break: break-word;
@@ -384,7 +384,7 @@
         }
 
         .note-cell .prob {
-            color: #1a73e8;
+            color: var(--sheet-accent);
             font-weight: 600;
         }
 
@@ -393,7 +393,7 @@
         tr.row-ok td.col-qty,
         tr.row-ok td.col-wh,
         tr.row-ok td.col-dt {
-            background: #e6f4ea;
+            background: var(--sheet-ok-bg);
         }
 
         tr.row-error td.col-sku,
@@ -401,7 +401,7 @@
         tr.row-error td.col-qty,
         tr.row-error td.col-wh,
         tr.row-error td.col-dt {
-            background: #fce8e6;
+            background: var(--sheet-bad-bg);
         }
 
         tr.row-warn td.col-sku,
@@ -409,13 +409,13 @@
         tr.row-warn td.col-qty,
         tr.row-warn td.col-wh,
         tr.row-warn td.col-dt {
-            background: #fef7e0;
+            background: var(--sheet-warn-bg);
         }
 
         /* แถวต้นฉบับของกลุ่มที่ซ้ำ — สถานะยังถูกต้อง แต่ถูกลากมาแสดงคู่กับตัวซ้ำตอนกรอง "ผิดพลาด"
            ขีดซ้ายสีแดงจาง ๆ ให้เห็นว่าอยู่กลุ่มเดียวกับแถวแดง โดยไม่ทำให้ดูเหมือนแถวผิด */
         tr.row-dup-partner td.col-row-num {
-            border-left: 3px solid #f28b82;
+            border-left: 3px solid var(--sheet-bad-mark);
         }
 
         /* ทับซ้อน = ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน (Match บวกรวมทุกแถว)
@@ -425,10 +425,10 @@
         tr.row-overlap td.col-qty,
         tr.row-overlap td.col-wh,
         tr.row-overlap td.col-dt {
-            background: #ffedd5;
+            background: var(--sheet-overlap-bg);
         }
 
-        .status-overlap { color: #c2410c; font-weight: 600; }
+        .status-overlap { color: var(--sheet-overlap-text); font-weight: 600; }
 
         /* SKU+จำนวนเดียวกัน คนละตำแหน่ง — สีม่วง แยกจาก "ทับซ้อน" (ส้ม) ให้ชัด */
         tr.row-crossloc td.col-sku,
@@ -436,13 +436,13 @@
         tr.row-crossloc td.col-qty,
         tr.row-crossloc td.col-wh,
         tr.row-crossloc td.col-dt {
-            background: rgba(168, 85, 247, 0.12);
+            background: var(--sheet-crossloc-bg);
         }
-        .status-crossloc { color: #7e22ce; font-weight: 600; }
+        .status-crossloc { color: var(--sheet-crossloc-text); font-weight: 600; }
 
         /* เส้นคั่นระหว่างคู่ — แถวแรกของคู่มีเส้นบน แถวถัดมาในคู่เดียวกันไม่มี */
-        tr.crossloc-pair-start > td { border-top: 2px solid rgba(168, 85, 247, 0.55); }
-        tr.crossloc-pair-mid > td { border-top: 1px dashed rgba(168, 85, 247, 0.35); }
+        tr.crossloc-pair-start > td { border-top: 2px solid var(--sheet-edit-loc-ring); }
+        tr.crossloc-pair-mid > td { border-top: 1px dashed var(--sheet-edit-loc-ring); }
 
         .audit-impact-bar {
             display: flex;
@@ -451,30 +451,30 @@
             flex-wrap: wrap;
             margin-top: 0.75rem;
             padding: 0.6rem 0.85rem;
-            border: 1px solid rgba(249, 115, 22, 0.45);
+            border: 1px solid var(--orange-border);
             border-radius: 10px;
-            background: rgba(249, 115, 22, 0.08);
-            color: #fdba74;
+            background: var(--orange-bg);
+            color: var(--orange-text);
             font-size: 0.86rem;
             line-height: 1.5;
         }
 
-        .audit-impact-bar strong { color: #fed7aa; }
+        .audit-impact-bar strong { color: var(--orange-text); }
 
         .audit-impact-link {
             margin-left: auto;
             padding: 0.25rem 0.7rem;
-            border: 1px solid rgba(249, 115, 22, 0.5);
+            border: 1px solid var(--orange-border);
             border-radius: 999px;
             background: transparent;
-            color: #fdba74;
+            color: var(--orange-text);
             font: inherit;
             cursor: pointer;
             white-space: nowrap;
         }
 
         .audit-impact-link:hover {
-            background: rgba(249, 115, 22, 0.18);
+            background: var(--orange-bg);
         }
 
         .btn-gs {
@@ -493,17 +493,17 @@
 
         .btn-gs:hover {
             border-color: var(--primary);
-            background: rgba(59, 130, 246, 0.1);
+            background: var(--primary-soft);
         }
 
         .btn-gs.primary {
-            background: #1a73e8;
-            border-color: #1a73e8;
-            color: #fff;
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--primary-contrast);
         }
 
         .btn-gs.primary:hover {
-            background: #1557b0;
+            background: var(--primary-hover);
         }
 
         .btn-gs:disabled,
@@ -514,9 +514,9 @@
         }
 
         .btn-gs.primary:disabled {
-            background: #3f3f46;
-            border-color: #52525b;
-            color: #a1a1aa;
+            background: var(--surface-3);
+            border-color: var(--border-strong);
+            color: var(--text-3);
         }
 
         /* ── Toolbar groups ── */
@@ -548,7 +548,7 @@
             padding: 0.35rem 0.5rem;
             border: 1px solid var(--card-border);
             border-radius: 8px;
-            background: rgba(255,255,255,0.025);
+            background: var(--overlay-1);
         }
 
         .ref-badge {
@@ -556,11 +556,11 @@
             color: var(--text-muted);
         }
 
-        .ref-badge strong { color: #34d399; }
+        .ref-badge strong { color: var(--ok-text); }
 
         .loading-bar {
             height: 3px;
-            background: #1a73e8;
+            background: var(--primary);
             width: 0%;
             transition: width 0.3s;
         }
@@ -579,7 +579,7 @@
             position: fixed;
             inset: 0;
             z-index: 15000;
-            background: rgba(15, 23, 42, 0.78);
+            background: var(--scrim-heavy);
             backdrop-filter: blur(4px);
             display: none;
             align-items: center;
@@ -599,13 +599,13 @@
             min-width: 280px;
             max-width: 420px;
             text-align: center;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            box-shadow: var(--shadow-lg);
         }
 
         .audit-loading-spin {
             width: 48px;
             height: 48px;
-            color: #1a73e8;
+            color: var(--primary);
             margin: 0 auto 1rem;
             animation: audit-spin 0.9s linear infinite;
         }
@@ -671,8 +671,8 @@
 
         .audit-data-scope {
             margin-bottom: 0.75rem;
-            border-color: rgba(79, 140, 255, 0.28);
-            background: linear-gradient(180deg, rgba(79, 140, 255, 0.08), rgba(79, 140, 255, 0.02));
+            border-color: var(--primary-border);
+            background: linear-gradient(180deg, var(--primary-soft), transparent);
         }
 
         .audit-data-scope select {
@@ -682,22 +682,22 @@
         }
 
         .audit-data-scope select option {
-            background: #121316;
+            background: var(--surface-2);
             color: var(--text);
         }
 
         .audit-scope-hint {
             font-size: 0.78rem;
-            color: #93c5fd;
+            color: var(--link-accent);
             flex: 1 1 100%;
         }
 
         .btn-loc-compare {
-            border-color: rgba(168, 85, 247, 0.45);
-            color: #e9d5ff;
+            border-color: var(--purple-border);
+            color: var(--purple-text);
         }
         .btn-loc-compare:hover {
-            background: rgba(168, 85, 247, 0.15);
+            background: var(--purple-bg);
         }
 
         .loc-compare-backdrop {
@@ -708,7 +708,7 @@
             align-items: center;
             justify-content: center;
             padding: 1rem;
-            background: rgba(0, 0, 0, 0.62);
+            background: var(--scrim-heavy);
             backdrop-filter: blur(4px);
         }
         .loc-compare-backdrop.open {
@@ -733,8 +733,8 @@
         .audit-history-toolbar input {
             padding: 0.35rem 0.55rem;
             border-radius: 8px;
-            border: 1px solid rgba(148, 163, 184, 0.35);
-            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--neutral-border);
+            background: var(--surface-2);
             color: inherit;
             font: inherit;
         }
@@ -746,7 +746,7 @@
         .audit-history-wrap {
             max-height: 60vh;
             overflow: auto;
-            border: 1px solid rgba(148, 163, 184, 0.22);
+            border: 1px solid var(--neutral-border);
             border-radius: 10px;
         }
         .audit-history-table {
@@ -757,7 +757,7 @@
         .audit-history-table th {
             position: sticky;
             top: 0;
-            background: #1e293b;
+            background: var(--surface-3);
             text-align: left;
             padding: 0.5rem 0.6rem;
             white-space: nowrap;
@@ -765,11 +765,11 @@
         }
         .audit-history-table td {
             padding: 0.42rem 0.6rem;
-            border-top: 1px solid rgba(148, 163, 184, 0.14);
+            border-top: 1px solid var(--border);
             vertical-align: top;
         }
         .audit-history-table tr.is-delete td {
-            background: rgba(239, 68, 68, 0.08);
+            background: var(--bad-bg);
         }
         .audit-history-empty {
             padding: 1.4rem;
@@ -782,10 +782,10 @@
             max-height: min(90vh, 820px);
             display: flex;
             flex-direction: column;
-            background: linear-gradient(165deg, #1a1d24 0%, #12141a 100%);
-            border: 1px solid rgba(168, 85, 247, 0.35);
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+            border: 1px solid var(--purple-border);
             border-radius: 16px;
-            box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+            box-shadow: var(--shadow-lg);
             overflow: hidden;
         }
 
@@ -795,15 +795,15 @@
             justify-content: space-between;
             gap: 1rem;
             padding: 1.25rem 1.5rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(168, 85, 247, 0.08);
+            border-bottom: 1px solid var(--border);
+            background: var(--purple-bg);
         }
         .loc-compare-header h2 {
             font-family: 'Kanit', sans-serif;
             font-size: 1.2rem;
             font-weight: 500;
             margin: 0 0 0.25rem;
-            color: #f3e8ff;
+            color: var(--purple-text);
         }
         .loc-compare-header p {
             margin: 0;
@@ -820,7 +820,7 @@
         }
         .loc-compare-close:hover {
             color: var(--text);
-            background: rgba(255, 255, 255, 0.06);
+            background: var(--overlay-2);
         }
 
         .loc-compare-body {
@@ -840,8 +840,8 @@
             align-items: center;
             padding: 0.65rem 0.75rem;
             border-radius: 10px;
-            border: 1px dashed rgba(168, 85, 247, 0.35);
-            background: rgba(168, 85, 247, 0.06);
+            border: 1px dashed var(--purple-border);
+            background: var(--purple-bg);
         }
         .loc-compare-templates .template-label {
             font-size: 0.78rem;
@@ -858,19 +858,19 @@
             border-radius: 8px;
             padding: 0.45rem 0.85rem;
             font-size: 0.85rem;
-            background: rgba(34, 197, 94, 0.1);
-            border-color: rgba(34, 197, 94, 0.35);
-            color: #bbf7d0;
+            background: var(--ok-bg);
+            border-color: var(--ok-border);
+            color: var(--ok-text);
         }
         .loc-compare-gsheet-link:hover {
-            background: rgba(34, 197, 94, 0.18);
+            background: var(--ok-bg-strong);
         }
         .btn-loc-template {
-            border-color: rgba(59, 130, 246, 0.45);
-            color: #bfdbfe;
+            border-color: var(--primary-border);
+            color: var(--link-accent);
         }
         .btn-loc-template:hover {
-            background: rgba(59, 130, 246, 0.15);
+            background: var(--primary-soft);
         }
         .loc-compare-file-zone {
             display: flex;
@@ -880,9 +880,9 @@
         }
         .loc-compare-file-name {
             font-size: 0.85rem;
-            color: #c4b5fd;
+            color: var(--purple-text);
             padding: 0.35rem 0.65rem;
-            background: rgba(168, 85, 247, 0.12);
+            background: var(--purple-bg);
             border-radius: 8px;
         }
         .loc-compare-zone-row {
@@ -916,8 +916,8 @@
         .loc-compare-chip {
             padding: 0.75rem 0.85rem;
             border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            background: var(--overlay-1);
         }
         .loc-compare-chip strong {
             display: block;
@@ -929,13 +929,13 @@
             font-size: 0.75rem;
             color: var(--text-muted);
         }
-        .loc-compare-chip.warn strong { color: #fbbf24; }
-        .loc-compare-chip.ok strong { color: #34d399; }
-        .loc-compare-chip.mute strong { color: #94a3b8; }
+        .loc-compare-chip.warn strong { color: var(--warn-text); }
+        .loc-compare-chip.ok strong { color: var(--ok-text); }
+        .loc-compare-chip.mute strong { color: var(--neutral-text); }
         .loc-compare-chip.fix strong { color: #f472b6; }
 
         .loc-compare-table-wrap {
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border-strong);
             border-radius: 10px;
             overflow: auto;
             max-height: 340px;
@@ -948,33 +948,33 @@
         .loc-compare-table th {
             position: sticky;
             top: 0;
-            background: #252830;
+            background: var(--surface-3);
             text-align: left;
             padding: 0.55rem 0.65rem;
             font-weight: 500;
-            color: #e2e8f0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-2);
+            border-bottom: 1px solid var(--border-strong);
         }
         .loc-compare-table td {
             padding: 0.5rem 0.65rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            border-bottom: 1px solid var(--border);
             vertical-align: middle;
         }
         .loc-compare-table tr:hover td {
-            background: rgba(168, 85, 247, 0.06);
+            background: var(--purple-bg);
         }
         .loc-arrow {
-            color: #a78bfa;
+            color: var(--purple-text);
             font-weight: 600;
             white-space: nowrap;
         }
         .loc-old {
-            color: #f87171;
+            color: var(--bad-text);
             text-decoration: line-through;
             opacity: 0.85;
         }
         .loc-new {
-            color: #4ade80;
+            color: var(--ok-text);
             font-weight: 500;
         }
 
@@ -986,11 +986,11 @@
         .loc-compare-missing {
             margin-top: 0.75rem;
             font-size: 0.8rem;
-            color: #94a3b8;
+            color: var(--neutral-text);
         }
         .loc-compare-missing summary {
             cursor: pointer;
-            color: #cbd5e1;
+            color: var(--text-2);
         }
 
         .loc-compare-footer {
@@ -999,17 +999,17 @@
             gap: 0.5rem;
             justify-content: flex-end;
             padding: 1rem 1.5rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid var(--border);
+            background: var(--overlay-1);
         }
         .loc-compare-confirm-banner {
             display: none;
             padding: 0.65rem 1rem;
             margin-bottom: 0.75rem;
             border-radius: 8px;
-            background: rgba(251, 191, 36, 0.12);
-            border: 1px solid rgba(251, 191, 36, 0.35);
-            color: #fde68a;
+            background: var(--warn-bg);
+            border: 1px solid var(--warn-border);
+            color: var(--warn-text);
             font-size: 0.85rem;
         }
         .loc-compare-confirm-banner.show {
@@ -1145,20 +1145,20 @@
                 </div>
 
                 <div class="audit-stats">
-                    <div class="audit-stat audit-stat-filter" data-filter="ok" style="border-color: rgba(16,185,129,0.4)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
-                        <span style="color:#34d399">●</span> ถูกต้อง: <strong id="statOk">0</strong>
+                    <div class="audit-stat audit-stat-filter" data-filter="ok" style="border-color: var(--ok-border)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
+                        <span style="color:var(--ok-text)">●</span> ถูกต้อง: <strong id="statOk">0</strong>
                     </div>
-                    <div class="audit-stat audit-stat-filter" data-filter="err" style="border-color: rgba(239,68,68,0.4)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
-                        <span style="color:#f87171">●</span> ผิดพลาด: <strong id="statErr">0</strong>
+                    <div class="audit-stat audit-stat-filter" data-filter="err" style="border-color: var(--bad-border)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
+                        <span style="color:var(--bad-text)">●</span> ผิดพลาด: <strong id="statErr">0</strong>
                     </div>
-                    <div class="audit-stat audit-stat-filter" data-filter="warn" style="border-color: rgba(234,179,8,0.4)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
-                        <span style="color:#fbbf24">●</span> ตำแหน่งน่าจะผิด: <strong id="statWarn">0</strong>
+                    <div class="audit-stat audit-stat-filter" data-filter="warn" style="border-color: var(--warn-border)" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
+                        <span style="color:var(--warn-text)">●</span> ตำแหน่งน่าจะผิด: <strong id="statWarn">0</strong>
                     </div>
-                    <div class="audit-stat audit-stat-filter" data-filter="overlap" style="border-color: rgba(249,115,22,0.45)" title="ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน — Match บวกรวมทุกแถว · กดเพื่อกรอง">
-                        <span style="color:#fb923c">●</span> ทับซ้อน: <strong id="statOverlap">0</strong>
+                    <div class="audit-stat audit-stat-filter" data-filter="overlap" style="border-color: var(--orange-border)" title="ตำแหน่งเดียวกันมีหลายแถว จำนวนต่างกัน — Match บวกรวมทุกแถว · กดเพื่อกรอง">
+                        <span style="color:var(--orange-text)">●</span> ทับซ้อน: <strong id="statOverlap">0</strong>
                     </div>
-                    <div class="audit-stat audit-stat-filter" data-filter="crossloc" style="border-color: rgba(168,85,247,0.45)" title="SKU เดียวกัน จำนวนเท่ากันเป๊ะ แต่คนละตำแหน่ง — มักเกิดจากนับชั้นเดิมซ้ำใต้ป้ายคนละชื่อ · กดเพื่อกรอง">
-                        <span style="color:#c084fc">●</span> ซ้ำข้ามตำแหน่ง: <strong id="statCrossLoc">0</strong>
+                    <div class="audit-stat audit-stat-filter" data-filter="crossloc" style="border-color: var(--purple-border)" title="SKU เดียวกัน จำนวนเท่ากันเป๊ะ แต่คนละตำแหน่ง — มักเกิดจากนับชั้นเดิมซ้ำใต้ป้ายคนละชื่อ · กดเพื่อกรอง">
+                        <span style="color:var(--purple-text)">●</span> ซ้ำข้ามตำแหน่ง: <strong id="statCrossLoc">0</strong>
                     </div>
                     <div class="audit-stat audit-stat-filter" data-filter="pending" title="กดเพื่อกรอง · กดอีกครั้งเพื่อยกเลิก">
                         รอตรวจ: <strong id="statPending">0</strong>
@@ -1419,7 +1419,7 @@
         </div>
     </div>
 
-    <script src="../Js/sidebar-shared.js?v=20260813c"></script>
+    <script src="../Js/sidebar-shared.js?v=20260813d"></script>
 <script src="../Js/api.js?v=20260809j"></script>
     <script src="../Js/sku-utils.js?v=20260809j"></script>
     <script src="../Js/warehouses-shared.js?v=20260809j"></script>
@@ -1825,10 +1825,10 @@
             if (!f.warehouse) parts.push('เลือกคลังเพื่อความแม่นยำ');
             if (parts.length) {
                 hint.textContent = `⚠ ${parts.join(' · ')} — bulk แก้ตำแหน่ง/Import เทียบควรระบุคลังและเดือน`;
-                hint.style.color = '#fbbf24';
+                hint.style.color = 'var(--warn-text)';
             } else {
                 hint.textContent = `ใช้เฉพาะ ${formatAuditScopeLabel(f)} — เปลี่ยนคลัง/เดือนแล้วระบบโหลด + ใส่ตาราง + ตรวจสอบให้อัตโนมัติ`;
-                hint.style.color = '#93c5fd';
+                hint.style.color = 'var(--link-accent)';
             }
         }
 
@@ -2940,7 +2940,7 @@
                 const totalRows = allRows.length;
                 const scope = formatAuditScopeLabel(filters);
                 document.getElementById('refBadge').innerHTML =
-                    `อ้างอิง <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ · <strong>${totalRows.toLocaleString()}</strong> แถว · <span style="color:#93c5fd">${escapeHtml(scope)}</span>`;
+                    `อ้างอิง <strong>${refBySkuLoc.size.toLocaleString()}</strong> คู่ · <strong>${totalRows.toLocaleString()}</strong> แถว · <span style="color:var(--link-accent)">${escapeHtml(scope)}</span>`;
                 showToast(`โหลดอ้างอิง ${totalRows.toLocaleString()} แถว · ${scope}`);
             } catch (err) {
                 console.error(err);
@@ -5938,7 +5938,7 @@
             })();
         } else {
             document.getElementById('refBadge').innerHTML =
-                'ข้อมูลอ้างอิง: <span style="color:#f87171">กรุณาตั้งค่า Supabase ใน <a href="settings.html" style="color:#93c5fd">หน้าตั้งค่า</a></span>';
+                'ข้อมูลอ้างอิง: <span style="color:var(--bad-text)">กรุณาตั้งค่า Supabase ใน <a href="settings.html" style="color:var(--link-accent)">หน้าตั้งค่า</a></span>';
         }
     </script>
 </body>

@@ -539,7 +539,7 @@
                         </div>
 
                         <div class="rc-form-group">
-                            <label for="adjQty" id="adjQtyLabel">จำนวนที่ต้องการ (Excel ใช้เทียบหลังปรับ)</label>
+                            <label for="adjQty" id="adjQtyLabel">ยอดจริงที่ต้องการ (Excel ใช้เทียบหลังปรับ)</label>
                             <input type="number" id="adjQty" step="any" min="0" placeholder="เช่น ตามผลนับ">
                             <button type="button" class="rc-adj-use-counted" id="btnUseCountedTarget" style="display:none;">ใส่ตามผลนับ</button>
                         </div>
@@ -549,16 +549,14 @@
                             <input type="text" id="adjNote" placeholder="เหตุผลการปรับ">
                         </div>
 
-                        <button type="button" class="rc-btn rc-btn-match-ok" id="btnMarkMatchOk" style="display:none;">
-                            <i data-lucide="badge-check"></i> ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)
+                        <button type="button" class="rc-btn rc-btn-match-ok" id="btnMarkMatchOk" style="display:none;"
+                            title="เชื่อยอด Excel ใช้เทียบตอนนี้เป็นยอดจริง — ไม่สร้างยอดปรับ ไม่แตะผลนับ สถานะเป็นถูกต้อง">
+                            <i data-lucide="badge-check"></i> ยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)
                         </button>
 
-                        <button type="button" class="rc-btn rc-btn-green" id="btnAcceptCountApply" style="display:none;width:100%;justify-content:center;margin-bottom:0.5rem;">
-                            <i data-lucide="check-check"></i> ยอมรับผลนับ (Apply ทันที)
-                        </button>
-
-                        <button type="button" class="rc-btn rc-btn-primary" id="btnSaveDraft" style="width:100%;justify-content:center;">
-                            <i data-lucide="save"></i> บันทึก Draft
+                        <button type="button" class="rc-btn rc-btn-green" id="btnAcceptCountApply" style="display:none;width:100%;justify-content:center;margin-bottom:0.5rem;"
+                            title="ปรับ Excel ใช้เทียบให้เท่ายอดในช่องด้านบนแล้วบันทึกทันที — ไม่แตะผลนับ/Book ต้นฉบับ ถ้ายอดที่กรอกต่างจากผลนับ ระบบจะบันทึกยืนยันว่ายอดที่กรอกคือยอดจริง">
+                            <i data-lucide="check-check"></i> ใช้ยอดที่กรอกเป็นยอดจริง (Apply ทันที)
                         </button>
 
                         <div class="rc-draft-list" id="draftSection" style="display:none;">
@@ -801,10 +799,10 @@
     function statusBadge(s, skuId) {
         const d = STATUS_MAP[s] || { th: s, icon: 'minus', cls: 'other' };
         if ((s === 'short' || s === 'over') && skuId) {
-            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อใส่ยอดที่ต้องการและยอมรับผลนับ"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
+            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อใส่ยอดจริงที่ต้องการ แล้วปรับยอดหรือยืนยัน"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
         }
         if (s === 'book_only' && skuId) {
-            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อยืนยันเป็นถูกต้อง (คงยอดปรับเดิม)"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
+            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อยืนยันว่ายอด Excel ถูกต้อง (คงยอดปรับเดิม)"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
         }
         return `<span class="rc-badge ${d.cls}"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
     }
@@ -1210,7 +1208,7 @@
         const btn = document.getElementById('btnAcceptCountApply');
         if (!btn) return;
         btn.classList.remove('armed');
-        btn.innerHTML = '<i data-lucide="check-check"></i> ยอมรับผลนับ (Apply ทันที)';
+        btn.innerHTML = '<i data-lucide="check-check"></i> ใช้ยอดที่กรอกเป็นยอดจริง (Apply ทันที)';
         lucide.createIcons();
     }
 
@@ -1237,7 +1235,7 @@
         const isShort = computed === 'short';
         const isOver = computed === 'over';
         const isAdjustable = isShort || isOver;
-        label.textContent = 'จำนวนที่ต้องการ (Excel ใช้เทียบหลังปรับ)';
+        label.textContent = 'ยอดจริงที่ต้องการ (Excel ใช้เทียบหลังปรับ)';
         input.placeholder = 'เช่น ตามผลนับ';
         input.min = '0';
         const btnUseCounted = document.getElementById('btnUseCountedTarget');
@@ -1290,19 +1288,19 @@
             const computed = resolveComputedStatus(line);
             html += `
             <div class="rc-adj-sum-row ${deltaClass}"><span>ต้องปรับ Book</span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
-            <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อยืนยันเป็นถูกต้อง (ไม่ปรับยอด)"' : ''}><span>จำนวนที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
+            <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)"' : ''}><span>ยอดจริงที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
             if (!validation.ok && (computed === 'short' || computed === 'over')) {
-                html += `<div class="rc-adj-sum-warn">ยังไม่ตรงผลนับ — ปรับยอดให้ตรงใส่ <strong>${counted.toLocaleString()}</strong> หรือกด「ยืนยันเป็นถูกต้อง」</div>`;
+                html += `<div class="rc-adj-sum-warn">ยอดนี้เท่า Excel ใช้เทียบอยู่แล้ว — กด「ยืนยันว่ายอด Excel ถูกต้อง」หรือใส่ยอดจริงที่ต่างออกไป (ผลนับ = ${counted.toLocaleString()})</div>`;
             } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6 && canMark) {
                 const bookOnlyHint = computed === 'book_only'
                     ? ' (ยังไม่ได้นับ — ไม่เปลี่ยนยอดปรับที่มีอยู่)'
                     : '';
-                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ยืนยันเป็นถูกต้อง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book${bookOnlyHint}</div>`;
+                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ยืนยันว่ายอด Excel ถูกต้อง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book${bookOnlyHint}</div>`;
             } else if (canMark && computed === 'book_only' && target == null) {
-                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอด Excel ใช้เทียบที่ต้องการ แล้วกด「ยืนยันเป็นถูกต้อง」 (คงยอดปรับเดิม)</div>`;
+                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอด Excel ใช้เทียบที่ต้องการ แล้วกด「ยืนยันว่ายอด Excel ถูกต้อง」 (คงยอดปรับเดิม)</div>`;
             }
         }
-        html += `<div class="rc-adj-sum-note">ใส่ยอด Excel ใช้เทียบหลังปรับ · ยอมรับผลนับ = ปรับให้ตรงผลนับ · ยืนยันถูกต้อง = ไม่เปลี่ยนยอด</div>`;
+        html += `<div class="rc-adj-sum-note">ใส่<strong>ยอดจริง</strong>ที่ต้องการในช่องด้านบน · ใช้ยอดที่กรอก = ปรับ Excel ใช้เทียบเป็นยอดนั้น (ต่างจากผลนับก็ได้ ระบบบันทึกยืนยันให้) · ยืนยันว่า Excel ถูก = ไม่เปลี่ยนยอด</div>`;
         hint.classList.add('show');
         hint.innerHTML = html;
     }
@@ -1859,62 +1857,9 @@
         }
     }
 
-    async function saveDraft() {
-        if (!currentCycle) return showToast('ยังไม่มีรอบ', 'error');
-        const sku = document.getElementById('adjSkuSearch').value.trim();
-        const note = document.getElementById('adjNote').value.trim();
-        const line = linesCache.find(l => l.sku_id === sku) || selectedAdjLine;
-        if (!line) return showToast('กรุณาเลือก SKU', 'error');
-        const target = parseAdjInput();
-        const validation = getTargetAdjustmentValidation(line, target, { allowZeroWhenMatchesBook: true });
-        if (!validation.ok) return showToast(validation.message, 'error');
-        if (validation.noAdjustment) {
-            const line2 = linesCache.find(l => l.sku_id === sku);
-            const needsAcceptance = line2 && Math.abs(target - Number(line2.counted_qty)) >= 1e-6;
-            if (needsAcceptance) {
-                showToast(`ยอดตรง Excel แล้ว — กด「ยืนยันเป็นถูกต้อง」ถ้าต้องการให้สถานะถูกต้องแม้ต่างผลนับ`);
-            } else {
-                showToast(`ยอด ${target.toLocaleString()} ตรง Excel ใช้เทียบแล้ว — ไม่มีการปรับ`);
-            }
-            return;
-        }
-        const qty = validation.delta;
-        const existingDraft = adjustmentsCache.find(a => a.status === 'draft' && a.sku_id === sku);
-        if (existingDraft) {
-            return showToast(`มี Draft อยู่แล้วสำหรับ ${sku} — ลบ Draft เก่าก่อนสร้างใหม่`, 'error');
-        }
-        const btn = document.getElementById('btnSaveDraft');
-        await runOnce(`saveDraft:${sku}`, async () => {
-            if (btn) btn.disabled = true;
-            try {
-                await RS.createStockAdjustment({
-                    cycleId: currentCycle.id,
-                    skuId: sku,
-                    adjustmentQty: qty,
-                    varianceBefore: line ? computeDisplayVariance(line) : null,
-                    note: note || null,
-                    reason: 'reconcile'
-                });
-                adjustmentsCache = await RS.fetchAdjustments(currentCycle.id);
-                renderDraftList();
-                renderKpis(linesCache);
-                renderTable();
-                if (selectedAdjLine?.sku_id === sku) {
-                    const updated = linesCache.find(l => l.sku_id === sku);
-                    if (updated) renderAdjPanelSummary(updated);
-                }
-                showToast(`บันทึก draft: ${sku}`);
-            } catch (err) {
-                if (/duplicate|unique|uq_stock_adj_draft/i.test(err.message || '')) {
-                    showToast(`มี Draft อยู่แล้วสำหรับ ${sku}`, 'error');
-                } else {
-                    showToast(err.message, 'error');
-                }
-            } finally {
-                if (btn) btn.disabled = false;
-            }
-        });
-    }
+    // ปุ่ม "บันทึก Draft" ถูกถอดออก 2026-08-13 ตามคำสั่ง admin — ซ้ำซ้อนกับ
+    // "ใช้ยอดที่กรอกเป็นยอดจริง (Apply ทันที)" · Draft ยังมีอยู่ในระบบผ่าน "ปรับยอด Auto"
+    // และ flow ยอมรับเป็นชุด (สร้าง draft ภายในแล้ว Apply รวดเดียว) เท่านั้น
 
     async function autoAdjustAll() {
         if (adjustViewMode !== 'short' && adjustViewMode !== 'over') {
@@ -2257,7 +2202,7 @@
             const needsAcceptance = Math.abs(targetQty - countedQty) >= 1e-6;
             if (!opts.skipConfirm) {
                 const ok = await uiConfirm.twoStep({
-                    title: needsAcceptance ? 'ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)' : 'ยืนยันยอด Book',
+                    title: needsAcceptance ? 'ยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)' : 'ยืนยันยอด Book',
                     variant: 'green',
                     step1: {
                         intro: `ยืนยันยอด Excel ใช้เทียบ = ${targetQty.toLocaleString()} สำหรับ ${sku}?`,
@@ -2328,12 +2273,16 @@
             return showToast('รายการนี้ไม่ใช่สถานะขาด/เกิน หรือถูกต้องแล้ว', 'error');
         }
 
+        // ยอดที่กรอกต่างจากผลนับ = คนตัดสินว่ายอดจริงคือค่าที่กรอก (เช่น ทีมงานไปตรวจซ้ำแล้ว)
+        // ต้องบันทึกคำยืนยันกำกับด้วย ไม่งั้นสถานะจะค้างขาด/เกินทั้งที่ตัดสินไปแล้ว
+        const targetDiffersFromCounted = Math.abs(targetQty - countedQty) >= 1e-6;
+
         if (!opts.skipConfirm) {
             const ok = await uiConfirm.twoStep({
-                title: 'ยอมรับผลนับ',
+                title: 'ใช้ยอดที่กรอกเป็นยอดจริง',
                 variant: 'green',
                 step1: {
-                    intro: `ยอมรับยอดที่ต้องการสำหรับ SKU ${sku}?`,
+                    intro: `ใช้ยอด ${targetQty.toLocaleString()} เป็นยอดจริงของ SKU ${sku}?`,
                     bullets: [
                         name ? `ชื่อ: ${name}` : null,
                         `รอบ: ${getCycleLabelForConfirm()}`,
@@ -2342,9 +2291,12 @@
                         draft ? `Draft: ${draft > 0 ? '+' : ''}${draft.toLocaleString()} — จะ Apply ก่อน` : null,
                         `รวม Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
                         `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
-                        `จำนวนที่ต้องการ: ${targetQty.toLocaleString()} ชิ้น`,
+                        `ยอดจริงที่ต้องการ: ${targetQty.toLocaleString()} ชิ้น`,
                         `ต้องปรับ Book: ${formatAdjustDeltaLabel(adjAfterDraft)}`,
                         'ไม่แก้ผลนับในฐานข้อมูล',
+                        targetDiffersFromCounted
+                            ? `ยอดที่กรอกต่างจากผลนับ ${countedQty.toLocaleString()} — ระบบจะบันทึกยืนยันว่า ${targetQty.toLocaleString()} คือยอดจริง`
+                            : null,
                         'ปรับ Book แล้ว Apply ทันที — สถานะจะเป็น「ถูกต้อง」'
                     ].filter(Boolean),
                     confirmLabel: 'ดำเนินการต่อ'
@@ -2353,7 +2305,7 @@
                     intro: `ยืนยันตั้ง Excel ใช้เทียบ = ${targetQty.toLocaleString()} (${sku})`,
                     note: formatAdjustDeltaLabel(adjAfterDraft),
                     noteVariant: 'safe',
-                    confirmLabel: 'ยอมรับผลนับ',
+                    confirmLabel: 'ใช้ยอดนี้เป็นยอดจริง',
                     confirmIcon: 'check-check'
                 }
             });
@@ -2389,8 +2341,19 @@
                 skuId: sku,
                 adjustmentQty: qty,
                 varianceBefore: computeDisplayVariance(line),
-                note: `ยอมรับผลนับ → ยอด ${targetQty}`
+                note: targetDiffersFromCounted
+                    ? `ใช้ยอดที่กรอก ${targetQty} เป็นยอดจริง (ผลนับ ${countedQty})`
+                    : `ยอมรับผลนับ → ยอด ${targetQty}`
             });
+            if (targetDiffersFromCounted) {
+                // Excel ใช้เทียบกลายเป็นยอดที่กรอกแล้ว แต่ผลนับยังต่าง — บันทึกยืนยัน
+                // ว่าคนตัดสินแล้วว่ายอดนี้คือยอดจริง ไม่งั้นสถานะจะกลับไปขาด/เกินทันที
+                await RS.acceptReconciliationAsMatch({
+                    cycleId: currentCycle.id,
+                    skuId: sku,
+                    note: `ใช้ยอดที่กรอก ${targetQty} เป็นยอดจริง (ผลนับ ${countedQty})`
+                });
+            }
             await reloadMatchData();
             renderDraftList();
             renderKpis(linesCache);
@@ -2403,7 +2366,9 @@
                     refreshAdjPanelChrome();
                 }
             }
-            showToast(`ยอมรับยอด ${targetQty.toLocaleString()} แล้ว — สถานะถูกต้อง`);
+            showToast(targetDiffersFromCounted
+                ? `ใช้ยอด ${targetQty.toLocaleString()} เป็นยอดจริงแล้ว (ผลนับ ${countedQty.toLocaleString()} — บันทึกยืนยันกำกับ) — สถานะถูกต้อง`
+                : `ยอมรับยอด ${targetQty.toLocaleString()} แล้ว — สถานะถูกต้อง`);
         } catch (err) {
             showToast(err.message, 'error');
         } finally {
@@ -2804,7 +2769,6 @@
 
     document.getElementById('adjSkuSearch').addEventListener('input', filterAdjSkus);
     document.getElementById('btnAutoAdjust').addEventListener('click', autoAdjustAll);
-    document.getElementById('btnSaveDraft').addEventListener('click', saveDraft);
     document.getElementById('btnAcceptCountApply').addEventListener('click', acceptCountedApplyFromPanel);
     document.getElementById('btnMarkMatchOk').addEventListener('click', () => {
         if (selectedAdjLine) markLineAsMatchAccepted(selectedAdjLine);

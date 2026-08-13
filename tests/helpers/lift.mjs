@@ -21,6 +21,32 @@ export function bodyOf(src, marker) {
 }
 
 /**
+ * ตัดทั้งฟังก์ชัน (header + body) โดยข้าม parameter list ก่อนค่อยหา `{` ของ body
+ *
+ * ทำไมไม่ใช้ bodyOf ตรง ๆ: ฟังก์ชันที่มี default parameter เป็น object เช่น
+ * `acceptCountedForLine(line, opts = {})` จะทำให้ `{}` ในวงเล็บถูกนับเป็น body
+ * แล้วฟังก์ชันถูกตัดขาดกลางอากาศ → sandbox พังด้วย "Unexpected token" (เจอจริง 2026-08-13)
+ */
+function fnSlice(src, marker) {
+    const at = src.indexOf(marker);
+    assert.ok(at >= 0, `หา "${marker}" ไม่เจอ — เทสนี้ล้าสมัยแล้ว`);
+    const paren = src.indexOf('(', at);
+    assert.ok(paren >= 0, `ไม่พบ parameter list ของ: ${marker}`);
+    let pd = 0, i = paren;
+    for (; i < src.length; i++) {
+        if (src[i] === '(') pd++;
+        else if (src[i] === ')') { pd--; if (pd === 0) break; }
+    }
+    const open = src.indexOf('{', i);
+    let depth = 0;
+    for (let j = open; j < src.length; j++) {
+        if (src[j] === '{') depth++;
+        else if (src[j] === '}') { depth--; if (depth === 0) return src.slice(at, j + 1); }
+    }
+    throw new Error('วงเล็บไม่สมดุล: ' + marker);
+}
+
+/**
  * ยกฟังก์ชันชื่อ `names` จาก `src` มาประกาศใน sandbox ใหม่ พร้อม global ที่ป้อนให้ใน `context`
  * คืน object ของฟังก์ชันที่เรียกได้จริง
  */
@@ -59,8 +85,7 @@ export function liftInto(src, names, context = {}) {
         };
         const marker = forms.find(boundaryOk);
         assert.ok(marker, `ยกฟังก์ชัน ${n} ไม่ได้`);
-        const at = src.indexOf(marker);
-        const raw = src.slice(at, at + bodyOf(src, marker).length + (src.indexOf('{', at) - at));
+        const raw = fnSlice(src, marker);
         return marker.startsWith('window.')
             ? raw.replace(marker, marker.includes('async') ? `async function ${n}` : `function ${n}`)
             : raw;

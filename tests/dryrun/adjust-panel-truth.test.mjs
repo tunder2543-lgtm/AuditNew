@@ -192,7 +192,7 @@ test('[ui] ปุ่ม "บันทึก Draft" และฟังก์ช�
 // -----------------------------------------------------------------------------
 function liftGuidance(status = 'short') {
     return liftFunctions(RECONCILE, [
-        'resolveAdjButtonGuidance', 'getLineEffectiveBook', 'getTotalAdjustment',
+        'resolveAdjButtonGuidance', 'parseQtyOrNull', 'getLineEffectiveBook', 'getTotalAdjustment',
     ], { getDraftAdjustmentSum: () => 0, resolveComputedStatus: () => status });
 }
 
@@ -202,7 +202,7 @@ test('[guidance] ขาด/เกิน: ชี้ปุ่มเดียวท
     const g = f.resolveAdjButtonGuidance(line, 197);
     assert.equal(g.recommend, 'typed');
     assert.equal(g.dim, null, 'ปุ่ม Excel ถูกซ่อนไปแล้ว ไม่ต้องหรี่');
-    assert.match(g.reason, /ต่างจาก Excel ใช้เทียบ 278/);
+    assert.match(g.reason, /ต่างจากยอดตั้งต้นตอนนี้ 278/);
 });
 
 test('[guidance] ⛔ เคสค่าเริ่มต้น (ช่อง = ผลนับ) ต้องชี้ปุ่มกรอกเสมอ', () => {
@@ -247,7 +247,7 @@ test('[ui] ปุ่มที่ควรกดได้กรอบแดง + 
     const btnMark = fakeEl(), btnAccept = fakeEl();
     const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
     const fns = liftFunctions(RECONCILE, [
-        'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'getLineEffectiveBook',
+        'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'parseQtyOrNull', 'getLineEffectiveBook',
         'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
     ], {
         RS: { escapeHtml: v => String(v ?? '') },
@@ -269,8 +269,96 @@ test('[ui] ปุ่มที่ควรกดได้กรอบแดง + 
 });
 
 // -----------------------------------------------------------------------------
-// "เหลือปุ่มเดียว" — ปุ่มไหนโผล่ตอนไหน (มติ admin 2026-08-13)
+// หมายเหตุของปุ่ม "ใช้ยอดตั้งต้นเป็นยอดจริง" ต้องจดยอดที่บันทึกจริง
+// (ของเดิมจดเลขในช่องกรอก ⇒ ข้อมูลจริงเสียไป 23/76 แถว)
 // -----------------------------------------------------------------------------
+test('[note] จด "ยอดตั้งต้น" ไม่ใช่เลขในช่อง — เคส SP069 ที่เคยจดผิดจริง', () => {
+    const f = liftFunctions(RECONCILE, ['buildMarkMatchNote', 'parseQtyOrNull'], {});
+    // ของจริงในฐาน: Book 68 · ไม่มียอดปรับ · ผลนับ 30 · ช่องกรอกตั้งต้นเป็น 30
+    const note = f.buildMarkMatchNote(68, 30, 30);
+    assert.match(note, /ใช้ยอดตั้งต้น 68 เป็นยอดจริง/, 'ต้องจด 68 ซึ่งเป็นยอดที่ระบบบันทึกจริง');
+    assert.match(note, /ผลนับ 30/, 'เก็บผลนับไว้ให้ตรวจย้อนหลังได้');
+    assert.ok(!/^ยืนยันถูกต้อง @ 30/.test(note), 'ห้ามกลับไปจดเลขในช่องเป็นยอดจริง');
+});
+
+test('[note] เลขในช่องต่างจากยอดที่บันทึก → ต้องบอกว่า "ไม่ถูกใช้" (เคส PC292)', () => {
+    const f = liftFunctions(RECONCILE, ['buildMarkMatchNote', 'parseQtyOrNull'], {});
+    // ของจริง: Book 17 ปรับ −10 ⇒ ยอดตั้งต้น 7 · ผลนับ 9 · คนพิมพ์ 11 ไว้ในช่อง
+    const note = f.buildMarkMatchNote(7, 9, 11);
+    assert.match(note, /ใช้ยอดตั้งต้น 7 เป็นยอดจริง/);
+    assert.match(note, /เลขในช่องตอนกด 11 ไม่ถูกใช้/, 'ต้องเก็บหลักฐานว่าเลขที่พิมพ์ถูกทิ้ง');
+});
+
+test('[note] เลขในช่องเท่ายอดที่บันทึก / ไม่ได้ใส่ = ไม่ต้องต่อท้าย', () => {
+    const f = liftFunctions(RECONCILE, ['buildMarkMatchNote', 'parseQtyOrNull'], {});
+    for (const t of [996, null, undefined, '', NaN]) {
+        const note = f.buildMarkMatchNote(996, 0, t);
+        assert.equal(note, 'ใช้ยอดตั้งต้น 996 เป็นยอดจริง (ผลนับ 0)', `target=${t}`);
+    }
+});
+
+test('[note][flow] รัน markLineAsMatchAccepted จริง — note ที่ส่งเข้า DB ต้องเป็นยอดที่บันทึก', async () => {
+    const calls = { accept: null };
+    const els = { adjNote: fakeEl({ value: '' }), adjQty: fakeEl({ value: '30' }), loading: fakeEl(), loadingText: fakeEl() };
+    const fns = liftFunctions(RECONCILE, [
+        'markLineAsMatchAccepted', 'buildMarkMatchNote', 'parseQtyOrNull', 'getLineEffectiveBook',
+        'getTotalAdjustment', 'parseAdjInput',
+    ], {
+        RS: { normalizeSku: norm, acceptReconciliationAsMatch: async a => { calls.accept = a; return { skuId: a.skuId }; } },
+        lockCycleId: () => 'cyc-1',
+        currentCycle: { id: 'cyc-1' },
+        inFlightActions: new Set(),
+        matchAcceptanceMap: new Map(),
+        selectedAdjLine: null,
+        getDraftAdjustmentSum: () => 0,
+        isLineAcceptedMatch: () => false,
+        canMarkAsMatchAccepted: () => true,
+        uiConfirm: { twoStep: async () => true },
+        runOnce: async (k, fn) => fn(),
+        renderDraftList() {}, renderKpis() {}, renderTable() {},
+        refreshAdjPanelChrome() {}, renderAdjPanelSummary() {},
+        showToast() {},
+        document: { getElementById: id => els[id] || fakeEl() },
+    });
+    await fns.markLineAsMatchAccepted({ sku_id: 'SP069', book_qty: 68, adjustment_applied: 0, counted_qty: 30 });
+    assert.ok(calls.accept, 'ต้องเขียนคำยืนยัน');
+    assert.match(calls.accept.note, /ใช้ยอดตั้งต้น 68 เป็นยอดจริง/, 'note จริงที่ลง DB: ' + calls.accept.note);
+    assert.ok(!/@ 30/.test(calls.accept.note));
+});
+
+test('[note][flow] หมายเหตุที่คนพิมพ์เองต้องชนะข้อความอัตโนมัติ', async () => {
+    const calls = { accept: null };
+    const els = { adjNote: fakeEl({ value: 'ของอยู่ที่ช่างซ่อม' }), adjQty: fakeEl({ value: '30' }), loading: fakeEl(), loadingText: fakeEl() };
+    const fns = liftFunctions(RECONCILE, [
+        'markLineAsMatchAccepted', 'buildMarkMatchNote', 'parseQtyOrNull', 'getLineEffectiveBook',
+        'getTotalAdjustment', 'parseAdjInput',
+    ], {
+        RS: { normalizeSku: norm, acceptReconciliationAsMatch: async a => { calls.accept = a; return { skuId: a.skuId }; } },
+        lockCycleId: () => 'cyc-1',
+        currentCycle: { id: 'cyc-1' },
+        inFlightActions: new Set(),
+        matchAcceptanceMap: new Map(),
+        selectedAdjLine: null,
+        getDraftAdjustmentSum: () => 0,
+        isLineAcceptedMatch: () => false,
+        canMarkAsMatchAccepted: () => true,
+        uiConfirm: { twoStep: async () => true },
+        runOnce: async (k, fn) => fn(),
+        renderDraftList() {}, renderKpis() {}, renderTable() {},
+        refreshAdjPanelChrome() {}, renderAdjPanelSummary() {},
+        showToast() {},
+        document: { getElementById: id => els[id] || fakeEl() },
+    });
+    await fns.markLineAsMatchAccepted({ sku_id: 'SP069', book_qty: 68, adjustment_applied: 0, counted_qty: 30 });
+    assert.equal(calls.accept.note, 'ของอยู่ที่ช่างซ่อม');
+});
+
+test('[ui] ป้าย "Excel ใช้เทียบ" ต้องหายไปทั้งไฟล์ (คำว่า Excel ทำให้เข้าใจว่าเป็นเลขในไฟล์)', () => {
+    assert.ok(!/Excel ใช้เทียบ/.test(RECONCILE), 'ยังเหลือชื่อเดิมอยู่');
+    assert.match(RECONCILE, /ยอดตั้งต้นตอนนี้/, 'ต้องมีชื่อใหม่');
+    // ชื่อใหม่ต้องบอกที่มาให้ชัดในแถวสรุป ไม่งั้นก็ยังเดาไม่ออกว่ามาจากไหน
+    assert.match(RECONCILE, /ยอดตั้งต้นตอนนี้ \(ไฟล์\+ปรับ\)/);
+});
 function liftChrome(status, { canMark = true } = {}) {
     const els = {
         adjQtyLabel: fakeEl(), adjQty: fakeEl({ value: '197' }),
@@ -320,7 +408,7 @@ test('[ui] ตอน armed ห้ามเขียนทับป้าย "ก
     const btnMark = fakeEl(), btnAccept = fakeEl({ innerHTML: 'กดอีกครั้งเพื่อ Apply (2/2)' });
     const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
     const fns = liftFunctions(RECONCILE, [
-        'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'getLineEffectiveBook',
+        'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'parseQtyOrNull', 'getLineEffectiveBook',
         'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
     ], {
         RS: { escapeHtml: v => String(v ?? '') },
@@ -340,7 +428,7 @@ test('[ui] ตอน armed ห้ามเขียนทับป้าย "ก
 // popup "?" — จำลองว่ากดแล้วยอดจะออกมาเท่าไร
 // -----------------------------------------------------------------------------
 function liftPreview() {
-    return liftFunctions(RECONCILE, ['buildActionPreview', 'formatAdjustDeltaLabel'], {
+    return liftFunctions(RECONCILE, ['buildActionPreview', 'parseQtyOrNull', 'formatAdjustDeltaLabel'], {
         getDraftAdjustmentSum: () => 0,
     });
 }
@@ -396,7 +484,7 @@ test('[ui] ป้ายปุ่มใหม่: reset หลัง arm ต้�
     btnAccept.classList.add('armed');
     const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
     const { fns, sandbox } = liftInto(RECONCILE, [
-        'resetAcceptApplyBtn', 'renderAdjActionButtons', 'resolveAdjButtonGuidance',
+        'resetAcceptApplyBtn', 'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'parseQtyOrNull',
         'getLineEffectiveBook', 'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
     ], {
         RS: { escapeHtml: v => String(v ?? '') },
@@ -427,7 +515,7 @@ test('[ui] สรุปในแผง (รันจริง): บอกวิ�
     const fns = liftFunctions(RECONCILE, [
         'renderAdjPanelSummary', 'computeDeltaFromTarget', 'getTargetAdjustmentValidation',
         'getLineEffectiveBook', 'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
-        'resolveAdjButtonGuidance',
+        'resolveAdjButtonGuidance', 'parseQtyOrNull',
     ], {
         RS: { normalizeSku: norm, escapeHtml: v => String(v ?? '') },
         getDraftAdjustmentSum: () => 0,
@@ -445,7 +533,7 @@ test('[ui] สรุปในแผง (รันจริง): บอกวิ�
     assert.match(hint.innerHTML, /กดปุ่มเดียวด้านล่าง/, 'ต้องบอกว่าเหลือปุ่มเดียว');
     assert.match(hint.innerHTML, /ใส่ตามยอด Excel/, 'ต้องชี้ทางลัดฝั่ง Excel');
     assert.match(hint.innerHTML, /ลด 50 ชิ้น/, 'กรอก 450 จาก Excel 500 ต้องบอก "ลด 50"');
-    assert.match(hint.innerHTML, /ต่างจาก Excel ใช้เทียบ 500/, 'ต้องบอกเหตุผลว่าทำไมชี้ปุ่มนั้น');
+    assert.match(hint.innerHTML, /ต่างจากยอดตั้งต้นตอนนี้ 500/, 'ต้องบอกเหตุผลว่าทำไมชี้ปุ่มนั้น');
     // ป้ายแถวส่วนต่าง: คำว่า "ต้องปรับ Book" ทำให้ admin เข้าใจว่าระบบไปแก้ยอดในไฟล์ Excel
     // ทั้งที่จริงแค่ INSERT แถวใน stock_adjustments (book_qty ไม่เคยถูกเขียนทับ)
     assert.match(hint.innerHTML, /ส่วนต่างที่ต้องบันทึกปรับ/, 'ป้ายใหม่ต้องอยู่ในสรุป');

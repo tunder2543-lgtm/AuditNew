@@ -569,7 +569,7 @@
                             <i data-lucide="check-check"></i> ยอมรับเกิน (Apply เป็นชุด)
                         </button>
 
-                        <button type="button" class="rc-btn rc-btn-green rc-btn-auto" id="btnBulkAcceptShort" style="display:none;" title="เลือกรายการสถานะ ขาด ที่ต่างไม่เกินเพดานที่กำหนด ดูรายการ/Export แล้วยอมรับผลนับทั้งชุดในครั้งเดียว — Excel ใช้เทียบจะถูกปรับลงเท่าผลนับ">
+                        <button type="button" class="rc-btn rc-btn-green rc-btn-auto" id="btnBulkAcceptShort" style="display:none;" title="เลือกรายการสถานะ ขาด ที่ต่างไม่เกินเพดานที่กำหนด ดูรายการ/Export แล้วยอมรับผลนับทั้งชุดในครั้งเดียว — ยอดตั้งต้นตอนนี้จะถูกปรับลงเท่าผลนับ">
                             <i data-lucide="check-check"></i> ยอมรับขาด (Apply เป็นชุด)
                         </button>
 
@@ -584,11 +584,11 @@
                         </div>
 
                         <div class="rc-form-group">
-                            <label for="adjQty" id="adjQtyLabel">ยอดจริงที่ต้องการ (Excel ใช้เทียบหลังปรับ)</label>
+                            <label for="adjQty" id="adjQtyLabel">ยอดจริงที่ต้องการ (ยอดตั้งต้นหลังปรับ)</label>
                             <input type="number" id="adjQty" step="any" min="0" placeholder="เช่น ตามผลนับ">
                             <button type="button" class="rc-adj-use-counted" id="btnUseCountedTarget" style="display:none;">ใส่ตามผลนับ</button>
                             <button type="button" class="rc-adj-use-counted" id="btnUseEffectiveTarget" style="display:none;"
-                                title="เชื่อยอด Excel — ใส่ยอด Excel ใช้เทียบลงช่อง แล้วกดปุ่มเดียวกัน ระบบจะบันทึกว่ายอด Excel คือยอดจริงโดยไม่สร้างยอดปรับ">ใส่ตามยอด Excel</button>
+                                title="เชื่อยอดตั้งต้น — ใส่ยอดตั้งต้นตอนนี้ลงช่อง แล้วกดปุ่มเดียวกัน ระบบจะบันทึกว่ายอดตั้งต้นคือยอดจริงโดยไม่สร้างยอดปรับ">ใส่ตามยอด Excel</button>
                         </div>
 
                         <div class="rc-form-group">
@@ -598,7 +598,7 @@
 
                         <div class="rc-act-wrap" id="actWrapMarkMatch" style="display:none;">
                             <button type="button" class="rc-btn rc-btn-match-ok" id="btnMarkMatchOk"
-                                title="เชื่อยอด Excel ใช้เทียบตอนนี้เป็นยอดจริง — ไม่สร้างยอดปรับ ไม่แตะผลนับ สถานะเป็นถูกต้อง">
+                                title="เชื่อยอดตั้งต้นตอนนี้เป็นยอดจริง — ไม่สร้างยอดปรับ ไม่แตะผลนับ สถานะเป็นถูกต้อง">
                                 <i data-lucide="badge-check"></i> <span>ใช้ยอด Excel เป็นยอดจริง</span>
                             </button>
                             <button type="button" class="rc-btn-help" id="btnExplainExcel" title="ดูตัวอย่างว่ากดปุ่มนี้แล้วยอดจะออกมาเท่าไร">?</button>
@@ -606,7 +606,7 @@
 
                         <div class="rc-act-wrap" id="actWrapAcceptApply" style="display:none;">
                             <button type="button" class="rc-btn rc-btn-green" id="btnAcceptCountApply"
-                                title="ปรับ Excel ใช้เทียบให้เท่ายอดในช่องด้านบนแล้วบันทึกทันที — ไม่แตะผลนับ/Book ต้นฉบับ ถ้ายอดที่กรอกต่างจากผลนับ ระบบจะบันทึกยืนยันว่ายอดที่กรอกคือยอดจริง">
+                                title="ปรับยอดตั้งต้นให้เท่ายอดในช่องด้านบนแล้วบันทึกทันที — ไม่แตะผลนับ/Book ต้นฉบับ ถ้ายอดที่กรอกต่างจากผลนับ ระบบจะบันทึกยืนยันว่ายอดที่กรอกคือยอดจริง">
                                 <i data-lucide="check-check"></i> <span>ใช้ยอดที่กรอกเป็นยอดจริง</span>
                             </button>
                             <button type="button" class="rc-btn-help" id="btnExplainTyped" title="ดูตัวอย่างว่ากดปุ่มนี้แล้วยอดจะออกมาเท่าไร">?</button>
@@ -677,7 +677,7 @@
                                         <th>ชื่อ</th>
                                         <th style="text-align:right;">ไฟล์ Excel</th>
                                         <th style="text-align:right;">ปรับแล้ว</th>
-                                        <th style="text-align:right;">Excel ใช้เทียบ</th>
+                                        <th style="text-align:right;">ยอดตั้งต้นตอนนี้</th>
                                         <th style="text-align:right;">ผลนับ</th>
                                         <th style="text-align:right;">ต่าง</th>
                                         <th style="text-align:right;">%</th>
@@ -713,10 +713,10 @@
             <input type="number" id="bulkAcceptMax" min="1" step="1" value="10" style="width:90px;">
             <span class="rc-modal-hint" id="bulkAcceptSummary">—</span>
         </div>
-        <div class="rc-modal-hint">Excel ใช้เทียบของ SKU ที่เลือกจะถูกปรับให้เท่าผลนับ · ตรวจรายการก่อน แล้วยืนยัน 2 ขั้น · ยกเลิกทีหลังได้ที่ปุ่ม "ประวัติ / คืนค่า"</div>
+        <div class="rc-modal-hint">ยอดตั้งต้นตอนนี้ของ SKU ที่เลือกจะถูกปรับให้เท่าผลนับ · ตรวจรายการก่อน แล้วยืนยัน 2 ขั้น · ยกเลิกทีหลังได้ที่ปุ่ม "ประวัติ / คืนค่า"</div>
         <div class="rc-modal-scroll" style="max-height:46vh;">
             <table>
-                <thead><tr><th>#</th><th>SKU</th><th>ชื่อ</th><th style="text-align:right">Excel ใช้เทียบ</th><th style="text-align:right">ผลนับ</th><th style="text-align:right">ต่าง</th></tr></thead>
+                <thead><tr><th>#</th><th>SKU</th><th>ชื่อ</th><th style="text-align:right">ยอดตั้งต้นตอนนี้</th><th style="text-align:right">ผลนับ</th><th style="text-align:right">ต่าง</th></tr></thead>
                 <tbody id="bulkAcceptList"></tbody>
             </table>
         </div>
@@ -1254,7 +1254,7 @@
                 ok: false,
                 delta: 0,
                 noAdjustment: false,
-                message: `ยอด ${target.toLocaleString()} เท่า Excel ใช้เทียบอยู่แล้ว (${effective.toLocaleString()}) แต่ผลนับ ${counted.toLocaleString()} — ให้ถูกต้องควรใส่ ${counted.toLocaleString()}`
+                message: `ยอด ${target.toLocaleString()} เท่ายอดตั้งต้นตอนนี้อยู่แล้ว (${effective.toLocaleString()}) แต่ผลนับ ${counted.toLocaleString()} — ให้ถูกต้องควรใส่ ${counted.toLocaleString()}`
             };
         }
         if (status === 'match') {
@@ -1264,7 +1264,20 @@
     }
 
     /**
-     * ปุ่มไหนคือปุ่มที่ควรกด — ตัดสินจาก "ยอดที่กรอก" เทียบ **Excel ใช้เทียบ** (ไม่ใช่ผลนับ)
+     * แปลงค่าที่รับมาเป็นจำนวน หรือ `null` ถ้าไม่ใช่ตัวเลขที่ใช้ได้
+     *
+     * ⚠️ **`Number('') === 0` ไม่ใช่ NaN** — ถ้าไม่กัน `''` ไว้ ช่องกรอกที่ว่างจะถูกอ่านเป็น
+     * "ยอด 0" แล้วระบบจะชี้ปุ่มผิด/ต่อท้ายหมายเหตุผิด · พลาดมาแล้ว 2 ครั้งในวันเดียว
+     * จึงรวมไว้ที่เดียวให้ทุกจุดเรียกใช้
+     */
+    function parseQtyOrNull(v) {
+        if (v == null || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    /**
+     * ปุ่มไหนคือปุ่มที่ควรกด — ตัดสินจาก "ยอดที่กรอก" เทียบ **ยอดตั้งต้นตอนนี้** (ไม่ใช่ผลนับ)
      *
      * ⚠️ เกณฑ์นี้ต้องเป็น target vs effective เท่านั้น เพราะปุ่มสองตัวต่างกันที่
      * "จะเอาเลขไหนเป็นยอดจริง": ปุ่ม Excel = `effective` · ปุ่มกรอก = `target`
@@ -1279,8 +1292,7 @@
     function resolveAdjButtonGuidance(line, target) {
         if (!line) return { recommend: null, dim: null, reason: '' };
         const effective = getLineEffectiveBook(line);
-        // ⚠️ `Number('')` = 0 ไม่ใช่ NaN — ช่องว่างจะกลายเป็น "ยอด 0" ถ้าไม่กันไว้
-        const t = (target == null || target === '' || !Number.isFinite(Number(target))) ? null : Number(target);
+        const t = parseQtyOrNull(target);
 
         // ยังไม่มีใครนับ = ไม่มีผลนับให้ยอมรับ ปุ่มเดียวที่โผล่คือฝั่ง Excel
         if (resolveComputedStatus(line) === 'book_only') {
@@ -1299,13 +1311,13 @@
             return {
                 recommend: 'typed',
                 dim: null,
-                reason: `ยอดที่กรอกเท่ากับ Excel ใช้เทียบ (${effective.toLocaleString()}) — กดแล้วระบบจะบันทึกว่ายอด Excel คือยอดจริง โดยไม่สร้างยอดปรับ`
+                reason: `ยอดที่กรอกเท่ากับยอดตั้งต้นตอนนี้ (${effective.toLocaleString()}) — กดแล้วระบบจะบันทึกว่ายอด Excel คือยอดจริง โดยไม่สร้างยอดปรับ`
             };
         }
         return {
             recommend: 'typed',
             dim: null,
-            reason: `ยอดที่กรอก ${t.toLocaleString()} ต่างจาก Excel ใช้เทียบ ${effective.toLocaleString()} — ต้องบันทึกปรับ`
+            reason: `ยอดที่กรอก ${t.toLocaleString()} ต่างจากยอดตั้งต้นตอนนี้ ${effective.toLocaleString()} — ต้องบันทึกปรับ`
         };
     }
 
@@ -1320,8 +1332,7 @@
         const draft = getDraftAdjustmentSum(line.sku_id);
         const effective = book + applied + draft;
         const counted = Number(line.counted_qty);
-        // ⚠️ `Number('')` = 0 ไม่ใช่ NaN — ช่องว่างจะกลายเป็น "ยอด 0" ถ้าไม่กันไว้
-        const t = (target == null || target === '' || !Number.isFinite(Number(target))) ? null : Number(target);
+        const t = parseQtyOrNull(target);
 
         if (kind === 'excel') {
             return {
@@ -1468,7 +1479,7 @@
         const isShort = computed === 'short';
         const isOver = computed === 'over';
         const isAdjustable = isShort || isOver;
-        label.textContent = 'ยอดจริงที่ต้องการ (Excel ใช้เทียบหลังปรับ)';
+        label.textContent = 'ยอดจริงที่ต้องการ (ยอดตั้งต้นหลังปรับ)';
         input.placeholder = 'เช่น ตามผลนับ';
         input.min = '0';
         const btnUseCounted = document.getElementById('btnUseCountedTarget');
@@ -1518,7 +1529,7 @@
             html += `<div class="rc-adj-sum-row draft"><span>Draft</span><strong>${draft > 0 ? '+' : ''}${draft.toLocaleString()}</strong></div>`;
         }
         html += `
-            <div class="rc-adj-sum-total"><span>รวม Excel ใช้เทียบตอนนี้</span><strong>${effective.toLocaleString()}</strong></div>
+            <div class="rc-adj-sum-total"><span>ยอดตั้งต้นตอนนี้ (ไฟล์+ปรับ)</span><strong>${effective.toLocaleString()}</strong></div>
             <div class="rc-adj-sum-row mute"><span>ผลนับ</span><strong>${counted.toLocaleString()}</strong></div>
             <div class="rc-adj-sum-row mute"><span>ต่าง (แสดง)</span><strong>${displayDiff.toLocaleString()}</strong></div>`;
 
@@ -1537,14 +1548,14 @@
             <div class="rc-adj-sum-row delta ${deltaClass}"><span>ส่วนต่างที่ต้องบันทึกปรับ<small>ไม่แก้ไฟล์ Excel</small></span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
             <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)"' : ''}><span>ยอดจริงที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
             if (!validation.ok && (computed === 'short' || computed === 'over')) {
-                html += `<div class="rc-adj-sum-warn">ยอดนี้เท่า Excel ใช้เทียบอยู่แล้ว — กด「ใช้ยอด Excel เป็นยอดจริง」หรือใส่ยอดจริงที่ต่างออกไป (ผลนับ = ${counted.toLocaleString()})</div>`;
+                html += `<div class="rc-adj-sum-warn">ยอดนี้เท่ายอดตั้งต้นตอนนี้อยู่แล้ว — กด「ใช้ยอด Excel เป็นยอดจริง」หรือใส่ยอดจริงที่ต่างออกไป (ผลนับ = ${counted.toLocaleString()})</div>`;
             } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6 && canMark) {
                 const bookOnlyHint = computed === 'book_only'
                     ? ' (ยังไม่ได้นับ — ไม่เปลี่ยนยอดปรับที่มีอยู่)'
                     : '';
                 html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ใช้ยอด Excel เป็นยอดจริง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book${bookOnlyHint}</div>`;
             } else if (canMark && computed === 'book_only' && target == null) {
-                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอด Excel ใช้เทียบที่ต้องการ แล้วกด「ใช้ยอด Excel เป็นยอดจริง」 (คงยอดปรับเดิม)</div>`;
+                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอดตั้งต้นที่ต้องการ แล้วกด「ใช้ยอด Excel เป็นยอดจริง」 (คงยอดปรับเดิม)</div>`;
             }
         }
         const guidance = resolveAdjButtonGuidance(line, target);
@@ -1877,7 +1888,7 @@
                 'ชื่อ': skuNameMap[r.skuId] || '',
                 'ไฟล์ Excel': r.bookQty ?? r.targetEffective,
                 'ปรับแล้ว': r.adjustmentQty ?? 0,
-                'Excel ใช้เทียบ': r.effectiveAfter,
+                'ยอดตั้งต้นตอนนี้': r.effectiveAfter,
                 'ผลนับ': r.countedQty,
                 'ต่าง': variance,
                 'สถานะ': statusTh(r.statusAfter)
@@ -2197,6 +2208,23 @@
         matchAcceptanceMap = await RS.fetchMatchAcceptanceMap(currentCycle.id);
     }
 
+    /**
+     * หมายเหตุของการ "ใช้ยอดตั้งต้นเป็นยอดจริง"
+     *
+     * ⛔ ต้องจด **ยอดที่ระบบบันทึกจริง** (= effective) ห้ามจากเลขในช่องกรอก
+     * ช่องกรอกตั้งค่าเริ่มต้นเป็น *ผลนับ* ของเดิมจึงจดเลขที่ถูก **ปฏิเสธ** ไว้แทน
+     * ทำให้คนอ่านประวัติย้อนหลังสรุปผิด — เจอจริง 23 จาก 76 แถวในฐาน
+     * (เช่น `SP069` จด `@30` ทั้งที่ระบบบันทึกยอดจริง 68 · ต่างกัน 38 ชิ้น)
+     * เลขที่พิมพ์ไว้ยังเก็บต่อท้ายเป็นหลักฐาน แต่บอกชัดว่า "ไม่ถูกใช้"
+     */
+    function buildMarkMatchNote(effective, counted, target) {
+        const base = `ใช้ยอดตั้งต้น ${effective} เป็นยอดจริง (ผลนับ ${counted})`;
+        const t = parseQtyOrNull(target);
+        return (t != null && Math.abs(t - effective) >= 1e-6)
+            ? `${base} · เลขในช่องตอนกด ${t} ไม่ถูกใช้`
+            : base;
+    }
+
     async function markLineAsMatchAccepted(line, opts = {}) {
         const cycleId = lockCycleId();
         if (!cycleId) return;
@@ -2222,7 +2250,7 @@
                 step1: {
                     intro: `ยืนยัน ${sku} เป็นถูกต้องโดยไม่ปรับยอด?`,
                     bullets: [
-                        `Excel ใช้เทียบ: ${effective.toLocaleString()} (คงเดิม)`,
+                        `ยอดตั้งต้นตอนนี้: ${effective.toLocaleString()} (คงเดิม)`,
                         `ปรับแล้ว + Draft: ไม่เปลี่ยน`,
                         `ผลนับ: ${counted.toLocaleString()}`,
                         target != null ? `จำนวนที่แสดง: ${target.toLocaleString()}` : null,
@@ -2249,7 +2277,7 @@
                 await RS.acceptReconciliationAsMatch({
                     cycleId: currentCycle.id,
                     skuId: sku,
-                    note: note || (target != null ? `ยืนยันถูกต้อง @ ${target}` : 'ยืนยันถูกต้องโดยไม่ปรับยอด')
+                    note: note || buildMarkMatchNote(effective, counted, target)
                 });
                 matchAcceptanceMap.set(RS.normalizeSku(sku), { sku_id: sku, accepted_at: new Date().toISOString() });
                 renderDraftList();
@@ -2457,11 +2485,11 @@
                     title: needsAcceptance ? 'ใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)' : 'ยืนยันยอด Book',
                     variant: 'green',
                     step1: {
-                        intro: `ยืนยันยอด Excel ใช้เทียบ = ${targetQty.toLocaleString()} สำหรับ ${sku}?`,
+                        intro: `ยืนยันยอดตั้งต้น = ${targetQty.toLocaleString()} สำหรับ ${sku}?`,
                         bullets: [
                             name ? `ชื่อ: ${name}` : null,
                             `รอบ: ${getCycleLabelForConfirm()}`,
-                            `Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
+                            `ยอดตั้งต้นตอนนี้: ${effective.toLocaleString()} ชิ้น`,
                             `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
                             'ไม่มีการปรับยอด Book',
                             needsAcceptance
@@ -2471,7 +2499,7 @@
                         confirmLabel: 'ดำเนินการต่อ'
                     },
                     step2: {
-                        intro: `ยืนยัน ${sku} — คงยอด Excel ใช้เทียบ ${targetQty.toLocaleString()}`,
+                        intro: `ยืนยัน ${sku} — คงยอดตั้งต้น ${targetQty.toLocaleString()}`,
                         noteVariant: 'safe',
                         confirmLabel: needsAcceptance ? 'ใช้ยอด Excel เป็นยอดจริง' : 'ยืนยัน',
                         confirmIcon: 'check-check'
@@ -2541,7 +2569,7 @@
                         `ไฟล์ Excel: ${bookQty.toLocaleString()} ชิ้น`,
                         `ปรับแล้ว (Apply): ${applied >= 0 ? '+' : ''}${applied.toLocaleString()} ชิ้น`,
                         draft ? `Draft: ${draft > 0 ? '+' : ''}${draft.toLocaleString()} — จะ Apply ก่อน` : null,
-                        `รวม Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
+                        `ยอดตั้งต้นตอนนี้ (ไฟล์+ปรับ): ${effective.toLocaleString()} ชิ้น`,
                         `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
                         `ยอดจริงที่ต้องการ: ${targetQty.toLocaleString()} ชิ้น`,
                         `ส่วนต่างที่ต้องบันทึกปรับ (ไม่แก้ไฟล์ Excel): ${formatAdjustDeltaLabel(adjAfterDraft)}`,
@@ -2554,7 +2582,7 @@
                     confirmLabel: 'ดำเนินการต่อ'
                 },
                 step2: {
-                    intro: `ยืนยันตั้ง Excel ใช้เทียบ = ${targetQty.toLocaleString()} (${sku})`,
+                    intro: `ยืนยันตั้งยอดตั้งต้น = ${targetQty.toLocaleString()} (${sku})`,
                     note: formatAdjustDeltaLabel(adjAfterDraft),
                     noteVariant: 'safe',
                     confirmLabel: 'ใช้ยอดนี้เป็นยอดจริง',
@@ -2586,7 +2614,7 @@
                 renderDraftList();
                 renderKpis(linesCache);
                 renderTable();
-                return showToast(`ยืนยันแล้ว: ${sku} — ยอดตรง Excel ใช้เทียบ (ไม่มีการปรับยอด)`);
+                return showToast(`ยืนยันแล้ว: ${sku} — ยอดตรงยอดตั้งต้นตอนนี้ (ไม่มีการปรับยอด)`);
             }
             await RS.acceptCountedQtyAsMatch({
                 cycleId: currentCycle.id,
@@ -2598,7 +2626,7 @@
                     : `ยอมรับผลนับ → ยอด ${targetQty}`
             });
             if (targetDiffersFromCounted) {
-                // Excel ใช้เทียบกลายเป็นยอดที่กรอกแล้ว แต่ผลนับยังต่าง — บันทึกยืนยัน
+                // ยอดตั้งต้นตอนนี้กลายเป็นยอดที่กรอกแล้ว แต่ผลนับยังต่าง — บันทึกยืนยัน
                 // ว่าคนตัดสินแล้วว่ายอดนี้คือยอดจริง ไม่งั้นสถานะจะกลับไปขาด/เกินทันที
                 await RS.acceptReconciliationAsMatch({
                     cycleId: currentCycle.id,
@@ -2758,7 +2786,7 @@
                 '#': i + 1,
                 SKU: l.sku_id,
                 'ชื่อ': skuNameMap[l.sku_id] || '',
-                'Excel ใช้เทียบ (ก่อน)': m.effective,
+                'ยอดตั้งต้น (ก่อนปรับ)': m.effective,
                 'ผลนับ': m.counted,
                 'ต่าง': m.variance,
                 'ยอดหลัง Apply': m.counted
@@ -2766,7 +2794,7 @@
         });
         data.push({
             '#': '', SKU: 'รวม', 'ชื่อ': bulkAcceptRangeText(maxDiff, mode),
-            'Excel ใช้เทียบ (ก่อน)': '', 'ผลนับ': '', 'ต่าง': sumVar,
+            'ยอดตั้งต้น (ก่อนปรับ)': '', 'ผลนับ': '', 'ต่าง': sumVar,
             'ยอดหลัง Apply': `${rows.length.toLocaleString()} SKU`
         });
         return data;
@@ -2849,7 +2877,7 @@
                 confirmLabel: 'ดำเนินการต่อ'
             },
             step2: {
-                intro: `สร้างยอดปรับ + Apply ทันที ${rows.length.toLocaleString()} SKU — Excel ใช้เทียบจะเท่าผลนับ`,
+                intro: `สร้างยอดปรับ + Apply ทันที ${rows.length.toLocaleString()} SKU — ยอดตั้งต้นตอนนี้จะเท่าผลนับ`,
                 note: 'ยกเลิกทีหลังได้ที่ปุ่ม "ประวัติ / คืนค่า" (เขียนประวัติก่อนลบเสมอ)',
                 noteVariant: 'danger',
                 confirmLabel: 'ยอมรับผลนับทั้งชุด'
@@ -2959,7 +2987,7 @@
                 confirmLabel: 'ดำเนินการต่อ'
             },
             step2: {
-                intro: `ตัวเลข Excel ใช้เทียบ/สถานะ จะกลับเป็นเหมือนก่อนตัดสิน แล้วคำนวณ Match ใหม่`,
+                intro: `ตัวเลขยอดตั้งต้นตอนนี้/สถานะ จะกลับเป็นเหมือนก่อนตัดสิน แล้วคำนวณ Match ใหม่`,
                 note: 'เขียนประวัติก่อนลบเสมอ (ดูได้ในประวัติหน้า index) · ผลนับไม่ถูกแตะ',
                 noteVariant: 'danger',
                 confirmLabel: 'คืนค่า'
@@ -3186,7 +3214,7 @@
                 'ไฟล์ Excel': m.book,
                 'ปรับแล้ว': m.totalAdj,
                 'ปรับแล้ว (รายละเอียด)': adjNote || (m.totalAdj === 0 ? '' : (m.applied >= 0 ? '+' : '') + m.applied),
-                'Excel ใช้เทียบ': m.effective,
+                'ยอดตั้งต้นตอนนี้': m.effective,
                 'ผลนับ': m.counted,
                 'ต่าง': m.variance,
                 '%': m.pct === '—' ? '' : m.pct,
@@ -3200,7 +3228,7 @@
             'ไฟล์ Excel': totals.book,
             'ปรับแล้ว': totals.totalAdj,
             'ปรับแล้ว (รายละเอียด)': '',
-            'Excel ใช้เทียบ': totals.effective,
+            'ยอดตั้งต้นตอนนี้': totals.effective,
             'ผลนับ': totals.counted,
             'ต่าง': totals.variance,
             '%': '',
@@ -3213,8 +3241,8 @@
      * สรุป "ยอดจริงที่ใช้" ต่อ SKU — ตอบคำถามตอนสรุปยอดว่าแต่ละตัวต้องเชื่อเลขไหน
      *
      * กติกาตัดสิน (ตามความหมายจริงของปุ่มในหน้านี้):
-     *   1. กด "ใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)" = ประกาศว่า **ยอด Excel ใช้เทียบ** คือยอดจริง
-     *   2. สถานะตรงกัน (รวมเคสที่ปรับยอดจน Excel ใช้เทียบ = ผลนับ เช่น "ยอมรับผลนับ")
+     *   1. กด "ใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)" = ประกาศว่า **ยอดตั้งต้น** คือยอดจริง
+     *   2. สถานะตรงกัน (รวมเคสที่ปรับยอดจนยอดตั้งต้นตอนนี้ = ผลนับ เช่น "ยอมรับผลนับ")
      *      = ยอดจริงคือค่าที่เท่ากันนั้น · ถ้ามียอดปรับ จะโชว์ให้เห็น (เช่น Book 31 ปรับ +10 → 41)
      *   3. ขาด/เกิน/ยังไม่ได้นับ/ไม่พบใน Excel ที่ยังไม่กดอะไร = **ยังไม่ยืนยัน**
      *      — จงใจเว้นช่องยอดจริงไว้ ไม่เดาแทนคน (นโยบายข้อ 3)
@@ -3271,7 +3299,7 @@
                 'ชื่อ': skuNameMap[l.sku_id] || '',
                 'ยอด Book (ไฟล์)': m.book,
                 'ปรับยอด': m.totalAdj,
-                'Excel ใช้เทียบ': m.effective,
+                'ยอดตั้งต้นตอนนี้': m.effective,
                 'ผลนับ': m.counted,
                 'ยอดจริงที่ใช้': final != null ? final : '',
                 'ที่มาของยอดจริง': source,
@@ -3285,7 +3313,7 @@
             'ชื่อ': '',
             'ยอด Book (ไฟล์)': '',
             'ปรับยอด': '',
-            'Excel ใช้เทียบ': '',
+            'ยอดตั้งต้นตอนนี้': '',
             'ผลนับ': '',
             'ยอดจริงที่ใช้': sum.final,
             'ที่มาของยอดจริง': `ยืนยันแล้ว ${sum.confirmed.toLocaleString()} SKU · ยังไม่ยืนยัน ${sum.pending.toLocaleString()} SKU`,

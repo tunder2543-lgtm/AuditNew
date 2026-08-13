@@ -11,6 +11,44 @@
         count_only: { th: 'นับเจอ แต่ไม่พบSKUในExcel', icon: 'scan-barcode', cls: 'other', color: '#94a3b8' },
         book_only:  { th: 'ยังไม่ได้นับ', icon: 'file-spreadsheet', cls: 'other', color: '#94a3b8' }
     };
+    // ⚠️ field `color` ด้านบนเป็นค่า dark คงที่ (โค้ดเก่าอาจอ้าง) — กราฟห้ามใช้ตรง ๆ
+    //    ให้ resolve ผ่าน chartColors() ตอนวาดเสมอ เพื่อให้ตามธีม Light/Dark ปัจจุบัน
+
+    /** ค่าสำรองเมื่ออ่าน CSS variable ไม่ได้ (เทส/หน้าเก่า) = โทน dark เดิม */
+    const CHART_FALLBACK = {
+        match: '#1ec98a', short: '#ff5b6e', over: '#ffb020', neutral: '#94a3b8',
+        line: '#4f8cff', line2: '#7af0bf', grid: 'rgba(255,255,255,.06)', tick: '#9aa4b2',
+        tooltipBg: '#121316', tooltipBorder: '#353b47', legend: '#dbe2ea',
+        surface: '#101319', surfaceMuted: '#353b47'
+    };
+
+    /**
+     * อ่านสีกราฟจาก design token ปัจจุบัน (Css/style.css) — ต้องเรียกตอน "วาด" ทุกครั้ง
+     * ห้าม cache ข้ามการสลับธีม · ฟัง event 'themechange' แล้ววาดใหม่ (ดู dashboard.html)
+     */
+    function chartColors() {
+        const fb = CHART_FALLBACK;
+        if (typeof window === 'undefined' || typeof getComputedStyle !== 'function' || !document.documentElement) {
+            return Object.assign({}, fb);
+        }
+        const cs = getComputedStyle(document.documentElement);
+        const v = (name, fallback) => ((cs.getPropertyValue(name) || '').trim() || fallback);
+        return {
+            match: v('--chart-match', fb.match),
+            short: v('--chart-short', fb.short),
+            over: v('--chart-over', fb.over),
+            neutral: v('--chart-neutral', fb.neutral),
+            line: v('--chart-line', fb.line),
+            line2: v('--chart-line-2', fb.line2),
+            grid: v('--chart-grid', fb.grid),
+            tick: v('--chart-tick', fb.tick),
+            tooltipBg: v('--chart-tooltip-bg', fb.tooltipBg),
+            tooltipBorder: v('--chart-tooltip-border', fb.tooltipBorder),
+            legend: v('--chart-legend', fb.legend),
+            surface: v('--surface-1', fb.surface),
+            surfaceMuted: v('--surface-3', fb.surfaceMuted)
+        };
+    }
 
     const BUCKET_OPTIONS = [
         { id: '1m', minutes: 1, label: '1 นาที' },
@@ -156,6 +194,8 @@
         const counts = buckets.length ? buckets.map(b => b.count) : [0];
         const rates = buckets.length ? buckets.map(b => b.ratePerMin) : [0];
 
+        const c = chartColors();   // resolve ตามธีมปัจจุบันตอนวาด — ห้าม freeze
+
         let chart = destroyChart(existingChart);
         chart = new Chart(canvas, {
             type: 'line',
@@ -165,8 +205,8 @@
                     {
                         label: 'จำนวนรายการ',
                         data: counts,
-                        borderColor: '#4f8cff',
-                        backgroundColor: 'rgba(79,140,255,0.12)',
+                        borderColor: c.line,
+                        backgroundColor: 'rgba(79, 140, 255, 0.12)',
                         fill: true,
                         tension: 0.25,
                         yAxisID: 'y'
@@ -174,7 +214,7 @@
                     {
                         label: 'รายการ/นาที',
                         data: rates,
-                        borderColor: '#1ec98a',
+                        borderColor: c.match,
                         backgroundColor: 'transparent',
                         tension: 0.25,
                         yAxisID: 'y1'
@@ -188,34 +228,34 @@
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { color: '#dbe2ea', usePointStyle: true, boxWidth: 10 }
+                        labels: { color: c.legend, usePointStyle: true, boxWidth: 10 }
                     },
                     tooltip: {
-                        backgroundColor: '#121316',
-                        borderColor: '#353b47',
+                        backgroundColor: c.tooltipBg,
+                        borderColor: c.tooltipBorder,
                         borderWidth: 1
                     }
                 },
                 scales: {
                     x: {
-                        ticks: { color: '#9aa4b2', maxRotation: 45, autoSkip: true, maxTicksLimit: 24 },
-                        grid: { color: 'rgba(255,255,255,.04)' }
+                        ticks: { color: c.tick, maxRotation: 45, autoSkip: true, maxTicksLimit: 24 },
+                        grid: { color: c.grid }
                     },
                     y: {
                         type: 'linear',
                         position: 'left',
                         beginAtZero: true,
-                        ticks: { color: '#9aa4b2', precision: 0 },
-                        grid: { color: 'rgba(255,255,255,.06)' },
-                        title: { display: true, text: 'รายการ', color: '#9aa4b2' }
+                        ticks: { color: c.tick, precision: 0 },
+                        grid: { color: c.grid },
+                        title: { display: true, text: 'รายการ', color: c.tick }
                     },
                     y1: {
                         type: 'linear',
                         position: 'right',
                         beginAtZero: true,
-                        ticks: { color: '#7af0bf' },
+                        ticks: { color: c.line2 },
                         grid: { drawOnChartArea: false },
-                        title: { display: true, text: 'รายการ/นาที', color: '#7af0bf' }
+                        title: { display: true, text: 'รายการ/นาที', color: c.line2 }
                     }
                 }
             }
@@ -239,13 +279,8 @@
             MATCH_STATUS_LABELS.book_only.th,
             MATCH_STATUS_LABELS.count_only.th
         ];
-        const colors = [
-            MATCH_STATUS_LABELS.match.color,
-            MATCH_STATUS_LABELS.short.color,
-            MATCH_STATUS_LABELS.over.color,
-            MATCH_STATUS_LABELS.book_only.color,
-            MATCH_STATUS_LABELS.count_only.color
-        ];
+        const c = chartColors();   // resolve ตามธีมปัจจุบันตอนวาด — ห้ามใช้ MATCH_STATUS_LABELS.color
+        const colors = [c.match, c.short, c.over, c.neutral, c.neutral];
 
         let chart = destroyChart(existingChart);
         const hasAny = data.some(v => v > 0);
@@ -255,8 +290,8 @@
                 labels: hasAny ? labels : ['ไม่มีข้อมูล Match'],
                 datasets: [{
                     data: hasAny ? data : [1],
-                    backgroundColor: hasAny ? colors : ['#353b47'],
-                    borderColor: '#101319',
+                    backgroundColor: hasAny ? colors : [c.surfaceMuted],
+                    borderColor: c.surface,
                     borderWidth: 3
                 }]
             },
@@ -267,7 +302,7 @@
                 plugins: {
                     legend: {
                         position: 'bottom',
-                        labels: { color: '#dbe2ea', usePointStyle: true, boxWidth: 10 }
+                        labels: { color: c.legend, usePointStyle: true, boxWidth: 10 }
                     }
                 }
             }
@@ -277,6 +312,7 @@
 
     window.dashboardShared = {
         MATCH_STATUS_LABELS,
+        chartColors,
         BUCKET_OPTIONS,
         formatBucketLabel,
         bucketSubmissionsByInterval,

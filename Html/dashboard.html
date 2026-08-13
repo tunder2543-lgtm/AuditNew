@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -22,21 +22,22 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
-            --bg: #07080a;
-            --panel: #121316;
-            --panel-2: #181a1f;
-            --line: #262a33;
-            --line-2: #353b47;
-            --text: #f4f7fb;
-            --muted: #98a2b3;
-            --muted-2: #6b7280;
-            --blue: #4f8cff;
-            --blue-2: #2f6df6;
-            --green: #1ec98a;
-            --green-2: #14b86f;
-            --red: #ff5b6e;
-            --amber: #ffb020;
-            --shadow: 0 18px 48px rgba(0,0,0,.35);
+            /* alias สู่ token กลางใน Css/style.css — เดิมหน้านี้ fork palette เอง 19 ตัว
+               และ override --bg/--text ทำให้ธีมกลางไม่มีผล (ห้ามกลับไปทำแบบนั้น)
+               ชื่อ local (--panel/--line/--blue ฯลฯ) คงไว้เพราะกฎ ~1,000 บรรทัดล่างอ้างอยู่ */
+            --panel: var(--surface-1);
+            --panel-2: var(--surface-2);
+            --line: var(--border);
+            --line-2: var(--border-strong);
+            --muted: var(--text-3);
+            --muted-2: var(--text-3);
+            --blue: var(--chart-line);
+            --blue-2: var(--primary-hover);
+            --green: var(--chart-match);
+            --green-2: var(--ok-text);
+            --red: var(--chart-short);
+            --amber: var(--chart-over);
+            --shadow: var(--shadow-lg);
             --radius-xl: 24px;
             --radius-lg: 18px;
             --radius-md: 14px;
@@ -50,10 +51,10 @@
         html, body {
             margin: 0;
             min-height: 100%;
-            background:
-                radial-gradient(circle at top left, rgba(79, 140, 255, .11), transparent 26%),
-                radial-gradient(circle at top right, rgba(30, 201, 138, .09), transparent 22%),
-                linear-gradient(180deg, #07080a 0%, #050607 100%);
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at top left, var(--bg-glow-1), transparent 26%),
+                radial-gradient(circle at top right, var(--bg-glow-2), transparent 22%);
             color: var(--text);
             font-family: 'Kanit', 'Outfit', sans-serif;
         }
@@ -120,7 +121,7 @@
         .btn {
             appearance: none;
             border: 1px solid var(--line);
-            background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
             color: var(--text);
             padding: 12px 16px;
             border-radius: 14px;
@@ -130,27 +131,27 @@
             gap: 10px;
             font-weight: 600;
             transition: .18s ease;
-            box-shadow: 0 10px 22px rgba(0,0,0,.16);
+            box-shadow: var(--shadow-sm);
             text-decoration: none;
         }
 
         .btn:hover {
             transform: translateY(-1px);
-            border-color: #36404f;
-            background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+            border-color: var(--border-strong);
+            background: linear-gradient(180deg, var(--overlay-2), transparent);
         }
 
         .btn-primary {
-            background: linear-gradient(180deg, rgba(79,140,255,.24), rgba(79,140,255,.14));
-            border-color: rgba(79,140,255,.38);
+            background: linear-gradient(180deg, var(--primary-soft-strong), var(--primary-soft));
+            border-color: var(--primary-border);
         }
 
         .btn-primary:hover {
-            border-color: rgba(79,140,255,.58);
+            border-color: var(--primary);
         }
 
         .btn-soft {
-            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
         }
 
         .btn svg {
@@ -165,7 +166,7 @@
         }
 
         .hero-card {
-            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
             border: 1px solid var(--line);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow);
@@ -180,7 +181,7 @@
             inset: auto -20% -40% auto;
             width: 280px;
             height: 280px;
-            background: radial-gradient(circle, rgba(79,140,255,.12), transparent 65%);
+            background: radial-gradient(circle, var(--primary-soft), transparent 65%);
             pointer-events: none;
         }
 
@@ -226,7 +227,7 @@
             padding: 10px 14px;
             border-radius: 999px;
             border: 1px solid var(--line);
-            background: rgba(255,255,255,.03);
+            background: var(--overlay-1);
             color: var(--text);
             font-size: .86rem;
             font-weight: 600;
@@ -246,7 +247,7 @@
         }
 
         .kpi {
-            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
             border: 1px solid var(--line);
             border-radius: 20px;
             padding: 18px;
@@ -254,7 +255,7 @@
             display: flex;
             flex-direction: column;
             gap: 14px;
-            box-shadow: 0 12px 30px rgba(0,0,0,.2);
+            box-shadow: var(--shadow-sm);
         }
 
         .kpi-top {
@@ -269,24 +270,24 @@
             border-radius: 14px;
             display: grid;
             place-items: center;
-            background: rgba(79,140,255,.12);
-            border: 1px solid rgba(79,140,255,.22);
+            background: var(--primary-soft);
+            border: 1px solid var(--primary-border);
             flex-shrink: 0;
         }
 
         .kpi-icon.green {
-            background: rgba(30,201,138,.11);
-            border-color: rgba(30,201,138,.22);
+            background: var(--ok-bg);
+            border-color: var(--ok-border);
         }
 
         .kpi-icon.red {
-            background: rgba(255,91,110,.12);
-            border-color: rgba(255,91,110,.22);
+            background: var(--bad-bg);
+            border-color: var(--bad-border);
         }
 
         .kpi-icon.amber {
-            background: rgba(255,176,32,.12);
-            border-color: rgba(255,176,32,.22);
+            background: var(--warn-bg);
+            border-color: var(--warn-border);
         }
 
         .kpi-icon svg {
@@ -323,7 +324,7 @@
         }
 
         .panel {
-            background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.018));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
             border: 1px solid var(--line);
             border-radius: var(--radius-xl);
             box-shadow: var(--shadow);
@@ -362,7 +363,7 @@
         }
 
         .chart-card {
-            background: rgba(0,0,0,.16);
+            background: var(--overlay-1);
             border: 1px solid var(--line);
             border-radius: 18px;
             padding: 14px;
@@ -407,7 +408,7 @@
             height: 48px;
             border-radius: 14px;
             border: 1px solid var(--line);
-            background: #08090c;
+            background: var(--input-bg);
             color: var(--text);
             padding: 0 14px;
             outline: none;
@@ -417,8 +418,8 @@
         }
 
         .control:focus {
-            border-color: rgba(79,140,255,.62);
-            box-shadow: 0 0 0 4px rgba(79,140,255,.12);
+            border-color: var(--primary);
+            box-shadow: var(--focus-ring);
         }
 
         input[type="date"].control {
@@ -443,7 +444,7 @@
         }
 
         select.control option {
-            background: #121316;
+            background: var(--surface-2);
             color: var(--text);
         }
 
@@ -455,7 +456,7 @@
         }
 
         .substat {
-            background: rgba(0,0,0,.2);
+            background: var(--overlay-1);
             border: 1px solid var(--line);
             border-radius: 16px;
             padding: 14px;
@@ -489,7 +490,7 @@
         }
 
         .table-box {
-            background: rgba(0,0,0,.18);
+            background: var(--overlay-1);
             border: 1px solid var(--line);
             border-radius: 18px;
             overflow: hidden;
@@ -533,8 +534,8 @@
             position: sticky;
             top: 0;
             z-index: 1;
-            background: #101319;
-            color: #cbd5e1;
+            background: var(--surface-3);
+            color: var(--text-2);
             font-size: .8rem;
             letter-spacing: .03em;
             text-transform: uppercase;
@@ -546,13 +547,13 @@
 
         tbody td {
             padding: 14px 16px;
-            border-bottom: 1px solid rgba(38,42,51,.7);
+            border-bottom: 1px solid var(--border);
             font-size: .94rem;
             vertical-align: top;
         }
 
         tbody tr:hover {
-            background: rgba(255,255,255,.02);
+            background: var(--overlay-1);
         }
 
         .sku {
@@ -569,15 +570,15 @@
             border-radius: 10px;
             font-size: .82rem;
             font-weight: 700;
-            background: rgba(30,201,138,.10);
-            color: #7af0bf;
-            border: 1px solid rgba(30,201,138,.16);
+            background: var(--ok-bg);
+            color: var(--ok-text);
+            border: 1px solid var(--ok-border);
         }
 
         .qty-badge.red {
-            background: rgba(255,91,110,.10);
-            color: #ffb0ba;
-            border-color: rgba(255,91,110,.18);
+            background: var(--bad-bg);
+            color: var(--bad-text);
+            border-color: var(--bad-border);
         }
 
         .status-chip {
@@ -588,21 +589,21 @@
             border-radius: 999px;
             font-size: .8rem;
             font-weight: 700;
-            background: rgba(79,140,255,.11);
-            color: #9cc0ff;
-            border: 1px solid rgba(79,140,255,.18);
+            background: var(--primary-soft);
+            color: var(--link-accent);
+            border: 1px solid var(--primary-border);
         }
 
         .status-chip.ok {
-            background: rgba(30,201,138,.10);
-            color: #7af0bf;
-            border-color: rgba(30,201,138,.18);
+            background: var(--ok-bg);
+            color: var(--ok-text);
+            border-color: var(--ok-border);
         }
 
         .status-chip.warn {
-            background: rgba(255,176,32,.10);
-            color: #ffd586;
-            border-color: rgba(255,176,32,.18);
+            background: var(--warn-bg);
+            color: var(--warn-text);
+            border-color: var(--warn-border);
         }
 
         .card-foot {
@@ -622,7 +623,7 @@
         .progress {
             height: 10px;
             width: 100%;
-            background: #0a0c0f;
+            background: var(--input-bg);
             border: 1px solid var(--line);
             border-radius: 999px;
             overflow: hidden;
@@ -632,13 +633,13 @@
             display: block;
             height: 100%;
             border-radius: inherit;
-            background: linear-gradient(90deg, var(--blue), #6bb3ff);
+            background: linear-gradient(90deg, var(--blue), var(--link-accent));
             width: 0%;
         }
 
         .drawer-like {
             border: 1px solid var(--line);
-            background: rgba(0,0,0,.18);
+            background: var(--overlay-1);
             border-radius: 18px;
             padding: 16px;
             display: flex;
@@ -653,7 +654,7 @@
 
         .count-item {
             border: 1px solid var(--line);
-            background: rgba(255,255,255,.02);
+            background: var(--overlay-1);
             border-radius: 16px;
             padding: 14px;
             display: grid;
@@ -689,7 +690,7 @@
             gap: 12px;
             align-items: start;
             padding: 12px 0;
-            border-bottom: 1px solid rgba(38,42,51,.65);
+            border-bottom: 1px solid var(--border);
         }
 
         .timeline-item:last-child {
@@ -714,7 +715,7 @@
             color: var(--muted);
             border: 1px dashed var(--line-2);
             border-radius: 16px;
-            background: rgba(255,255,255,.02);
+            background: var(--overlay-1);
         }
 
         .empty-state svg {
@@ -727,7 +728,7 @@
         .loading-bar {
             height: 4px;
             border-radius: 999px;
-            background: rgba(79,140,255,.14);
+            background: var(--primary-soft);
             overflow: hidden;
         }
 
@@ -834,13 +835,13 @@
             align-items: center;
             padding: 16px 18px;
             border-radius: var(--radius-md);
-            border: 1px solid rgba(79, 140, 255, 0.28);
-            background: linear-gradient(180deg, rgba(79, 140, 255, 0.1), rgba(79, 140, 255, 0.04));
+            border: 1px solid var(--primary-border);
+            background: linear-gradient(180deg, var(--primary-soft), transparent);
             margin-bottom: 16px;
         }
 
         .month-summary strong {
-            color: #fff;
+            color: var(--primary-contrast);
             font-weight: 600;
         }
 
@@ -854,7 +855,7 @@
         .day-chip {
             appearance: none;
             border: 1px solid var(--line);
-            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
             color: var(--text);
             border-radius: 14px;
             padding: 12px 16px;
@@ -868,14 +869,14 @@
         }
 
         .day-chip:hover {
-            border-color: rgba(79, 140, 255, 0.45);
+            border-color: var(--primary-border);
             transform: translateY(-1px);
         }
 
         .day-chip.active {
-            border-color: rgba(79, 140, 255, 0.65);
-            background: linear-gradient(180deg, rgba(79, 140, 255, 0.22), rgba(79, 140, 255, 0.1));
-            box-shadow: 0 10px 24px rgba(79, 140, 255, 0.18);
+            border-color: var(--primary);
+            background: linear-gradient(180deg, var(--primary-soft-strong), var(--primary-soft));
+            box-shadow: 0 10px 24px var(--primary-glow);
         }
 
         .day-chip-date {
@@ -905,7 +906,7 @@
         .scope-btn {
             appearance: none;
             border: 1px solid var(--line);
-            background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+            background: linear-gradient(180deg, var(--overlay-2), transparent);
             color: var(--text);
             border-radius: 14px;
             padding: 11px 18px;
@@ -920,15 +921,15 @@
         }
 
         .scope-btn:hover {
-            border-color: rgba(79, 140, 255, 0.45);
+            border-color: var(--primary-border);
             transform: translateY(-1px);
         }
 
         .scope-btn.active {
-            border-color: rgba(79, 140, 255, 0.7);
-            background: linear-gradient(180deg, rgba(79, 140, 255, 0.24), rgba(79, 140, 255, 0.1));
-            box-shadow: 0 8px 22px rgba(79, 140, 255, 0.2);
-            color: #fff;
+            border-color: var(--primary);
+            background: linear-gradient(180deg, var(--primary-soft-strong), var(--primary-soft));
+            box-shadow: 0 8px 22px var(--primary-glow);
+            color: var(--primary-contrast);
         }
 
         .warehouse-overview-grid {
@@ -940,7 +941,7 @@
         .warehouse-overview-card {
             appearance: none;
             border: 1px solid var(--line);
-            background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.015));
+            background: linear-gradient(180deg, var(--overlay-1), transparent);
             border-radius: 16px;
             padding: 16px 18px;
             cursor: pointer;
@@ -952,7 +953,7 @@
         }
 
         .warehouse-overview-card:hover {
-            border-color: rgba(79, 140, 255, 0.45);
+            border-color: var(--primary-border);
             transform: translateY(-2px);
         }
 
@@ -976,7 +977,7 @@
 
         .warehouse-overview-card .wh-metrics strong {
             display: block;
-            color: #fff;
+            color: var(--primary-contrast);
             font-size: 1.05rem;
             margin-top: 2px;
         }
@@ -987,9 +988,9 @@
             gap: 6px;
             padding: 6px 12px;
             border-radius: 999px;
-            border: 1px solid rgba(79, 140, 255, 0.35);
-            background: rgba(79, 140, 255, 0.12);
-            color: #93c5fd;
+            border: 1px solid var(--primary-border);
+            background: var(--primary-soft);
+            color: var(--link-accent);
             font-size: 0.82rem;
             font-weight: 600;
         }
@@ -1010,7 +1011,7 @@
         .dash-tab {
             appearance: none;
             border: 1px solid var(--line);
-            background: rgba(255,255,255,.03);
+            background: var(--overlay-1);
             color: var(--muted);
             border-radius: 14px;
             padding: 11px 18px;
@@ -1024,11 +1025,11 @@
             transition: .18s ease;
         }
 
-        .dash-tab:hover { border-color: rgba(79,140,255,.45); color: var(--text); }
+        .dash-tab:hover { border-color: var(--primary-border); color: var(--text); }
         .dash-tab.active {
-            border-color: rgba(79,140,255,.65);
-            background: linear-gradient(180deg, rgba(79,140,255,.22), rgba(79,140,255,.08));
-            color: #fff;
+            border-color: var(--primary);
+            background: linear-gradient(180deg, var(--primary-soft-strong), var(--primary-soft));
+            color: var(--primary-contrast);
         }
 
         .dash-tab-panel { display: none; }
@@ -1054,7 +1055,7 @@
         }
 
         .match-kpi {
-            background: rgba(0,0,0,.2);
+            background: var(--overlay-1);
             border: 1px solid var(--line);
             border-radius: 16px;
             padding: 14px;
@@ -1063,10 +1064,10 @@
 
         .match-kpi .mk-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
         .match-kpi .mk-value { font-family: 'Outfit', sans-serif; font-size: 1.65rem; font-weight: 800; margin-top: 6px; }
-        .match-kpi.match .mk-value { color: #1ec98a; }
-        .match-kpi.short .mk-value { color: #ff5b6e; }
-        .match-kpi.over .mk-value { color: #ffb020; }
-        .match-kpi.other .mk-value { color: #94a3b8; }
+        .match-kpi.match .mk-value { color: var(--green); }
+        .match-kpi.short .mk-value { color: var(--red); }
+        .match-kpi.over .mk-value { color: var(--amber); }
+        .match-kpi.other .mk-value { color: var(--neutral-text); }
 
         .dash-banner {
             display: flex;
@@ -1074,17 +1075,17 @@
             gap: 10px;
             padding: 12px 14px;
             border-radius: 12px;
-            border: 1px solid rgba(255,176,32,.35);
-            background: rgba(255,176,32,.08);
-            color: #ffd586;
+            border: 1px solid var(--warn-border);
+            background: var(--warn-bg);
+            color: var(--warn-text);
             font-size: 0.86rem;
             margin-bottom: 14px;
         }
 
         .dash-banner.info {
-            border-color: rgba(79,140,255,.35);
-            background: rgba(79,140,255,.08);
-            color: #9cc0ff;
+            border-color: var(--primary-border);
+            background: var(--primary-soft);
+            color: var(--link-accent);
         }
 
         .interval-select-wrap {
@@ -1098,7 +1099,7 @@
             height: 40px;
             border-radius: 10px;
             border: 1px solid var(--line);
-            background: #08090c;
+            background: var(--input-bg);
             color: var(--text);
             padding: 0 12px;
             font-family: inherit;
@@ -2046,11 +2047,11 @@
             if (connected) {
                 label.textContent = 'เชื่อมต่อแล้ว';
                 if (icon) icon.setAttribute('data-lucide', 'wifi');
-                if (pill) pill.style.borderColor = 'rgba(30, 201, 138, 0.35)';
+                if (pill) pill.style.borderColor = 'var(--ok-border)';
             } else {
                 label.textContent = 'ไม่ได้เชื่อมต่อ';
                 if (icon) icon.setAttribute('data-lucide', 'wifi-off');
-                if (pill) pill.style.borderColor = 'rgba(255, 91, 110, 0.35)';
+                if (pill) pill.style.borderColor = 'var(--bad-border)';
             }
             lucide.createIcons();
         }
@@ -2162,7 +2163,7 @@
                     els.cycleFilterHint.innerHTML =
                         `ยังไม่มีรอบ <strong>active</strong> — เลือกรอบล่าสุดให้แล้ว: ` +
                         `<strong>${escapeHtml(RS.formatCycleLabel(pick))}</strong> · ` +
-                        `<a href="cycle_config.html" style="color:#93c5fd;text-decoration:underline;">ไปตั้งค่ารอบ</a> ` +
+                        `<a href="cycle_config.html" style="color:var(--link-accent);text-decoration:underline;">ไปตั้งค่ารอบ</a> ` +
                         `แล้วกดปุ่ม「ใช้งาน」ที่รอบนั้น`;
                 }
                 await loadDashboardData();
@@ -2171,7 +2172,7 @@
 
             if (els.cycleFilterHint) {
                 els.cycleFilterHint.innerHTML =
-                    'ยังไม่มีรอบในระบบ — <a href="cycle_config.html" style="color:#93c5fd;text-decoration:underline;">สร้างรอบที่ตั้งค่ารอบ</a>';
+                    'ยังไม่มีรอบในระบบ — <a href="cycle_config.html" style="color:var(--link-accent);text-decoration:underline;">สร้างรอบที่ตั้งค่ารอบ</a>';
             }
             return false;
         }
@@ -2259,7 +2260,7 @@
                 <div class="match-kpi over"><div class="mk-label">เกิน</div><div class="mk-value">${kpis.over.toLocaleString()}</div></div>
                 <div class="match-kpi other"><div class="mk-label">ยังไม่ได้นับ</div><div class="mk-value">${kpis.book_only.toLocaleString()}</div></div>
                 <div class="match-kpi other"><div class="mk-label">ไม่พบใน Excel</div><div class="mk-value">${kpis.count_only.toLocaleString()}</div></div>
-                <div class="match-kpi"><div class="mk-label">% Match</div><div class="mk-value" style="color:#93c5fd;">${pct}</div></div>`;
+                <div class="match-kpi"><div class="mk-label">% Match</div><div class="mk-value" style="color:var(--link-accent);">${pct}</div></div>`;
 
             if (els.matchExtraStats) {
                 els.matchExtraStats.innerHTML = `
@@ -2425,6 +2426,8 @@
             const data = [countedSku, uncountedSku];
             const ctx = document.getElementById('countPieChart');
 
+            const cc = DS.chartColors();   // สีตามธีมปัจจุบัน — วาดใหม่เมื่อ themechange
+
             if (countPieChart) countPieChart.destroy();
             countPieChart = new Chart(ctx, {
                 type: 'doughnut',
@@ -2432,8 +2435,8 @@
                     labels: ['นับแล้ว', 'ยังไม่ได้นับ'],
                     datasets: [{
                         data,
-                        backgroundColor: ['#1ec98a', '#ff5b6e'],
-                        borderColor: '#101319',
+                        backgroundColor: [cc.match, cc.short],
+                        borderColor: cc.surface,
                         borderWidth: 4,
                         hoverOffset: 6
                     }]
@@ -2446,7 +2449,7 @@
                         legend: {
                             position: 'bottom',
                             labels: {
-                                color: '#dbe2ea',
+                                color: cc.legend,
                                 usePointStyle: true,
                                 boxWidth: 10,
                                 boxHeight: 10,
@@ -2454,11 +2457,11 @@
                             }
                         },
                         tooltip: {
-                            backgroundColor: '#121316',
-                            borderColor: '#353b47',
+                            backgroundColor: cc.tooltipBg,
+                            borderColor: cc.tooltipBorder,
                             borderWidth: 1,
-                            titleColor: '#fff',
-                            bodyColor: '#fff'
+                            titleColor: cc.legend,
+                            bodyColor: cc.legend
                         }
                     }
                 }
@@ -2741,6 +2744,16 @@
             btn.addEventListener('click', () => setDashTab(btn.dataset.dashTab || 'counting'));
         });
 
+        // สลับธีม Light/Dark แล้วกราฟทุกตัวต้องวาดใหม่ — Chart.js ไม่อ่าน CSS variable เอง
+        // (ปุ่มสลับ + event อยู่ใน Js/sidebar-shared.js · สีอ่านผ่าน DS.chartColors() ตอนวาด)
+        window.addEventListener('themechange', () => {
+            render();
+            if (matchSummary) {
+                const cycle = getSelectedCycle();
+                if (cycle) renderMatchKpis(DS.aggregateMatchFromSummary(matchSummary), cycle);
+            }
+        });
+
         if (els.filterCycle) {
             els.filterCycle.addEventListener('change', () => {
                 applySelectedCycleId(els.filterCycle.value || '');
@@ -2806,7 +2819,7 @@
             els.timelineList.innerHTML = `
                 <div class="empty-state">
                     <i data-lucide="alert-triangle"></i>
-                    <div>กรุณาตั้งค่า Supabase URL/KEY ใน <a href="settings.html" style="color:#93c5fd;">หน้าตั้งค่า</a> ก่อน</div>
+                    <div>กรุณาตั้งค่า Supabase URL/KEY ใน <a href="settings.html" style="color:var(--link-accent);">หน้าตั้งค่า</a> ก่อน</div>
                     <div style="margin-top:8px;">Dashboard นี้ใช้ข้อมูลชุดเดียวกับระบบนับสต็อก</div>
                 </div>`;
             lucide.createIcons();

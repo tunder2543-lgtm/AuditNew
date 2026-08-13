@@ -1,0 +1,53 @@
+# Keep-alive กัน Supabase free tier พักโปรเจกต์อัตโนมัติเมื่อไม่มี activity
+#
+# หลักการ: Supabase นับ "ความเคลื่อนไหว" จาก API request ทุกชนิด รวมถึงการอ่าน
+# อย่างเดียว — จึงยิง SELECT 1 แถวก็พอ ห้ามใช้วิธี insert/ลบข้อมูลหลอกเด็ดขาด
+# (ขัดกฎ invariant ข้อ 1: inventory_counts เป็นหลักฐาน immutable)
+#
+# URL/KEY อ่านสดจาก Js/api.js ทุกครั้งที่รัน (แหล่งความจริงเดียว — เปลี่ยน key
+# ในเว็บแล้ว workflow ตามอัตโนมัติ ไม่ต้องตั้ง GitHub secret) · key เป็น
+# publishable key ที่เปิดเผยฝั่ง client อยู่แล้ว มี RLS คุม
+#
+# ถ้า ping ล้มเหลว job จะ fail → GitHub ส่งอีเมลแจ้งเจ้าของรีโปอัตโนมัติ
+
+name: Supabase Keep-Alive
+
+on:
+  schedule:
+    # จันทร์ + พฤหัส 03:00 UTC = 10:00 น. ไทย (ห่างกันไม่เกิน 4 วัน)
+    - cron: '0 3 * * 1,4'
+  workflow_dispatch: {}
+
+permissions:
+  actions: write # ใช้ re-enable ตัวเอง กัน GitHub ปิด scheduled workflow หลังรีโปเงียบ 60 วัน
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ping Supabase (SELECT 1 แถว อ่านอย่างเดียว)
+        run: |
+          # grep -a จำเป็น: Js/api.js มี byte \0 หลงอยู่ grep ปกติจะมองเป็น binary
+          URL=$(grep -a -oE 'https://[a-z0-9]+\.supabase\.co' Js/api.js | head -1)
+          KEY=$(grep -a -oE 'sb_publishable_[A-Za-z0-9_-]+' Js/api.js | head -1)
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then
+            echo "::error::อ่าน URL/KEY จาก Js/api.js ไม่ได้ — โครงไฟล์อาจเปลี่ยน"
+            exit 1
+          fi
+          STATUS=$(curl -sS -o body.json -w '%{http_code}' \
+            --max-time 30 --retry 2 --retry-delay 10 \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$URL/rest/v1/count_cycles?select=id&limit=1")
+          echo "HTTP $STATUS"
+          cat body.json; echo
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Supabase ตอบ HTTP $STATUS — โปรเจกต์อาจถูก pause แล้ว ให้เข้า dashboard ไปกด restore"
+            exit 1
+          fi
+
+      - name: กัน GitHub ปิด scheduled workflow เอง (รีเซ็ตตัวจับเวลา 60 วัน)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/supabase-keepalive.yml/enable"

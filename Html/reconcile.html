@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +14,7 @@
         document.documentElement.dataset.theme = t;
     })();
     </script>
-    <link rel="stylesheet" href="../Css/style.css?v=20260813b">
+    <link rel="stylesheet" href="../Css/style.css?v=20260813d">
     <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260813b">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -23,15 +23,15 @@
         .rc-page { max-width: 1480px; width: 100%; display: flex; flex-direction: column; gap: 1.25rem; }
 
         .rc-panel {
-            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
             border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow-sm);
         }
 
         .rc-toolbar {
             display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end;
-            padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,0.06);
-            background: rgba(255,255,255,0.02);
+            padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+            background: var(--overlay-1);
         }
         .rc-field { display: flex; flex-direction: column; gap: 0.3rem; }
         .rc-field label { font-size: 0.75rem; color: var(--text-muted); }
@@ -40,7 +40,7 @@
             border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
             font-size: 0.88rem;
         }
-        .rc-field select:focus { outline: none; border-color: rgba(59,130,246,0.7); box-shadow: 0 0 0 3px rgba(59,130,246,0.18); }
+        .rc-field select:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
 
         .rc-btn {
             display: inline-flex; align-items: center; gap: 0.4rem;
@@ -51,29 +51,29 @@
         .rc-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
         .rc-btn:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-1px); }
         .rc-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-        .rc-btn-primary { background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%); color: #fff; box-shadow: 0 4px 14px rgba(59,130,246,0.35); }
-        .rc-btn-green { background: linear-gradient(135deg, #065f46 0%, #10b981 100%); color: #fff; box-shadow: 0 4px 14px rgba(16,185,129,0.3); }
+        .rc-btn-primary { background: var(--grad-primary); color: var(--primary-contrast); box-shadow: 0 4px 14px var(--primary-glow); }
+        .rc-btn-green { background: var(--grad-green); color: var(--primary-contrast); box-shadow: 0 4px 14px var(--ok-border); }
         #btnAcceptCountApply.armed {
-            background: linear-gradient(135deg, #92400e 0%, #f59e0b 100%) !important;
-            color: #1c1917; box-shadow: 0 4px 18px rgba(245,158,11,0.45);
-            border: 2px solid rgba(253,224,71,0.9);
+            background: var(--grad-amber) !important;
+            color: #1c1917; box-shadow: 0 4px 18px var(--warn-border);
+            border: 2px solid var(--warn-text);
             animation: rc-accept-arm-pulse 1.2s ease-in-out infinite;
         }
         @keyframes rc-accept-arm-pulse {
-            0%, 100% { box-shadow: 0 4px 18px rgba(245,158,11,0.35); }
-            50% { box-shadow: 0 0 0 5px rgba(245,158,11,0.2); }
+            0%, 100% { box-shadow: 0 4px 18px var(--warn-border); }
+            50% { box-shadow: 0 0 0 5px var(--warn-bg); }
         }
-        .rc-btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid rgba(255,255,255,0.14); }
-        .rc-btn-warn { background: rgba(245,158,11,0.18); color: #fde68a; border: 1px solid rgba(251,191,36,0.35); }
-        .rc-btn-warn:hover:not(:disabled) { background: rgba(245,158,11,0.28); }
+        .rc-btn-ghost { background: var(--overlay-2); color: var(--text); border: 1px solid var(--border-strong); }
+        .rc-btn-warn { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
+        .rc-btn-warn:hover:not(:disabled) { background: var(--warn-bg); }
         .rc-btn-auto { width: 100%; justify-content: center; margin-bottom: 0.75rem; }
         .rc-btn-auto:disabled { opacity: 0.35; }
-        .rc-btn-danger { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+        .rc-btn-danger { background: var(--bad-bg); color: var(--bad-text); border: 1px solid var(--bad-border); }
         .rc-btn-sm { padding: 0.38rem 0.7rem; font-size: 0.78rem; }
 
         .rc-hint-bar {
             padding: 0.55rem 1.25rem; font-size: 0.8rem; color: var(--text-muted);
-            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.15);
+            border-bottom: 1px solid var(--border); background: var(--overlay-1);
             display: none; align-items: center; gap: 0.5rem;
         }
         .rc-hint-bar.show { display: flex; }
@@ -85,47 +85,47 @@
         }
         .rc-kpi {
             position: relative; padding: 1rem 1rem 0.85rem 1.1rem;
-            border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
-            background: rgba(255,255,255,0.03); overflow: hidden;
+            border-radius: 12px; border: 1px solid var(--border);
+            background: var(--overlay-1); overflow: hidden;
             transition: border-color 0.2s, background 0.2s, transform 0.12s;
         }
         .rc-kpi.clickable { cursor: pointer; }
-        .rc-kpi.clickable:hover { background: rgba(255,255,255,0.06); transform: translateY(-1px); }
-        .rc-kpi.clickable.active.ok   { border-color: rgba(52,211,153,0.5);  background: rgba(16,185,129,0.1); box-shadow: 0 0 0 2px rgba(16,185,129,0.18); }
-        .rc-kpi.clickable.active.short { border-color: rgba(248,113,113,0.5); background: rgba(239,68,68,0.1);  box-shadow: 0 0 0 2px rgba(239,68,68,0.18); }
-        .rc-kpi.clickable.active.over  { border-color: rgba(251,191,36,0.5);  background: rgba(245,158,11,0.1);  box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
-        .rc-kpi.clickable.active.mute  { border-color: rgba(148,163,184,0.5); background: rgba(100,116,139,0.12); box-shadow: 0 0 0 2px rgba(100,116,139,0.18); }
+        .rc-kpi.clickable:hover { background: var(--overlay-2); transform: translateY(-1px); }
+        .rc-kpi.clickable.active.ok   { border-color: var(--ok-border);  background: var(--ok-bg); box-shadow: 0 0 0 2px var(--ok-bg-strong); }
+        .rc-kpi.clickable.active.short { border-color: var(--bad-border); background: var(--bad-bg);  box-shadow: 0 0 0 2px var(--bad-bg-strong); }
+        .rc-kpi.clickable.active.over  { border-color: var(--warn-border);  background: var(--warn-bg);  box-shadow: 0 0 0 2px var(--warn-border); }
+        .rc-kpi.clickable.active.mute  { border-color: var(--neutral-border); background: var(--neutral-bg); box-shadow: 0 0 0 2px var(--neutral-border); }
         .rc-kpi::before {
             content: ''; position: absolute; left: 0; top: 0; bottom: 0;
             width: 4px; border-radius: 4px 0 0 4px;
         }
-        .rc-kpi.date::before { background: linear-gradient(180deg,#60a5fa,#3b82f6); }
-        .rc-kpi.ok::before  { background: linear-gradient(180deg,#34d399,#10b981); }
-        .rc-kpi.short::before { background: linear-gradient(180deg,#f87171,#ef4444); }
-        .rc-kpi.over::before { background: linear-gradient(180deg,#fbbf24,#f59e0b); }
-        .rc-kpi.mute::before { background: linear-gradient(180deg,#94a3b8,#64748b); }
+        .rc-kpi.date::before { background: linear-gradient(180deg, var(--link-accent), var(--primary)); }
+        .rc-kpi.ok::before  { background: linear-gradient(180deg, var(--ok-text), var(--chart-match)); }
+        .rc-kpi.short::before { background: linear-gradient(180deg, var(--bad-text), var(--chart-short)); }
+        .rc-kpi.over::before { background: linear-gradient(180deg, var(--warn-text), var(--chart-over)); }
+        .rc-kpi.mute::before { background: linear-gradient(180deg, var(--neutral-text), var(--text-3)); }
         .rc-kpi-label { font-size: 0.68rem; color: var(--text-muted); margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.3rem; }
         .rc-kpi strong { display: block; font-family:'Kanit',sans-serif; font-size: 1.55rem; line-height:1.1; }
         .rc-kpi span { font-size: 0.72rem; color: var(--text-muted); }
         .rc-kpi .rc-kpi-sub { font-size: 0.72rem; margin-top: 0.35rem; font-weight: 500; }
-        .rc-kpi.ok strong  { color: #34d399; }
-        .rc-kpi.short strong { color: #f87171; }
-        .rc-kpi.over strong { color: #fbbf24; }
-        .rc-kpi.mute strong { color: #94a3b8; }
-        .rc-kpi.date strong { color: #93c5fd; font-size: 1.05rem; line-height: 1.35; }
-        .rc-kpi-sub.short { color: #fca5a5; }
-        .rc-kpi-sub.over { color: #fde68a; }
+        .rc-kpi.ok strong  { color: var(--ok-text); }
+        .rc-kpi.short strong { color: var(--bad-text); }
+        .rc-kpi.over strong { color: var(--warn-text); }
+        .rc-kpi.mute strong { color: var(--neutral-text); }
+        .rc-kpi.date strong { color: var(--link-accent); font-size: 1.05rem; line-height: 1.35; }
+        .rc-kpi-sub.short { color: var(--bad-text); }
+        .rc-kpi-sub.over { color: var(--warn-text); }
 
         /* Grid: panel + table */
         .rc-grid {
             display: grid; grid-template-columns: minmax(300px, 360px) 1fr;
-            gap: 0; border-top: 1px solid rgba(255,255,255,0.06);
+            gap: 0; border-top: 1px solid var(--border);
         }
         @media (max-width: 960px) { .rc-grid { grid-template-columns: 1fr; } }
 
         .rc-side {
-            padding: 1.15rem; border-right: 1px solid rgba(255,255,255,0.06);
-            background: rgba(0,0,0,0.12);
+            padding: 1.15rem; border-right: 1px solid var(--border);
+            background: var(--overlay-1);
         }
         .rc-side-title {
             font-family: 'Kanit', sans-serif; font-size: 0.95rem; font-weight: 500;
@@ -134,12 +134,12 @@
         .rc-mode-btns { display: flex; gap: 0.35rem; margin-bottom: 0.85rem; flex-wrap: wrap; }
         .rc-mode-btn {
             flex: 1; min-width: 90px; padding: 0.42rem 0.5rem; border-radius: 8px; font-size: 0.75rem;
-            border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border-strong); background: var(--overlay-1);
             color: var(--text-muted); cursor: pointer; font-family: 'Kanit', sans-serif;
         }
-        .rc-mode-btn.active { color: #fff; border-color: rgba(96,165,250,0.5); background: rgba(59,130,246,0.18); }
-        .rc-mode-btn.active.short { border-color: rgba(248,113,113,0.45); background: rgba(239,68,68,0.12); color: #fca5a5; }
-        .rc-mode-btn.active.over { border-color: rgba(251,191,36,0.45); background: rgba(245,158,11,0.12); color: #fde68a; }
+        .rc-mode-btn.active { color: var(--text); border-color: var(--primary-border); background: var(--primary-soft-strong); }
+        .rc-mode-btn.active.short { border-color: var(--bad-border); background: var(--bad-bg); color: var(--bad-text); }
+        .rc-mode-btn.active.over { border-color: var(--warn-border); background: var(--warn-bg); color: var(--warn-text); }
 
         .rc-form-group { margin-bottom: 0.75rem; }
         .rc-form-group label { display: block; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 0.3rem; }
@@ -151,44 +151,44 @@
         .rc-search-list {
             position: absolute; left: 0; right: 0; top: 100%; z-index: 20;
             max-height: 180px; overflow: auto; margin-top: 2px;
-            background: #1e293b; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+            background: var(--surface-3); border: 1px solid var(--border-strong); border-radius: 8px;
             display: none;
         }
         .rc-search-list.show { display: block; }
         .rc-search-item {
             padding: 0.45rem 0.65rem; font-size: 0.78rem; cursor: pointer;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
+            border-bottom: 1px solid var(--border);
         }
-        .rc-search-item:hover { background: rgba(59,130,246,0.15); }
+        .rc-search-item:hover { background: var(--primary-soft); }
         .rc-search-item small { display: block; color: var(--text-muted); font-size: 0.68rem; margin-top: 0.1rem; }
 
         .rc-adj-hint {
-            font-size: 0.72rem; color: #93c5fd; padding: 0.5rem 0.65rem; border-radius: 8px;
-            background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.2); margin-bottom: 0.75rem;
+            font-size: 0.72rem; color: var(--link-accent); padding: 0.5rem 0.65rem; border-radius: 8px;
+            background: var(--primary-soft); border: 1px solid var(--primary-border); margin-bottom: 0.75rem;
             display: none;
         }
         .rc-adj-hint.show { display: block; }
         .rc-adj-sum-row { display: flex; justify-content: space-between; gap: 0.5rem; padding: 0.15rem 0; }
         .rc-adj-sum-row.mute span { color: var(--text-muted); }
-        .rc-adj-sum-row.draft strong { color: #fde68a; }
+        .rc-adj-sum-row.draft strong { color: var(--warn-text); }
         .rc-adj-sum-total {
             display: flex; justify-content: space-between; gap: 0.5rem;
-            margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid rgba(59,130,246,0.25);
+            margin-top: 0.35rem; padding-top: 0.35rem; border-top: 1px solid var(--primary-border);
             font-weight: 600;
         }
-        .rc-adj-sum-total.after strong { color: #6ee7b7; }
+        .rc-adj-sum-total.after strong { color: var(--ok-text); }
         .rc-adj-sum-total.after.clickable {
             cursor: pointer; border-radius: 6px; padding: 0.2rem 0.15rem; margin: 0 -0.15rem;
         }
         .rc-adj-sum-total.after.clickable:hover {
-            background: rgba(16,185,129,0.12); box-shadow: 0 0 0 1px rgba(52,211,153,0.35);
+            background: var(--ok-bg); box-shadow: 0 0 0 1px var(--ok-border);
         }
         .rc-btn-match-ok {
             width: 100%; justify-content: center; margin-bottom: 0.5rem;
-            background: rgba(16,185,129,0.15); color: #6ee7b7;
-            border: 1px solid rgba(52,211,153,0.45);
+            background: var(--ok-bg); color: var(--ok-text);
+            border: 1px solid var(--ok-border);
         }
-        .rc-btn-match-ok:hover { background: rgba(16,185,129,0.28); }
+        .rc-btn-match-ok:hover { background: var(--ok-bg-strong); }
 
         /* ---- ตัวช่วยเลือกปุ่ม: ไฮไลต์ปุ่มที่ควรกด · หรี่ปุ่มที่ไม่เกี่ยว ----
            หรี่แล้ว "ยังกดได้" โดยตั้งใจ — ระบบเตือนได้ แต่ห้ามบล็อกคน (นโยบายข้อ 3) */
@@ -197,14 +197,14 @@
         .rc-act-wrap .rc-btn span { min-width: 0; }
         .rc-btn-help {
             flex: 0 0 32px; width: 32px; border-radius: 8px; cursor: pointer; font-weight: 700;
-            background: rgba(148,163,184,0.12); color: var(--text-muted);
-            border: 1px solid rgba(148,163,184,0.25); font-size: 0.9rem;
+            background: var(--neutral-bg); color: var(--text-muted);
+            border: 1px solid var(--neutral-border); font-size: 0.9rem;
         }
-        .rc-btn-help:hover { background: rgba(148,163,184,0.24); color: #e2e8f0; }
+        .rc-btn-help:hover { background: var(--neutral-bg); color: var(--text-2); }
         .rc-btn-sub { display: block; font-size: 0.62rem; font-weight: 400; opacity: 0.88; margin-top: 2px; }
         .rc-btn-recommend {
-            outline: 2px solid #f87171; outline-offset: 2px;
-            box-shadow: 0 0 0 5px rgba(248,113,113,0.16);
+            outline: 2px solid var(--bad-text); outline-offset: 2px;
+            box-shadow: 0 0 0 5px var(--bad-bg);
         }
         .rc-btn-dimmed { opacity: 0.35; filter: grayscale(0.9); }
         .rc-btn-dimmed:hover { opacity: 0.6; filter: grayscale(0.4); }
@@ -212,38 +212,38 @@
         /* ---- popup "?" จำลองผลลัพธ์ ---- */
         .rc-prev-row {
             display: flex; justify-content: space-between; gap: 0.75rem;
-            padding: 0.35rem 0; border-bottom: 1px solid rgba(148,163,184,0.12); font-size: 0.85rem;
+            padding: 0.35rem 0; border-bottom: 1px solid var(--border); font-size: 0.85rem;
         }
         .rc-prev-row strong { white-space: nowrap; }
-        .rc-prev-row.hl { background: rgba(16,185,129,0.08); border-radius: 6px; padding-left: 0.4rem; padding-right: 0.4rem; }
-        .rc-prev-row.hl strong { color: #6ee7b7; font-size: 1rem; }
+        .rc-prev-row.hl { background: var(--ok-bg); border-radius: 6px; padding-left: 0.4rem; padding-right: 0.4rem; }
+        .rc-prev-row.hl strong { color: var(--ok-text); font-size: 1rem; }
         .rc-prev-note {
             margin-top: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 8px; font-size: 0.8rem;
-            background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #fde68a;
+            background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
         }
         .rc-prev-when { margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-muted); }
-        .rc-adj-sum-row.add strong { color: #6ee7b7; }
-        .rc-adj-sum-row.sub strong { color: #fca5a5; }
+        .rc-adj-sum-row.add strong { color: var(--ok-text); }
+        .rc-adj-sum-row.sub strong { color: var(--bad-text); }
         /* ป้ายยาว 2 บรรทัด — ตัวเลขต้องไม่ถูกบีบตกบรรทัดตาม */
         .rc-adj-sum-row span small { display: block; font-size: 0.62rem; color: var(--text-muted); font-weight: 400; }
         .rc-adj-sum-row.delta strong { white-space: nowrap; }
         .rc-adj-sum-note { margin-top: 0.35rem; font-size: 0.68rem; color: var(--text-muted); }
         .rc-adj-sum-warn {
             margin-top: 0.4rem; padding: 0.4rem 0.5rem; border-radius: 6px; font-size: 0.68rem;
-            background: rgba(245,158,11,0.12); border: 1px solid rgba(251,191,36,0.35); color: #fde68a;
+            background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text);
         }
         .rc-adj-use-counted {
-            margin-top: 0.35rem; font-size: 0.72rem; color: #93c5fd; background: none; border: none;
+            margin-top: 0.35rem; font-size: 0.72rem; color: var(--link-accent); background: none; border: none;
             cursor: pointer; text-decoration: underline; padding: 0;
         }
-        .rc-adj-use-counted:hover { color: #bfdbfe; }
+        .rc-adj-use-counted:hover { color: var(--link-accent); }
 
         .rc-import-panel {
             margin: 0 1.25rem 0.75rem;
             padding: 0.65rem 0.85rem;
-            border: 1px solid rgba(96,165,250,0.18);
+            border: 1px solid var(--primary-border);
             border-radius: 10px;
-            background: rgba(59,130,246,0.04);
+            background: var(--primary-soft);
         }
         .rc-import-row {
             display: grid;
@@ -258,11 +258,11 @@
             display: flex; align-items: center; gap: 0.5rem;
             font-size: 0.72rem; color: var(--text-muted);
         }
-        .rc-import-tpl svg { width: 16px; height: 16px; color: #fbbf24; flex-shrink: 0; }
-        .rc-import-tpl strong { color: #fde68a; font-weight: 500; }
+        .rc-import-tpl svg { width: 16px; height: 16px; color: var(--warn-text); flex-shrink: 0; }
+        .rc-import-tpl strong { color: var(--warn-text); font-weight: 500; }
         .rc-btn-tpl {
             padding: 0.32rem 0.6rem; font-size: 0.72rem; border-radius: 6px;
-            background: linear-gradient(135deg, #b45309 0%, #f59e0b 100%);
+            background: var(--grad-amber);
             color: #1c1917; border: none; font-weight: 500; cursor: pointer;
             white-space: nowrap; display: inline-flex; align-items: center; gap: 0.3rem;
         }
@@ -272,59 +272,59 @@
             display: flex; align-items: center; gap: 0.5rem;
         }
         .rc-import-drop {
-            flex: 1; border: 1px dashed rgba(96,165,250,0.4); border-radius: 8px;
+            flex: 1; border: 1px dashed var(--primary-border); border-radius: 8px;
             padding: 0.45rem 0.65rem; text-align: center; font-size: 0.72rem;
-            color: var(--text-muted); cursor: pointer; background: rgba(15,23,42,0.3);
+            color: var(--text-muted); cursor: pointer; background: var(--overlay-1);
             transition: background 0.15s, border-color 0.15s;
         }
         .rc-import-drop:hover, .rc-import-drop.dragover {
-            background: rgba(59,130,246,0.1); border-color: rgba(96,165,250,0.7);
+            background: var(--primary-soft); border-color: var(--primary);
         }
         .rc-import-drop input[type=file] { display: none; }
         .rc-import-drop.is-disabled { opacity: 0.5; pointer-events: none; cursor: wait; }
         .rc-import-meta { font-size: 0.65rem; color: var(--text-muted); max-width: 180px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .rc-import-auto-tag {
             display: inline-flex; align-items: center; gap: 0.25rem;
-            font-size: 0.62rem; color: #6ee7b7; padding: 0.18rem 0.4rem;
-            border-radius: 4px; background: rgba(16,185,129,0.15);
-            border: 1px solid rgba(52,211,153,0.25);
+            font-size: 0.62rem; color: var(--ok-text); padding: 0.18rem 0.4rem;
+            border-radius: 4px; background: var(--ok-bg);
+            border: 1px solid var(--ok-border);
         }
         .rc-import-auto-tag svg { width: 10px; height: 10px; }
         .rc-import-progress {
             display: none; flex-direction: column; gap: 0.35rem;
             margin-top: 0.5rem; padding: 0.45rem 0.6rem; border-radius: 6px;
-            border: 1px solid rgba(96,165,250,0.3); background: rgba(59,130,246,0.08);
+            border: 1px solid var(--primary-border); background: var(--primary-soft);
             font-size: 0.72rem;
         }
         .rc-import-progress.show { display: flex; }
         .rc-import-progress-row { display: flex; align-items: center; gap: 0.5rem; }
-        .rc-import-progress .rc-spin { width: 16px; height: 16px; color: #60a5fa; flex-shrink: 0; }
-        .rc-import-progress strong { color: #e0f2fe; flex: 1; }
-        .rc-import-progress-pct { color: #93c5fd; font-variant-numeric: tabular-nums; min-width: 2.5rem; text-align: right; }
+        .rc-import-progress .rc-spin { width: 16px; height: 16px; color: var(--link-accent); flex-shrink: 0; }
+        .rc-import-progress strong { color: var(--text); flex: 1; }
+        .rc-import-progress-pct { color: var(--link-accent); font-variant-numeric: tabular-nums; min-width: 2.5rem; text-align: right; }
         .rc-import-progress span { color: var(--text-muted); font-size: 0.65rem; }
         .rc-import-progress-track {
-            height: 4px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden;
+            height: 4px; border-radius: 999px; background: var(--overlay-2); overflow: hidden;
         }
         .rc-import-progress-fill {
             height: 100%; width: 0%; border-radius: 999px;
-            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            background: linear-gradient(90deg, var(--primary), var(--link-accent));
             transition: width 0.2s ease;
         }
         .rc-loading-count {
-            font-size: 0.85rem; color: #93c5fd; margin: 0.35rem 0 0.5rem;
+            font-size: 0.85rem; color: var(--link-accent); margin: 0.35rem 0 0.5rem;
             font-variant-numeric: tabular-nums;
         }
         .rc-loading-track {
-            height: 5px; border-radius: 999px; background: rgba(255,255,255,0.1);
+            height: 5px; border-radius: 999px; background: var(--overlay-3);
             overflow: hidden; margin-top: 0.5rem; max-width: 280px; margin-left: auto; margin-right: auto;
         }
         .rc-loading-fill {
-            height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), var(--link-accent));
             transition: width 0.2s ease;
         }
         .rc-import-results-row {
             margin-top: 0.5rem; padding-top: 0.5rem;
-            border-top: 1px solid rgba(255,255,255,0.06);
+            border-top: 1px solid var(--border);
             display: none;
         }
         .rc-import-results-row.show { display: block; }
@@ -332,29 +332,29 @@
             font-size: 0.7rem; color: var(--text-muted); margin: 0 0 0.3rem; font-weight: 500;
             display: flex; align-items: center; gap: 0.3rem;
         }
-        .rc-import-results-row h4 svg { width: 12px; height: 12px; color: #6ee7b7; }
+        .rc-import-results-row h4 svg { width: 12px; height: 12px; color: var(--ok-text); }
         .rc-import-preview {
             max-height: 120px; overflow: auto; font-size: 0.65rem;
-            border: 1px solid rgba(255,255,255,0.06); border-radius: 6px;
+            border: 1px solid var(--border); border-radius: 6px;
             margin-top: 0.35rem;
         }
         .rc-import-preview table { width: 100%; border-collapse: collapse; }
         .rc-import-preview th, .rc-import-preview td {
-            padding: 0.22rem 0.3rem; border-bottom: 1px solid rgba(255,255,255,0.04); text-align: right;
+            padding: 0.22rem 0.3rem; border-bottom: 1px solid var(--border); text-align: right;
         }
         .rc-import-preview th:first-child, .rc-import-preview td:first-child { text-align: left; }
-        .rc-import-preview th { color: var(--text-muted); font-weight: 500; position: sticky; top: 0; background: #1a1d24; font-size: 0.62rem; }
+        .rc-import-preview th { color: var(--text-muted); font-weight: 500; position: sticky; top: 0; background: var(--surface-2); font-size: 0.62rem; }
 
-        .rc-draft-list { margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 0.85rem; }
+        .rc-draft-list { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: 0.85rem; }
         .rc-draft-list h4 { font-size: 0.78rem; color: var(--text-muted); font-weight: 500; margin: 0 0 0.5rem; }
         .rc-draft-item {
             display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 0.75rem;
+            border-bottom: 1px solid var(--border); font-size: 0.75rem;
         }
-        .rc-draft-item .sku { font-family: ui-monospace, monospace; color: #e0f2fe; flex: 1; }
+        .rc-draft-item .sku { font-family: ui-monospace, monospace; color: var(--text); flex: 1; }
         .rc-draft-item .qty { font-weight: 600; }
-        .rc-draft-item .qty.neg { color: #fca5a5; }
-        .rc-draft-item .qty.pos { color: #fde68a; }
+        .rc-draft-item .qty.neg { color: var(--bad-text); }
+        .rc-draft-item .qty.pos { color: var(--warn-text); }
 
         .rc-main { min-width: 0; display: flex; flex-direction: column; }
 
@@ -374,8 +374,8 @@
         .rc-filter-bar input[type="text"] { min-width: 140px; }
 
         .rc-adv-panel {
-            display: none; padding: 0.85rem 1.15rem; background: rgba(255,255,255,0.02);
-            border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06);
+            display: none; padding: 0.85rem 1.15rem; background: var(--overlay-1);
+            border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
         }
         .rc-adv-panel.show { display: block; }
         .rc-adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.65rem; }
@@ -383,41 +383,41 @@
         .rc-table-wrap { overflow: auto; max-height: 520px; }
         .rc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         .rc-table th {
-            position: sticky; top: 0; background: #1e293b; text-align: left;
-            padding: 0.55rem 0.8rem; font-weight: 500; color: #e2e8f0;
-            border-bottom: 1px solid rgba(255,255,255,0.1); white-space: nowrap;
+            position: sticky; top: 0; background: var(--surface-3); text-align: left;
+            padding: 0.55rem 0.8rem; font-weight: 500; color: var(--text-2);
+            border-bottom: 1px solid var(--border-strong); white-space: nowrap;
         }
-        .rc-table td { padding: 0.5rem 0.8rem; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
-        .rc-table tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
-        .rc-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
+        .rc-table td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .rc-table tbody tr:nth-child(even) td { background: var(--overlay-1); }
+        .rc-table tbody tr:hover td { background: var(--primary-soft); }
         .rc-table td.col-actions { text-align: center; white-space: nowrap; width: 52px; }
         .rc-btn-icon {
             display: inline-flex; align-items: center; justify-content: center;
-            padding: 0.3rem 0.45rem; border-radius: 8px; border: 1px solid rgba(239,68,68,0.35);
-            background: rgba(239,68,68,0.12); color: #fca5a5; cursor: pointer;
+            padding: 0.3rem 0.45rem; border-radius: 8px; border: 1px solid var(--bad-border);
+            background: var(--bad-bg); color: var(--bad-text); cursor: pointer;
             font-family: 'Kanit', sans-serif;
         }
-        .rc-btn-icon:hover { background: rgba(239,68,68,0.22); color: #fecaca; }
+        .rc-btn-icon:hover { background: var(--bad-bg-strong); color: var(--bad-text); }
         .rc-btn-icon svg { width: 14px; height: 14px; }
         .rc-btn-icon:disabled { opacity: 0.35; cursor: not-allowed; }
         .rc-btn-icon.add {
-            border-color: rgba(34,197,94,0.4);
-            background: rgba(16,185,129,0.15);
-            color: #6ee7b7;
+            border-color: var(--ok-border);
+            background: var(--ok-bg);
+            color: var(--ok-text);
         }
-        .rc-btn-icon.add:hover { background: rgba(16,185,129,0.28); color: #a7f3d0; }
+        .rc-btn-icon.add:hover { background: var(--ok-bg-strong); color: var(--ok-text); }
         .rc-col-actions { display: flex; gap: 0.3rem; justify-content: center; align-items: center; flex-wrap: nowrap; }
-        .rc-table .col-sku { font-family: ui-monospace, monospace; font-size: 0.8rem; color: #e0f2fe; }
+        .rc-table .col-sku { font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--text); }
         .rc-table .col-name { color: var(--text-muted); font-size: 0.76rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
         .rc-badge { padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 0.25rem; }
-        .rc-badge.match { background: rgba(16,185,129,0.15); color: #6ee7b7; border: 1px solid rgba(34,197,94,0.3); }
-        .rc-badge.short { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .rc-badge.match { background: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-border); }
+        .rc-badge.short { background: var(--bad-bg); color: var(--bad-text); border: 1px solid var(--bad-border); }
         .rc-badge.short.clickable { cursor: pointer; }
-        .rc-badge.short.clickable:hover { filter: brightness(1.15); box-shadow: 0 0 0 1px rgba(248,113,113,0.4); }
-        .rc-badge.over  { background: rgba(251,191,36,0.12); color: #fde68a; border: 1px solid rgba(251,191,36,0.3); }
+        .rc-badge.short.clickable:hover { filter: brightness(1.15); box-shadow: 0 0 0 1px var(--bad-border); }
+        .rc-badge.over  { background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-border); }
         .rc-badge.other {
-            background: rgba(148,163,184,0.1); color: #cbd5e1; border: 1px solid rgba(148,163,184,0.2);
+            background: var(--neutral-bg); color: var(--neutral-text); border: 1px solid var(--neutral-border);
             max-width: 11rem; white-space: normal; line-height: 1.25; text-align: left;
         }
 
@@ -427,34 +427,34 @@
         /* modal กลางจอ — ใช้ร่วมกันระหว่าง "ยอมรับเกินเป็นชุด" กับ "ประวัติ/คืนค่า" */
         .rc-modal {
             position: fixed; inset: 0; z-index: 14000; display: none; align-items: center; justify-content: center;
-            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+            background: var(--scrim-heavy); backdrop-filter: blur(6px);
         }
         .rc-modal.active { display: flex; }
         .rc-modal-box {
-            background: linear-gradient(165deg, #1a1d24, #12141a);
-            border: 1px solid rgba(59,130,246,0.35); border-radius: 16px;
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+            border: 1px solid var(--primary-border); border-radius: 16px;
             padding: 1.25rem 1.5rem; width: min(860px, 94vw); max-height: 88vh;
             display: flex; flex-direction: column; gap: 0.75rem;
         }
         .rc-modal-box h3 { margin: 0; display: flex; align-items: center; gap: 0.5rem; font-size: 1.05rem; }
-        .rc-modal-scroll { overflow: auto; border: 1px solid rgba(148,163,184,0.15); border-radius: 10px; }
+        .rc-modal-scroll { overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
         .rc-modal-scroll table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        .rc-modal-scroll th, .rc-modal-scroll td { padding: 0.4rem 0.6rem; border-bottom: 1px solid rgba(148,163,184,0.1); text-align: left; white-space: nowrap; }
-        .rc-modal-scroll th { position: sticky; top: 0; background: #161922; z-index: 1; }
+        .rc-modal-scroll th, .rc-modal-scroll td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+        .rc-modal-scroll th { position: sticky; top: 0; background: var(--surface-2); z-index: 1; }
         .rc-modal-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; justify-content: flex-end; }
         .rc-modal-hint { font-size: 0.8rem; color: var(--text-muted); }
 
         .rc-loading {
             position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
-            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+            background: var(--scrim-heavy); backdrop-filter: blur(6px);
         }
         .rc-loading.active { display: flex; }
         .rc-loading-box {
-            background: linear-gradient(165deg, #1a1d24, #12141a);
-            border: 1px solid rgba(59,130,246,0.35); border-radius: 16px;
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+            border: 1px solid var(--primary-border); border-radius: 16px;
             padding: 2rem 2.5rem; text-align: center; min-width: 240px;
         }
-        .rc-spin { animation: rc-spin 0.9s linear infinite; width: 42px; height: 42px; color: #3b82f6; margin: 0 auto 0.75rem; display: block; }
+        .rc-spin { animation: rc-spin 0.9s linear infinite; width: 42px; height: 42px; color: var(--primary); margin: 0 auto 0.75rem; display: block; }
         @keyframes rc-spin { to { transform: rotate(360deg); } }
     </style>
 </head>
@@ -468,7 +468,7 @@
                 <div class="header-content" style="align-items:flex-start;text-align:left;">
                     <h1 style="font-family:'Kanit',sans-serif;font-size:1.65rem;">Match ยอด</h1>
                     <p style="font-size:0.85rem;color:var(--text-muted);margin:0.2rem 0 0;">
-                        เทียบไฟล์ Excel vs ผลนับ · ปรับยอดตาม Excel เท่านั้น · <strong style="color:#fde68a;">ไม่แก้ counted_qty</strong>
+                        เทียบไฟล์ Excel vs ผลนับ · ปรับยอดตาม Excel เท่านั้น · <strong style="color:var(--warn-text);">ไม่แก้ counted_qty</strong>
                     </p>
                 </div>
                 <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
@@ -502,7 +502,7 @@
                     </a>
                 </div>
                 <div class="rc-hint-bar" id="cycleHintBar">
-                    <i data-lucide="info" style="width:14px;height:14px;flex-shrink:0;color:#60a5fa;"></i>
+                    <i data-lucide="info" style="width:14px;height:14px;flex-shrink:0;color:var(--link-accent);"></i>
                     <span id="cycleHint"></span>
                 </div>
             </section>
@@ -696,7 +696,7 @@
                 <div class="rc-empty">
                     <i data-lucide="scale"></i>
                     <p style="font-family:'Kanit',sans-serif;font-size:1rem;margin:0 0 0.35rem;">เลือกรอบและกด คำนวณ Match</p>
-                    <p style="font-size:0.82rem;">ถ้ายังไม่มีรอบ ไปที่ <a href="cycle_config.html" style="color:#60a5fa;">ตั้งค่ารอบ</a> ก่อน</p>
+                    <p style="font-size:0.82rem;">ถ้ายังไม่มีรอบ ไปที่ <a href="cycle_config.html" style="color:var(--link-accent);">ตั้งค่ารอบ</a> ก่อน</p>
                 </div>
             </div>
 
@@ -769,7 +769,7 @@
 </div>
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="../Js/sidebar-shared.js?v=20260813b"></script>
+<script src="../Js/sidebar-shared.js?v=20260813d"></script>
 <script src="../Js/api.js?v=20260809k"></script>
 <script src="../Js/sku-utils.js?v=20260809k"></script>
 <script src="../Js/settings-shared.js?v=20260809k"></script>
@@ -1118,7 +1118,7 @@
         body.innerHTML = filtered.map((l, i) => {
             const displayStatus = resolveDisplayStatus(l);
             const v = computeDisplayVariance(l);
-            const vColor = displayStatus === 'short' ? '#f87171' : displayStatus === 'over' ? '#fbbf24' : (v < 0 ? '#f87171' : v > 0 ? '#fbbf24' : '#34d399');
+            const vColor = displayStatus === 'short' ? 'var(--bad-text)' : displayStatus === 'over' ? 'var(--warn-text)' : (v < 0 ? 'var(--bad-text)' : v > 0 ? 'var(--warn-text)' : 'var(--ok-text)');
             // v ติดลบอยู่แล้วเมื่อขาด — เติม '+' ให้ฝั่งเกินอย่างเดียว (M3)
             const sign = v > 0 ? '+' : '';
             const applied = Number(l.adjustment_applied);
@@ -1127,7 +1127,7 @@
             const effectiveDisplay = Number(l.book_qty) + totalAdj;
             let adjHtml = '—';
             if (totalAdj !== 0) {
-                const color = totalAdj > 0 ? '#fde68a' : '#fca5a5';
+                const color = totalAdj > 0 ? 'var(--warn-text)' : 'var(--bad-text)';
                 const draftHint = draft !== 0 && applied === 0 ? ' (draft)' : draft !== 0 ? '*' : '';
                 adjHtml = `<span style="color:${color};" title="${draft ? `Applied ${applied}, Draft ${draft}` : ''}">${totalAdj > 0 ? '+' : ''}${totalAdj.toLocaleString()}${draftHint}</span>`;
             }
@@ -1534,7 +1534,7 @@
             <div class="rc-adj-sum-row mute"><span>ต่าง (แสดง)</span><strong>${displayDiff.toLocaleString()}</strong></div>`;
 
         if (isLineAcceptedMatch(line.sku_id)) {
-            html += `<div class="rc-adj-sum-warn" style="border-color:rgba(52,211,153,0.4);color:#6ee7b7;">ยืนยันเป็นถูกต้องแล้ว — ไม่มีการปรับยอด</div>`;
+            html += `<div class="rc-adj-sum-warn" style="border-color:var(--ok-border);color:var(--ok-text);">ยืนยันเป็นถูกต้องแล้ว — ไม่มีการปรับยอด</div>`;
         }
 
         const target = parseAdjInput();
@@ -1677,7 +1677,7 @@
                 <td>${RS.escapeHtml(r.skuId)}</td>
                 <td>${r.targetEffective.toLocaleString()}</td>
                 <td>${r.currentEffective.toLocaleString()}</td>
-                <td style="color:${r.deltaToTarget > 0 ? '#6ee7b7' : r.deltaToTarget < 0 ? '#fca5a5' : 'inherit'};">
+                <td style="color:${r.deltaToTarget > 0 ? 'var(--ok-text)' : r.deltaToTarget < 0 ? 'var(--bad-text)' : 'inherit'};">
                     ${r.deltaToTarget > 0 ? '+' : ''}${r.deltaToTarget.toLocaleString()}
                 </td>
                 <td>${r.targetEffective.toLocaleString()}</td>
@@ -2809,7 +2809,7 @@
         const isShort = bulkAcceptMode === 'short';
         const body = document.getElementById('bulkAcceptList');
         const sum = bulkAcceptRows.reduce((t, l) => t + computeDisplayVariance(l), 0);
-        const varColor = isShort ? '#f87171' : '#fbbf24';
+        const varColor = isShort ? 'var(--bad-text)' : 'var(--warn-text)';
         body.innerHTML = bulkAcceptRows.map((l, i) => {
             const m = getExportLineMetrics(l);
             return `<tr><td>${i + 1}</td><td>${RS.escapeHtml(l.sku_id)}</td>` +
@@ -2961,7 +2961,7 @@
             document.getElementById('adjHistorySelectAll').checked = false;
             refreshHistorySelCount();
         } catch (err) {
-            body.innerHTML = `<tr><td colspan="6" style="color:#f87171;padding:1rem;">${RS.escapeHtml(err.message)}</td></tr>`;
+            body.innerHTML = `<tr><td colspan="6" style="color:var(--bad-text);padding:1rem;">${RS.escapeHtml(err.message)}</td></tr>`;
         }
         lucide.createIcons();
     }

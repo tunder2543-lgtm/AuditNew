@@ -180,6 +180,39 @@
             border: 1px solid rgba(52,211,153,0.45);
         }
         .rc-btn-match-ok:hover { background: rgba(16,185,129,0.28); }
+
+        /* ---- ตัวช่วยเลือกปุ่ม: ไฮไลต์ปุ่มที่ควรกด · หรี่ปุ่มที่ไม่เกี่ยว ----
+           หรี่แล้ว "ยังกดได้" โดยตั้งใจ — ระบบเตือนได้ แต่ห้ามบล็อกคน (นโยบายข้อ 3) */
+        .rc-act-wrap { display: flex; align-items: stretch; gap: 0.35rem; margin-bottom: 0.5rem; }
+        .rc-act-wrap .rc-btn { flex: 1; min-width: 0; justify-content: center; margin-bottom: 0; }
+        .rc-act-wrap .rc-btn span { min-width: 0; }
+        .rc-btn-help {
+            flex: 0 0 32px; width: 32px; border-radius: 8px; cursor: pointer; font-weight: 700;
+            background: rgba(148,163,184,0.12); color: var(--text-muted);
+            border: 1px solid rgba(148,163,184,0.25); font-size: 0.9rem;
+        }
+        .rc-btn-help:hover { background: rgba(148,163,184,0.24); color: #e2e8f0; }
+        .rc-btn-sub { display: block; font-size: 0.62rem; font-weight: 400; opacity: 0.88; margin-top: 2px; }
+        .rc-btn-recommend {
+            outline: 2px solid #f87171; outline-offset: 2px;
+            box-shadow: 0 0 0 5px rgba(248,113,113,0.16);
+        }
+        .rc-btn-dimmed { opacity: 0.35; filter: grayscale(0.9); }
+        .rc-btn-dimmed:hover { opacity: 0.6; filter: grayscale(0.4); }
+
+        /* ---- popup "?" จำลองผลลัพธ์ ---- */
+        .rc-prev-row {
+            display: flex; justify-content: space-between; gap: 0.75rem;
+            padding: 0.35rem 0; border-bottom: 1px solid rgba(148,163,184,0.12); font-size: 0.85rem;
+        }
+        .rc-prev-row strong { white-space: nowrap; }
+        .rc-prev-row.hl { background: rgba(16,185,129,0.08); border-radius: 6px; padding-left: 0.4rem; padding-right: 0.4rem; }
+        .rc-prev-row.hl strong { color: #6ee7b7; font-size: 1rem; }
+        .rc-prev-note {
+            margin-top: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 8px; font-size: 0.8rem;
+            background: rgba(251,191,36,0.1); border: 1px solid rgba(251,191,36,0.3); color: #fde68a;
+        }
+        .rc-prev-when { margin-top: 0.5rem; font-size: 0.78rem; color: var(--text-muted); }
         .rc-adj-sum-row.add strong { color: #6ee7b7; }
         .rc-adj-sum-row.sub strong { color: #fca5a5; }
         /* ป้ายยาว 2 บรรทัด — ตัวเลขต้องไม่ถูกบีบตกบรรทัดตาม */
@@ -552,15 +585,21 @@
                             <input type="text" id="adjNote" placeholder="เหตุผลการปรับ">
                         </div>
 
-                        <button type="button" class="rc-btn rc-btn-match-ok" id="btnMarkMatchOk" style="display:none;"
-                            title="เชื่อยอด Excel ใช้เทียบตอนนี้เป็นยอดจริง — ไม่สร้างยอดปรับ ไม่แตะผลนับ สถานะเป็นถูกต้อง">
-                            <i data-lucide="badge-check"></i> ยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)
-                        </button>
+                        <div class="rc-act-wrap" id="actWrapMarkMatch" style="display:none;">
+                            <button type="button" class="rc-btn rc-btn-match-ok" id="btnMarkMatchOk"
+                                title="เชื่อยอด Excel ใช้เทียบตอนนี้เป็นยอดจริง — ไม่สร้างยอดปรับ ไม่แตะผลนับ สถานะเป็นถูกต้อง">
+                                <i data-lucide="badge-check"></i> <span>ใช้ยอด Excel เป็นยอดจริง</span>
+                            </button>
+                            <button type="button" class="rc-btn-help" id="btnExplainExcel" title="ดูตัวอย่างว่ากดปุ่มนี้แล้วยอดจะออกมาเท่าไร">?</button>
+                        </div>
 
-                        <button type="button" class="rc-btn rc-btn-green" id="btnAcceptCountApply" style="display:none;width:100%;justify-content:center;margin-bottom:0.5rem;"
-                            title="ปรับ Excel ใช้เทียบให้เท่ายอดในช่องด้านบนแล้วบันทึกทันที — ไม่แตะผลนับ/Book ต้นฉบับ ถ้ายอดที่กรอกต่างจากผลนับ ระบบจะบันทึกยืนยันว่ายอดที่กรอกคือยอดจริง">
-                            <i data-lucide="check-check"></i> ใช้ยอดที่กรอกเป็นยอดจริง (Apply ทันที)
-                        </button>
+                        <div class="rc-act-wrap" id="actWrapAcceptApply" style="display:none;">
+                            <button type="button" class="rc-btn rc-btn-green" id="btnAcceptCountApply"
+                                title="ปรับ Excel ใช้เทียบให้เท่ายอดในช่องด้านบนแล้วบันทึกทันที — ไม่แตะผลนับ/Book ต้นฉบับ ถ้ายอดที่กรอกต่างจากผลนับ ระบบจะบันทึกยืนยันว่ายอดที่กรอกคือยอดจริง">
+                                <i data-lucide="check-check"></i> <span>ใช้ยอดที่กรอกเป็นยอดจริง</span>
+                            </button>
+                            <button type="button" class="rc-btn-help" id="btnExplainTyped" title="ดูตัวอย่างว่ากดปุ่มนี้แล้วยอดจะออกมาเท่าไร">?</button>
+                        </div>
 
                         <div class="rc-draft-list" id="draftSection" style="display:none;">
                             <h4>รายการ Draft (<span id="draftCount">0</span>)</h4>
@@ -674,6 +713,18 @@
             <button type="button" class="rc-btn rc-btn-ghost" id="btnBulkAcceptExport"><i data-lucide="download"></i> Export รายการนี้</button>
             <button type="button" class="rc-btn rc-btn-ghost" id="btnBulkAcceptClose">ปิด</button>
             <button type="button" class="rc-btn rc-btn-green" id="btnBulkAcceptConfirm" disabled><i data-lucide="check-check"></i> ยอมรับผลนับ (<span id="bulkAcceptCount">0</span>)</button>
+        </div>
+    </div>
+</div>
+
+<!-- "?" จำลองผลลัพธ์ของปุ่มตัดสิน — ตอบคำถาม "กดปุ่มนี้แล้วยอดจะออกมาเท่าไร" -->
+<div class="rc-modal" id="adjExplainModal">
+    <div class="rc-modal-box" style="max-width:520px;">
+        <h3><i data-lucide="help-circle"></i> <span id="adjExplainTitle"></span></h3>
+        <div class="rc-modal-hint" id="adjExplainSku"></div>
+        <div id="adjExplainBody"></div>
+        <div class="rc-modal-actions">
+            <button type="button" class="rc-btn rc-btn-ghost" id="btnAdjExplainClose">ปิด</button>
         </div>
     </div>
 </div>
@@ -805,7 +856,7 @@
             return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อใส่ยอดจริงที่ต้องการ แล้วปรับยอดหรือยืนยัน"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
         }
         if (s === 'book_only' && skuId) {
-            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อยืนยันว่ายอด Excel ถูกต้อง (คงยอดปรับเดิม)"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
+            return `<span class="rc-badge ${d.cls} clickable" data-accept-count="${RS.escapeHtml(skuId)}" title="คลิกเพื่อใช้ยอด Excel เป็นยอดจริง (คงยอดปรับเดิม)"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
         }
         return `<span class="rc-badge ${d.cls}"><i data-lucide="${d.icon}" style="width:11px;height:11px;"></i> ${d.th}</span>`;
     }
@@ -1201,6 +1252,164 @@
         return { ok: false, delta: 0, noAdjustment: false, message: 'ไม่ต้องปรับยอด' };
     }
 
+    /**
+     * ปุ่มไหนคือปุ่มที่ควรกด — ตัดสินจาก "ยอดที่กรอก" เทียบ **Excel ใช้เทียบ** (ไม่ใช่ผลนับ)
+     *
+     * ⚠️ เกณฑ์นี้ต้องเป็น target vs effective เท่านั้น เพราะปุ่มสองตัวต่างกันที่
+     * "จะเอาเลขไหนเป็นยอดจริง": ปุ่ม Excel = `effective` · ปุ่มกรอก = `target`
+     * ถ้าสองค่านี้เท่ากัน ปุ่มกรอกไม่มีอะไรต้องทำ (delta 0 · `getTargetAdjustmentValidation`
+     * จะตีกลับอยู่แล้ว) ⇒ หรี่ปุ่มกรอก · ถ้าต่างกัน ปุ่ม Excel จะ**ทิ้งเลขที่พิมพ์ไป**
+     * แล้วบันทึก effective แทน ⇒ หรี่ปุ่ม Excel
+     *
+     * เคยมีข้อเสนอให้ใช้เกณฑ์ target vs **ผลนับ** (2026-08-13) — ใช้ไม่ได้ เพราะค่าเริ่มต้น
+     * ของช่องคือผลนับอยู่แล้ว จะกลายเป็นหรี่ปุ่มกรอกในเคสปกติที่สุด (ยอมรับผลนับ) แล้ว
+     * ชี้ไปปุ่ม Excel ซึ่งบันทึกยอด Book เป็นยอดจริง = ผลนับถูกทิ้งทั้งที่คนตั้งใจใช้
+     */
+    function resolveAdjButtonGuidance(line, target) {
+        if (!line) return { recommend: null, dim: null, reason: '' };
+        const effective = getLineEffectiveBook(line);
+        // ⚠️ `Number('')` = 0 ไม่ใช่ NaN — ช่องว่างจะกลายเป็น "ยอด 0" ถ้าไม่กันไว้
+        const t = (target == null || target === '' || !Number.isFinite(Number(target))) ? null : Number(target);
+        if (t == null) {
+            return { recommend: null, dim: null, reason: 'ใส่ยอดจริงที่ต้องการในช่องด้านบนก่อน' };
+        }
+        if (Math.abs(t - effective) < 1e-6) {
+            return {
+                recommend: 'excel',
+                dim: 'typed',
+                reason: `ยอดที่กรอกเท่ากับ Excel ใช้เทียบ (${effective.toLocaleString()}) อยู่แล้ว — ไม่มีอะไรต้องปรับ`
+            };
+        }
+        return {
+            recommend: 'typed',
+            dim: 'excel',
+            reason: `ยอดที่กรอก ${t.toLocaleString()} ต่างจาก Excel ใช้เทียบ ${effective.toLocaleString()} — ต้องบันทึกปรับ`
+        };
+    }
+
+    /**
+     * จำลองผลลัพธ์ของปุ่มตัดสินแต่ละตัว (ใช้ทั้ง popup "?" และเทส)
+     * @param {'excel'|'typed'} kind
+     */
+    function buildActionPreview(kind, line, target) {
+        if (!line) return null;
+        const book = Number(line.book_qty);
+        const applied = Number(line.adjustment_applied);
+        const draft = getDraftAdjustmentSum(line.sku_id);
+        const effective = book + applied + draft;
+        const counted = Number(line.counted_qty);
+        // ⚠️ `Number('')` = 0 ไม่ใช่ NaN — ช่องว่างจะกลายเป็น "ยอด 0" ถ้าไม่กันไว้
+        const t = (target == null || target === '' || !Number.isFinite(Number(target))) ? null : Number(target);
+
+        if (kind === 'excel') {
+            return {
+                kind,
+                title: 'ถ้ากด「ใช้ยอด Excel เป็นยอดจริง」',
+                finalQty: effective,
+                adjustDelta: 0,
+                writesAcceptance: true,
+                upstreamFix: 0,
+                rows: [
+                    ['ยอดจริงที่ระบบจะบันทึก', effective.toLocaleString() + ' ชิ้น', true],
+                    ['ยอดปรับที่สร้างเพิ่ม', 'ไม่มี (+0)', false],
+                    ['ไฟล์ Excel ต้นฉบับ', book.toLocaleString() + ' (ไม่ถูกแก้)', false],
+                    ['ผลนับในระบบ', counted.toLocaleString() + ' (ไม่ถูกแก้)', false],
+                    ['ต้องไปแก้ระบบสต็อกต้นทาง', 'ไม่ต้องแก้', false],
+                    ['สถานะหลังกด', 'ถูกต้อง', false],
+                ],
+                note: `ผลนับ ${counted.toLocaleString()} จะ**ไม่**ถูกใช้เป็นยอดจริง — ระบบจะบันทึกว่ายอดจริงคือ ${effective.toLocaleString()}`,
+                useWhen: 'ใช้เมื่อเชื่อว่ายอดใน Excel ถูกอยู่แล้ว และผลนับที่ต่างมีคำอธิบาย เช่น ของถูกยืมออกไปแล้วยังไม่ตัดยอด หรือนับตกหล่นแต่ยืนยันของจริงไม่ได้',
+            };
+        }
+
+        const delta = t == null ? null : t - effective;
+        const diffFromCounted = t != null && Math.abs(t - counted) >= 1e-6;
+        return {
+            kind: 'typed',
+            title: 'ถ้ากด「ใช้ยอดที่กรอกเป็นยอดจริง」',
+            finalQty: t,
+            adjustDelta: delta,
+            writesAcceptance: diffFromCounted,
+            upstreamFix: delta,
+            rows: [
+                ['ยอดจริงที่ระบบจะบันทึก', t == null ? '— (ยังไม่ใส่ยอด)' : t.toLocaleString() + ' ชิ้น', true],
+                ['ยอดปรับที่สร้างเพิ่ม', delta == null ? '—' : formatAdjustDeltaLabel(delta), false],
+                ['ไฟล์ Excel ต้นฉบับ', book.toLocaleString() + ' (ไม่ถูกแก้)', false],
+                ['ผลนับในระบบ', counted.toLocaleString() + ' (ไม่ถูกแก้)', false],
+                ['ต้องไปแก้ระบบสต็อกต้นทาง', delta == null ? '—' : formatAdjustDeltaLabel(delta), false],
+                ['สถานะหลังกด', 'ถูกต้อง', false],
+            ],
+            note: t == null
+                ? 'ยังไม่ได้ใส่ยอดในช่อง「ยอดจริงที่ต้องการ」'
+                : (diffFromCounted
+                    ? `ยอดที่กรอก ${t.toLocaleString()} ต่างจากผลนับ ${counted.toLocaleString()} — ระบบจะบันทึกคำยืนยันกำกับว่า ${t.toLocaleString()} คือยอดจริง`
+                    : `ยอดที่กรอกเท่ากับผลนับ ${counted.toLocaleString()} พอดี — เป็นการยอมรับผลนับตามปกติ`),
+            useWhen: 'ใช้เมื่อรู้ว่ายอดจริงคือเท่าไร ไม่ว่าจะเท่าผลนับ หรือได้จากการไปตรวจซ้ำแล้วได้เลขใหม่',
+        };
+    }
+
+    function renderAdjExplain(kind) {
+        const line = selectedAdjLine;
+        if (!line) return showToast('กรุณาเลือก SKU ก่อน', 'error');
+        const pv = buildActionPreview(kind, line, parseAdjInput());
+        document.getElementById('adjExplainTitle').textContent = pv.title;
+        document.getElementById('adjExplainSku').textContent =
+            `${line.sku_id}${skuNameMap[line.sku_id] ? ' · ' + skuNameMap[line.sku_id] : ''}`;
+        const body = pv.rows
+            .map(([label, value, hl]) =>
+                `<div class="rc-prev-row${hl ? ' hl' : ''}"><span>${RS.escapeHtml(label)}</span><strong>${RS.escapeHtml(value)}</strong></div>`)
+            .join('');
+        document.getElementById('adjExplainBody').innerHTML =
+            body +
+            `<div class="rc-prev-note">${RS.escapeHtml(pv.note).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')}</div>` +
+            `<div class="rc-prev-when">${RS.escapeHtml(pv.useWhen)}</div>`;
+        document.getElementById('adjExplainModal').classList.add('active');
+        lucide.createIcons();
+    }
+
+    const ADJ_BTN_DEFAULT_MARK = '<i data-lucide="badge-check"></i> <span>ใช้ยอด Excel เป็นยอดจริง</span>';
+    const ADJ_BTN_DEFAULT_ACCEPT = '<i data-lucide="check-check"></i> <span>ใช้ยอดที่กรอกเป็นยอดจริง</span>';
+
+    /** ป้ายปุ่ม (ใส่ตัวเลขจริงลงไป) + ไฮไลต์ปุ่มที่ควรกด / หรี่ปุ่มที่ไม่เกี่ยว */
+    function renderAdjActionButtons() {
+        const btnMark = document.getElementById('btnMarkMatchOk');
+        const btnAccept = document.getElementById('btnAcceptCountApply');
+        if (!btnMark || !btnAccept) return;
+        btnMark.classList.remove('rc-btn-recommend', 'rc-btn-dimmed');
+        btnAccept.classList.remove('rc-btn-recommend', 'rc-btn-dimmed');
+
+        const line = selectedAdjLine;
+        if (!line) {
+            btnMark.innerHTML = ADJ_BTN_DEFAULT_MARK;
+            if (!acceptApplyArmed) btnAccept.innerHTML = ADJ_BTN_DEFAULT_ACCEPT;
+            lucide.createIcons();
+            return;
+        }
+
+        const effective = getLineEffectiveBook(line);
+        const target = parseAdjInput();
+        const g = resolveAdjButtonGuidance(line, target);
+
+        btnMark.innerHTML = `<i data-lucide="badge-check"></i> <span>ใช้ยอด Excel (${effective.toLocaleString()}) เป็นยอดจริง`
+            + `<small class="rc-btn-sub">ไม่สร้างยอดปรับ · ไม่ใช้ผลนับ</small></span>`;
+
+        // ตอน armed ป้ายเป็น "กดอีกครั้งเพื่อ Apply" ห้ามเขียนทับ ไม่งั้นผู้ใช้จะไม่รู้ว่าติดอาวุธอยู่
+        if (!acceptApplyArmed) {
+            const delta = target == null ? null : target - effective;
+            const sub = delta == null
+                ? 'ใส่ยอดในช่องด้านบนก่อน'
+                : (Math.abs(delta) < 1e-6 ? 'ยอดเท่า Excel อยู่แล้ว — ไม่มีอะไรต้องปรับ' : `บันทึกปรับ ${formatAdjustDeltaLabel(delta)}`);
+            btnAccept.innerHTML = `<i data-lucide="check-check"></i> <span>ใช้ยอดที่กรอก${target == null ? '' : ` (${target.toLocaleString()})`} เป็นยอดจริง`
+                + `<small class="rc-btn-sub">${RS.escapeHtml(sub)}</small></span>`;
+        }
+
+        if (g.recommend === 'excel') btnMark.classList.add('rc-btn-recommend');
+        if (g.recommend === 'typed') btnAccept.classList.add('rc-btn-recommend');
+        if (g.dim === 'excel') btnMark.classList.add('rc-btn-dimmed');
+        if (g.dim === 'typed') btnAccept.classList.add('rc-btn-dimmed');
+        lucide.createIcons();
+    }
+
     function resetAcceptApplyBtn() {
         acceptApplyArmed = false;
         acceptApplyArmSku = null;
@@ -1211,8 +1420,7 @@
         const btn = document.getElementById('btnAcceptCountApply');
         if (!btn) return;
         btn.classList.remove('armed');
-        btn.innerHTML = '<i data-lucide="check-check"></i> ใช้ยอดที่กรอกเป็นยอดจริง (Apply ทันที)';
-        lucide.createIcons();
+        renderAdjActionButtons();
     }
 
     function armAcceptApplyBtn() {
@@ -1245,13 +1453,17 @@
         if (btnUseCounted) {
             btnUseCounted.style.display = isAdjustable ? 'inline-block' : 'none';
         }
-        if (btnMark) {
-            btnMark.style.display = canMarkAsMatchAccepted(selectedAdjLine) ? 'inline-flex' : 'none';
+        // ⚠️ ต้องซ่อน/โชว์ที่ "กล่องครอบ" ไม่ใช่ที่ปุ่ม ไม่งั้นปุ่ม "?" จะลอยอยู่เดี่ยว ๆ
+        const wrapMark = document.getElementById('actWrapMarkMatch');
+        if (wrapMark) {
+            wrapMark.style.display = canMarkAsMatchAccepted(selectedAdjLine) ? 'flex' : 'none';
         }
-        if (btnAccept) {
-            btnAccept.style.display = isAdjustable ? 'inline-flex' : 'none';
-            if (!isAdjustable) resetAcceptApplyBtn();
+        const wrapAccept = document.getElementById('actWrapAcceptApply');
+        if (wrapAccept) {
+            wrapAccept.style.display = isAdjustable ? 'flex' : 'none';
         }
+        if (btnAccept && !isAdjustable) resetAcceptApplyBtn();
+        if (btnMark || btnAccept) renderAdjActionButtons();
     }
 
     function renderAdjPanelSummary(line) {
@@ -1291,21 +1503,26 @@
             const computed = resolveComputedStatus(line);
             html += `
             <div class="rc-adj-sum-row delta ${deltaClass}"><span>ส่วนต่างที่ต้องบันทึกปรับ<small>ไม่แก้ไฟล์ Excel</small></span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
-            <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)"' : ''}><span>ยอดจริงที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
+            <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)"' : ''}><span>ยอดจริงที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
             if (!validation.ok && (computed === 'short' || computed === 'over')) {
-                html += `<div class="rc-adj-sum-warn">ยอดนี้เท่า Excel ใช้เทียบอยู่แล้ว — กด「ยืนยันว่ายอด Excel ถูกต้อง」หรือใส่ยอดจริงที่ต่างออกไป (ผลนับ = ${counted.toLocaleString()})</div>`;
+                html += `<div class="rc-adj-sum-warn">ยอดนี้เท่า Excel ใช้เทียบอยู่แล้ว — กด「ใช้ยอด Excel เป็นยอดจริง」หรือใส่ยอดจริงที่ต่างออกไป (ผลนับ = ${counted.toLocaleString()})</div>`;
             } else if (validation.noAdjustment && Math.abs(target - counted) >= 1e-6 && canMark) {
                 const bookOnlyHint = computed === 'book_only'
                     ? ' (ยังไม่ได้นับ — ไม่เปลี่ยนยอดปรับที่มีอยู่)'
                     : '';
-                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ยืนยันว่ายอด Excel ถูกต้อง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book${bookOnlyHint}</div>`;
+                html += `<div class="rc-adj-sum-warn">คลิกยอดสีเขียวหรือปุ่ม「ใช้ยอด Excel เป็นยอดจริง」 — คงยอด ${target.toLocaleString()} โดยไม่ปรับ Book${bookOnlyHint}</div>`;
             } else if (canMark && computed === 'book_only' && target == null) {
-                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอด Excel ใช้เทียบที่ต้องการ แล้วกด「ยืนยันว่ายอด Excel ถูกต้อง」 (คงยอดปรับเดิม)</div>`;
+                html += `<div class="rc-adj-sum-warn">ยังไม่ได้นับ — ใส่ยอด Excel ใช้เทียบที่ต้องการ แล้วกด「ใช้ยอด Excel เป็นยอดจริง」 (คงยอดปรับเดิม)</div>`;
             }
         }
-        html += `<div class="rc-adj-sum-note">ใส่<strong>ยอดจริง</strong>ที่ต้องการในช่องด้านบน · ใช้ยอดที่กรอก = ปรับ Excel ใช้เทียบเป็นยอดนั้น (ต่างจากผลนับก็ได้ ระบบบันทึกยืนยันให้) · ยืนยันว่า Excel ถูก = ไม่เปลี่ยนยอด</div>`;
+        const guidance = resolveAdjButtonGuidance(line, target);
+        if (guidance.reason) {
+            html += `<div class="rc-adj-sum-note">${RS.escapeHtml(guidance.reason)}</div>`;
+        }
+        html += `<div class="rc-adj-sum-note">ใส่<strong>ยอดจริง</strong>ที่ต้องการในช่องด้านบน · ปุ่มที่มีกรอบแดง = ปุ่มที่ควรกด · ปุ่มที่จาง = ไม่ต้องกด · กด <strong>?</strong> ดูตัวอย่างผลลัพธ์ก่อนได้</div>`;
         hint.classList.add('show');
         hint.innerHTML = html;
+        renderAdjActionButtons();
     }
 
     function selectAdjLine(line, opts = {}) {
@@ -1332,7 +1549,7 @@
         document.getElementById('adjQty').focus();
         document.querySelector('.rc-side')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         if (st === 'book_only') {
-            showToast('คงยอดปรับเดิม — กด「ยืนยันเป็นถูกต้อง」เพื่อตั้งสถานะถูกต้อง');
+            showToast('คงยอดปรับเดิม — กด「ใช้ยอด Excel เป็นยอดจริง」เพื่อตั้งสถานะถูกต้อง');
         }
     }
 
@@ -1968,7 +2185,7 @@
 
         if (!opts.skipConfirm) {
             const ok = await uiConfirm.twoStep({
-                title: 'ยืนยันเป็นถูกต้อง',
+                title: 'ใช้ยอด Excel เป็นยอดจริง',
                 variant: 'green',
                 step1: {
                     intro: `ยืนยัน ${sku} เป็นถูกต้องโดยไม่ปรับยอด?`,
@@ -1985,7 +2202,7 @@
                     intro: `ยืนยัน ${sku} เป็นถูกต้อง`,
                     note: 'ไม่มีการปรับ Book / ผลนับ',
                     noteVariant: 'safe',
-                    confirmLabel: 'ยืนยันเป็นถูกต้อง',
+                    confirmLabel: 'ใช้ยอด Excel เป็นยอดจริง',
                     confirmIcon: 'badge-check'
                 }
             });
@@ -2205,7 +2422,7 @@
             const needsAcceptance = Math.abs(targetQty - countedQty) >= 1e-6;
             if (!opts.skipConfirm) {
                 const ok = await uiConfirm.twoStep({
-                    title: needsAcceptance ? 'ยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)' : 'ยืนยันยอด Book',
+                    title: needsAcceptance ? 'ใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)' : 'ยืนยันยอด Book',
                     variant: 'green',
                     step1: {
                         intro: `ยืนยันยอด Excel ใช้เทียบ = ${targetQty.toLocaleString()} สำหรับ ${sku}?`,
@@ -2224,7 +2441,7 @@
                     step2: {
                         intro: `ยืนยัน ${sku} — คงยอด Excel ใช้เทียบ ${targetQty.toLocaleString()}`,
                         noteVariant: 'safe',
-                        confirmLabel: needsAcceptance ? 'ยืนยันเป็นถูกต้อง' : 'ยืนยัน',
+                        confirmLabel: needsAcceptance ? 'ใช้ยอด Excel เป็นยอดจริง' : 'ยืนยัน',
                         confirmIcon: 'check-check'
                     }
                 });
@@ -2785,6 +3002,14 @@
         resetAcceptApplyBtn();
         if (selectedAdjLine) renderAdjPanelSummary(selectedAdjLine);
     });
+    document.getElementById('btnExplainExcel').addEventListener('click', () => renderAdjExplain('excel'));
+    document.getElementById('btnExplainTyped').addEventListener('click', () => renderAdjExplain('typed'));
+    document.getElementById('btnAdjExplainClose').addEventListener('click', () =>
+        document.getElementById('adjExplainModal').classList.remove('active'));
+    document.getElementById('adjExplainModal').addEventListener('click', (e) => {
+        if (e.target.id === 'adjExplainModal') e.currentTarget.classList.remove('active');
+    });
+
     document.getElementById('btnUseCountedTarget').addEventListener('click', () => {
         if (!selectedAdjLine) return;
         document.getElementById('adjQty').value = Number(selectedAdjLine.counted_qty);
@@ -2950,7 +3175,7 @@
      * สรุป "ยอดจริงที่ใช้" ต่อ SKU — ตอบคำถามตอนสรุปยอดว่าแต่ละตัวต้องเชื่อเลขไหน
      *
      * กติกาตัดสิน (ตามความหมายจริงของปุ่มในหน้านี้):
-     *   1. กด "ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)" = ประกาศว่า **ยอด Excel ใช้เทียบ** คือยอดจริง
+     *   1. กด "ใช้ยอด Excel เป็นยอดจริง (ไม่ปรับยอด)" = ประกาศว่า **ยอด Excel ใช้เทียบ** คือยอดจริง
      *   2. สถานะตรงกัน (รวมเคสที่ปรับยอดจน Excel ใช้เทียบ = ผลนับ เช่น "ยอมรับผลนับ")
      *      = ยอดจริงคือค่าที่เท่ากันนั้น · ถ้ามียอดปรับ จะโชว์ให้เห็น (เช่น Book 31 ปรับ +10 → 41)
      *   3. ขาด/เกิน/ยังไม่ได้นับ/ไม่พบใน Excel ที่ยังไม่กดอะไร = **ยังไม่ยืนยัน**

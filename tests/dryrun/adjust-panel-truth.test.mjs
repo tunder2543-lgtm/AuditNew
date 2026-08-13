@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { suite, test } from '../helpers/harness.mjs';
 import { PROJECT_ROOT } from '../helpers/sandbox.mjs';
-import { liftFunctions } from '../helpers/lift.mjs';
+import { liftFunctions, liftInto } from '../helpers/lift.mjs';
 
 suite('แผงปรับยอด: ใช้ยอดที่กรอกเป็นยอดจริง (reconcile)');
 
@@ -20,9 +20,17 @@ const RECONCILE = fs.readFileSync(path.join(PROJECT_ROOT, 'Html', 'reconcile.htm
 const norm = v => String(v ?? '').trim().toUpperCase();
 
 function fakeEl(extra = {}) {
+    // classList ต้องจำค่าจริง — เทสตัวช่วยเลือกปุ่มตรวจ class ที่ถูกใส่/ถอด
+    const classes = new Set();
     return {
         value: '', textContent: '', innerHTML: '', disabled: false, dataset: {}, style: {},
-        classList: { add() {}, remove() {}, toggle() {}, contains: () => false },
+        classList: {
+            add: (...c) => c.forEach(x => classes.add(x)),
+            remove: (...c) => c.forEach(x => classes.delete(x)),
+            toggle(c, on) { on ? classes.add(c) : classes.delete(c); },
+            contains: c => classes.has(c),
+        },
+        _classes: classes,
         querySelectorAll: () => [], addEventListener() {},
         ...extra,
     };
@@ -179,19 +187,182 @@ test('[ui] ปุ่ม "บันทึก Draft" และฟังก์ช�
     assert.ok(!/function saveDraft/.test(RECONCILE), 'ฟังก์ชันตายต้องไม่ค้าง');
 });
 
-test('[ui] ป้ายปุ่มใหม่: markup ตรงกับ resetAcceptApplyBtn (รันจริง)', () => {
-    assert.match(RECONCILE, /ใช้ยอดที่กรอกเป็นยอดจริง \(Apply ทันที\)/, 'ปุ่มเขียว Apply');
-    assert.match(RECONCILE, /ยืนยันว่ายอด Excel ถูกต้อง \(ไม่ปรับยอด\)/, 'ปุ่มยืนยัน Excel');
-    // ปุ่ม reset หลัง arm ต้องกลับมาเป็นป้ายเดียวกับ markup — ไม่งั้นกดพลาดครั้งแรก
-    // แล้วป้ายเปลี่ยนเป็นชื่อเก่า ผู้ใช้จะสับสนว่าเป็นคนละปุ่ม
-    const btn = fakeEl();
-    const fns = liftFunctions(RECONCILE, ['resetAcceptApplyBtn'], {
+// -----------------------------------------------------------------------------
+// ตัวช่วยเลือกปุ่ม — "กดแค่ปุ่มเดียว ป้องกันความผิดพลาด" (admin สั่ง 2026-08-13)
+// -----------------------------------------------------------------------------
+function liftGuidance() {
+    return liftFunctions(RECONCILE, [
+        'resolveAdjButtonGuidance', 'getLineEffectiveBook', 'getTotalAdjustment',
+    ], { getDraftAdjustmentSum: () => 0 });
+}
+
+test('[guidance] ยอดที่กรอก ≠ Excel ใช้เทียบ → ชี้ปุ่ม "ใช้ยอดที่กรอก" · หรี่ปุ่ม Excel', () => {
+    const f = liftGuidance();
+    const line = { sku_id: 'BG001-1', book_qty: 278, adjustment_applied: 0, counted_qty: 197 };
+    const g = f.resolveAdjButtonGuidance(line, 197);
+    assert.equal(g.recommend, 'typed');
+    assert.equal(g.dim, 'excel');
+    assert.match(g.reason, /ต่างจาก Excel ใช้เทียบ 278/);
+});
+
+test('[guidance] ⛔ เคสค่าเริ่มต้น (ช่อง = ผลนับ) ต้องชี้ปุ่ม "ใช้ยอดที่กรอก" เสมอ', () => {
+    // กติกาที่ admin เสนอตอนแรกคือเทียบกับ "ผลนับ" ⇒ เคสนี้จะหรี่ปุ่มที่ถูกต้อง
+    // แล้วชี้ไปปุ่ม Excel ซึ่งบันทึกยอด Book เป็นยอดจริง = ทิ้งผลนับทั้งที่คนตั้งใจใช้
+    const f = liftGuidance();
+    for (const [book, counted] of [[278, 197], [10, 25], [500, 200], [0, 7]]) {
+        const g = f.resolveAdjButtonGuidance({ sku_id: 'X', book_qty: book, adjustment_applied: 0, counted_qty: counted }, counted);
+        assert.equal(g.recommend, 'typed', `Book ${book} / นับ ${counted} ต้องชี้ปุ่มกรอก`);
+        assert.equal(g.dim, 'excel');
+    }
+});
+
+test('[guidance] ยอดที่กรอก = Excel ใช้เทียบ → ไม่มีอะไรต้องปรับ ⇒ ชี้ปุ่ม Excel · หรี่ปุ่มกรอก', () => {
+    const f = liftGuidance();
+    const line = { sku_id: 'X', book_qty: 500, adjustment_applied: -50, counted_qty: 200 };
+    const g = f.resolveAdjButtonGuidance(line, 450);   // effective = 450
+    assert.equal(g.recommend, 'excel');
+    assert.equal(g.dim, 'typed');
+    assert.match(g.reason, /ไม่มีอะไรต้องปรับ/);
+});
+
+test('[guidance] ยังไม่ใส่ยอด / ไม่มีแถว = ไม่ชี้ปุ่มไหนเลย (ห้ามเดาแทนคน)', () => {
+    const f = liftGuidance();
+    const line = { sku_id: 'X', book_qty: 10, adjustment_applied: 0, counted_qty: 5 };
+    for (const bad of [null, undefined, NaN, '']) {
+        const g = f.resolveAdjButtonGuidance(line, bad);
+        assert.equal(g.recommend, null, `target "${bad}" ต้องไม่ชี้ปุ่ม`);
+        assert.equal(g.dim, null);
+    }
+    assert.equal(f.resolveAdjButtonGuidance(null, 5).recommend, null);
+});
+
+test('[ui] ปุ่มที่ควรกดได้กรอบแดง · ปุ่มที่ไม่เกี่ยวถูกหรี่ (รันจริง)', () => {
+    const btnMark = fakeEl(), btnAccept = fakeEl();
+    const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
+    const fns = liftFunctions(RECONCILE, [
+        'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'getLineEffectiveBook',
+        'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
+    ], {
+        RS: { escapeHtml: v => String(v ?? '') },
+        selectedAdjLine: { sku_id: 'BG001-1', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
+        acceptApplyArmed: false,
+        getDraftAdjustmentSum: () => 0,
+        ADJ_BTN_DEFAULT_MARK: 'mark', ADJ_BTN_DEFAULT_ACCEPT: 'accept',
+        lucide: { createIcons() {} },
+        document: { getElementById: id => els[id] || fakeEl() },
+    });
+    fns.renderAdjActionButtons();
+    assert.ok(btnAccept.classList.contains('rc-btn-recommend'), 'ปุ่มที่ควรกดต้องมีกรอบแดง');
+    assert.ok(btnMark.classList.contains('rc-btn-dimmed'), 'ปุ่ม Excel ต้องถูกหรี่');
+    assert.ok(!btnAccept.classList.contains('rc-btn-dimmed'));
+    assert.ok(!btnMark.classList.contains('rc-btn-recommend'));
+    // ตัวเลขจริงต้องอยู่บนปุ่ม — ผู้ใช้ต้องอ่านออกว่ากดแล้วได้ยอดไหนโดยไม่ต้องเดา
+    assert.match(btnMark.innerHTML, /ใช้ยอด Excel \(278\) เป็นยอดจริง/);
+    assert.match(btnAccept.innerHTML, /ใช้ยอดที่กรอก \(197\) เป็นยอดจริง/);
+    assert.match(btnAccept.innerHTML, /บันทึกปรับ ลด 81 ชิ้น/);
+});
+
+test('[ui] ตอน armed ห้ามเขียนทับป้าย "กดอีกครั้ง" (ไม่งั้นผู้ใช้ไม่รู้ว่าติดอาวุธอยู่)', () => {
+    const btnMark = fakeEl(), btnAccept = fakeEl({ innerHTML: 'กดอีกครั้งเพื่อ Apply (2/2)' });
+    const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
+    const fns = liftFunctions(RECONCILE, [
+        'renderAdjActionButtons', 'resolveAdjButtonGuidance', 'getLineEffectiveBook',
+        'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
+    ], {
+        RS: { escapeHtml: v => String(v ?? '') },
+        selectedAdjLine: { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
+        acceptApplyArmed: true,
+        getDraftAdjustmentSum: () => 0,
+        ADJ_BTN_DEFAULT_MARK: 'mark', ADJ_BTN_DEFAULT_ACCEPT: 'accept',
+        lucide: { createIcons() {} },
+        document: { getElementById: id => els[id] || fakeEl() },
+    });
+    fns.renderAdjActionButtons();
+    assert.match(btnAccept.innerHTML, /กดอีกครั้งเพื่อ Apply/, 'ป้าย armed ต้องคงอยู่');
+});
+
+// -----------------------------------------------------------------------------
+// popup "?" — จำลองว่ากดแล้วยอดจะออกมาเท่าไร
+// -----------------------------------------------------------------------------
+function liftPreview() {
+    return liftFunctions(RECONCILE, ['buildActionPreview', 'formatAdjustDeltaLabel'], {
+        getDraftAdjustmentSum: () => 0,
+    });
+}
+
+test('[preview] ปุ่ม Excel: ยอดจริง = Excel ใช้เทียบ · ไม่สร้างยอดปรับ · บอกชัดว่าผลนับไม่ถูกใช้', () => {
+    const f = liftPreview();
+    const pv = f.buildActionPreview('excel', { sku_id: 'BG001-1', book_qty: 278, adjustment_applied: 0, counted_qty: 197 }, 197);
+    assert.equal(pv.finalQty, 278, 'ปุ่มนี้บันทึกยอด Excel เป็นยอดจริง ไม่ใช่ผลนับ');
+    assert.equal(pv.adjustDelta, 0);
+    assert.equal(pv.upstreamFix, 0, 'Excel ถูกอยู่แล้ว = ไม่ต้องแก้ระบบต้นทาง');
+    assert.match(pv.note, /197/, 'ต้องเตือนว่าผลนับ 197 จะไม่ถูกใช้');
+    assert.match(pv.rows.map(r => r.join(' ')).join(' | '), /ยอดจริงที่ระบบจะบันทึก 278 ชิ้น/);
+});
+
+test('[preview] ปุ่มกรอก: ยอดจริง = ค่าที่กรอก · ยอดปรับ = กรอก − Excel ใช้เทียบ', () => {
+    const f = liftPreview();
+    const pv = f.buildActionPreview('typed', { sku_id: 'X', book_qty: 500, adjustment_applied: 0, counted_qty: 200 }, 450);
+    assert.equal(pv.finalQty, 450);
+    assert.equal(pv.adjustDelta, -50, 'Excel 500 → 450');
+    assert.equal(pv.upstreamFix, -50, 'ระบบต้นทางต้องตัดออก 50');
+    assert.equal(pv.writesAcceptance, true, 'กรอก 450 ≠ ผลนับ 200 ⇒ ต้องบันทึกคำยืนยันกำกับ');
+    assert.match(pv.note, /450/);
+    assert.match(pv.note, /200/);
+});
+
+test('[preview] ปุ่มกรอกเมื่อค่า = ผลนับ: ไม่ต้องบันทึกคำยืนยันเพิ่ม', () => {
+    const f = liftPreview();
+    const pv = f.buildActionPreview('typed', { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 }, 197);
+    assert.equal(pv.finalQty, 197);
+    assert.equal(pv.adjustDelta, -81);
+    assert.equal(pv.writesAcceptance, false);
+    assert.match(pv.note, /เท่ากับผลนับ/);
+});
+
+test('[preview] ยังไม่ใส่ยอด: ต้องไม่เดายอดจริงให้ (นโยบายข้อ 3)', () => {
+    const f = liftPreview();
+    const pv = f.buildActionPreview('typed', { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 }, null);
+    assert.equal(pv.finalQty, null);
+    assert.equal(pv.adjustDelta, null);
+    assert.equal(pv.writesAcceptance, false);
+});
+
+test('[ui] ปุ่ม "?" + โมดัลจำลองผลลัพธ์ต้องมีครบ และผูก listener แล้ว', () => {
+    assert.match(RECONCILE, /id="btnExplainExcel"/);
+    assert.match(RECONCILE, /id="btnExplainTyped"/);
+    assert.match(RECONCILE, /id="adjExplainModal"/);
+    assert.match(RECONCILE, /btnExplainExcel'\)\.addEventListener\('click', \(\) => renderAdjExplain\('excel'\)\)/);
+    assert.match(RECONCILE, /btnExplainTyped'\)\.addEventListener\('click', \(\) => renderAdjExplain\('typed'\)\)/);
+});
+
+test('[ui] ป้ายปุ่มใหม่: reset หลัง arm ต้องกลับมาเป็นป้ายที่มีตัวเลข (รันจริง)', () => {
+    const btnMark = fakeEl(), btnAccept = fakeEl({ innerHTML: 'กดอีกครั้งเพื่อ Apply (2/2)' });
+    btnAccept.classList.add('armed');
+    const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
+    const { fns, sandbox } = liftInto(RECONCILE, [
+        'resetAcceptApplyBtn', 'renderAdjActionButtons', 'resolveAdjButtonGuidance',
+        'getLineEffectiveBook', 'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
+    ], {
+        RS: { escapeHtml: v => String(v ?? '') },
+        selectedAdjLine: { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
         acceptApplyArmed: true, acceptApplyArmSku: 'X', acceptApplyArmTimer: null,
+        getDraftAdjustmentSum: () => 0,
+        ADJ_BTN_DEFAULT_MARK: 'mark', ADJ_BTN_DEFAULT_ACCEPT: 'accept',
         clearTimeout() {}, lucide: { createIcons() {} },
-        document: { getElementById: () => btn },
+        document: { getElementById: id => els[id] || fakeEl() },
     });
     fns.resetAcceptApplyBtn();
-    assert.match(btn.innerHTML, /ใช้ยอดที่กรอกเป็นยอดจริง \(Apply ทันที\)/, 'ป้ายหลัง reset ต้องตรง markup');
+    assert.equal(sandbox.acceptApplyArmed, false, 'ต้องปลดอาวุธ');
+    assert.ok(!btnAccept.classList.contains('armed'));
+    assert.match(btnAccept.innerHTML, /ใช้ยอดที่กรอก \(197\) เป็นยอดจริง/, 'ป้ายหลัง reset ต้องมีตัวเลขจริง');
+});
+
+test('[ui] ชื่อปุ่มต้องเป็นคู่ขนาน "ใช้ยอด X เป็นยอดจริง" และไม่เหลือชื่อเก่า', () => {
+    assert.match(RECONCILE, /ใช้ยอด Excel เป็นยอดจริง/, 'ปุ่ม Excel');
+    assert.match(RECONCILE, /ใช้ยอดที่กรอกเป็นยอดจริง/, 'ปุ่มกรอก');
+    assert.ok(!/ยืนยันว่ายอด Excel ถูกต้อง/.test(RECONCILE), 'ชื่อกลาง ๆ ที่ admin บอกว่ายังงงต้องหายไป');
+    assert.ok(!/ยอมรับผลนับ \(Apply ทันที\)/.test(RECONCILE.split('bulkAcceptModal')[0]), 'ชื่อเดิมในแผงต้องไม่กลับมา');
 });
 
 test('[ui] สรุปในแผง (รันจริง): บอกวิธีใช้แบบใหม่ + แถว "ยอดจริงที่ต้องการ"', () => {
@@ -200,8 +371,9 @@ test('[ui] สรุปในแผง (รันจริง): บอกวิ�
     const fns = liftFunctions(RECONCILE, [
         'renderAdjPanelSummary', 'computeDeltaFromTarget', 'getTargetAdjustmentValidation',
         'getLineEffectiveBook', 'getTotalAdjustment', 'formatAdjustDeltaLabel', 'parseAdjInput',
+        'resolveAdjButtonGuidance',
     ], {
-        RS: { normalizeSku: norm },
+        RS: { normalizeSku: norm, escapeHtml: v => String(v ?? '') },
         getDraftAdjustmentSum: () => 0,
         isLineAcceptedMatch: () => false,
         matchAcceptanceMap: new Map(),
@@ -209,12 +381,14 @@ test('[ui] สรุปในแผง (รันจริง): บอกวิ�
         resolveComputedStatus: () => 'short',
         computeDisplayVariance: l => Number(l.counted_qty) - Number(l.book_qty),
         canMarkAsMatchAccepted: () => true,
+        renderAdjActionButtons() {},
         document: { getElementById: id => els[id] || fakeEl() },
     });
     fns.renderAdjPanelSummary({ sku_id: 'PC999', book_qty: 500, adjustment_applied: 0, counted_qty: 200 });
     assert.match(hint.innerHTML, /ยอดจริงที่ต้องการ \(หลังปรับ\)/);
-    assert.match(hint.innerHTML, /ใช้ยอดที่กรอก = ปรับ Excel ใช้เทียบเป็นยอดนั้น/);
+    assert.match(hint.innerHTML, /ปุ่มที่มีกรอบแดง = ปุ่มที่ควรกด/, 'ต้องอธิบายความหมายของกรอบแดง/ปุ่มจาง');
     assert.match(hint.innerHTML, /ลด 50 ชิ้น/, 'กรอก 450 จาก Excel 500 ต้องบอก "ลด 50"');
+    assert.match(hint.innerHTML, /ต่างจาก Excel ใช้เทียบ 500/, 'ต้องบอกเหตุผลว่าทำไมชี้ปุ่มนั้น');
     // ป้ายแถวส่วนต่าง: คำว่า "ต้องปรับ Book" ทำให้ admin เข้าใจว่าระบบไปแก้ยอดในไฟล์ Excel
     // ทั้งที่จริงแค่ INSERT แถวใน stock_adjustments (book_qty ไม่เคยถูกเขียนทับ)
     assert.match(hint.innerHTML, /ส่วนต่างที่ต้องบันทึกปรับ/, 'ป้ายใหม่ต้องอยู่ในสรุป');

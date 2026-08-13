@@ -182,6 +182,9 @@
         .rc-btn-match-ok:hover { background: rgba(16,185,129,0.28); }
         .rc-adj-sum-row.add strong { color: #6ee7b7; }
         .rc-adj-sum-row.sub strong { color: #fca5a5; }
+        /* ป้ายยาว 2 บรรทัด — ตัวเลขต้องไม่ถูกบีบตกบรรทัดตาม */
+        .rc-adj-sum-row span small { display: block; font-size: 0.62rem; color: var(--text-muted); font-weight: 400; }
+        .rc-adj-sum-row.delta strong { white-space: nowrap; }
         .rc-adj-sum-note { margin-top: 0.35rem; font-size: 0.68rem; color: var(--text-muted); }
         .rc-adj-sum-warn {
             margin-top: 0.4rem; padding: 0.4rem 0.5rem; border-radius: 6px; font-size: 0.68rem;
@@ -1287,7 +1290,7 @@
             const validation = getTargetAdjustmentValidation(line, target, { allowZeroWhenMatchesBook: true });
             const computed = resolveComputedStatus(line);
             html += `
-            <div class="rc-adj-sum-row ${deltaClass}"><span>ต้องปรับ Book</span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
+            <div class="rc-adj-sum-row delta ${deltaClass}"><span>ส่วนต่างที่ต้องบันทึกปรับ<small>ไม่แก้ไฟล์ Excel</small></span><strong>${formatAdjustDeltaLabel(delta)}</strong></div>
             <div class="rc-adj-sum-total after${canMark ? ' clickable' : ''}"${canMark ? ' data-mark-match="1" title="คลิกเพื่อยืนยันว่ายอด Excel ถูกต้อง (ไม่ปรับยอด)"' : ''}><span>ยอดจริงที่ต้องการ (หลังปรับ)</span><strong>${target.toLocaleString()}</strong></div>`;
             if (!validation.ok && (computed === 'short' || computed === 'over')) {
                 html += `<div class="rc-adj-sum-warn">ยอดนี้เท่า Excel ใช้เทียบอยู่แล้ว — กด「ยืนยันว่ายอด Excel ถูกต้อง」หรือใส่ยอดจริงที่ต่างออกไป (ผลนับ = ${counted.toLocaleString()})</div>`;
@@ -2292,7 +2295,7 @@
                         `รวม Excel ใช้เทียบตอนนี้: ${effective.toLocaleString()} ชิ้น`,
                         `ผลนับ: ${countedQty.toLocaleString()} ชิ้น`,
                         `ยอดจริงที่ต้องการ: ${targetQty.toLocaleString()} ชิ้น`,
-                        `ต้องปรับ Book: ${formatAdjustDeltaLabel(adjAfterDraft)}`,
+                        `ส่วนต่างที่ต้องบันทึกปรับ (ไม่แก้ไฟล์ Excel): ${formatAdjustDeltaLabel(adjAfterDraft)}`,
                         'ไม่แก้ผลนับในฐานข้อมูล',
                         targetDiffersFromCounted
                             ? `ยอดที่กรอกต่างจากผลนับ ${countedQty.toLocaleString()} — ระบบจะบันทึกยืนยันว่า ${targetQty.toLocaleString()} คือยอดจริง`

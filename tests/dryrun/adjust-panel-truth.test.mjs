@@ -69,7 +69,7 @@ function liftAcceptFlow({ confirm = true } = {}) {
         reloadMatchData: async () => { calls.reload++; },
         renderDraftList() {}, renderKpis() {}, renderTable() {},
         selectAdjLine() {}, refreshAdjPanelChrome() {}, renderAdjPanelSummary() {},
-        uiConfirm: { twoStep: async () => { calls.confirms++; return confirm; } },
+        uiConfirm: { twoStep: async payload => { calls.confirms++; calls.confirmPayload = payload; return confirm; } },
         runOnce: async (k, fn) => fn(),
         showToast: (m, t) => toasts.push(`${t || 'success'}: ${m}`),
         document: { getElementById: id => els[id] || fakeEl() },
@@ -130,6 +130,12 @@ test('[flow] ไม่ skipConfirm: dialog ต้องเตือนว่า�
     assert.equal(g.calls.adjust, null);
     assert.equal(g.calls.acceptMatch, null);
     assert.equal(g.calls.reload, 0);
+
+    const bullets = g.calls.confirmPayload.step1.bullets.join(' | ');
+    assert.match(bullets, /ยอดที่กรอกต่างจากผลนับ 200/, 'dialog ต้องเตือนว่าต่างจากผลนับ: ' + bullets);
+    // ป้ายเดิม "ต้องปรับ Book" ทำ admin เข้าใจผิดว่าระบบไปแก้ไฟล์ Excel (สับสน 2 ครั้ง)
+    assert.match(bullets, /ส่วนต่างที่ต้องบันทึกปรับ \(ไม่แก้ไฟล์ Excel\): ลด 50 ชิ้น/, bullets);
+    assert.ok(!/ต้องปรับ Book/.test(bullets), 'ห้ามใช้คำว่า "ต้องปรับ Book" อีก');
 });
 
 // -----------------------------------------------------------------------------
@@ -209,4 +215,13 @@ test('[ui] สรุปในแผง (รันจริง): บอกวิ�
     assert.match(hint.innerHTML, /ยอดจริงที่ต้องการ \(หลังปรับ\)/);
     assert.match(hint.innerHTML, /ใช้ยอดที่กรอก = ปรับ Excel ใช้เทียบเป็นยอดนั้น/);
     assert.match(hint.innerHTML, /ลด 50 ชิ้น/, 'กรอก 450 จาก Excel 500 ต้องบอก "ลด 50"');
+    // ป้ายแถวส่วนต่าง: คำว่า "ต้องปรับ Book" ทำให้ admin เข้าใจว่าระบบไปแก้ยอดในไฟล์ Excel
+    // ทั้งที่จริงแค่ INSERT แถวใน stock_adjustments (book_qty ไม่เคยถูกเขียนทับ)
+    assert.match(hint.innerHTML, /ส่วนต่างที่ต้องบันทึกปรับ/, 'ป้ายใหม่ต้องอยู่ในสรุป');
+    assert.match(hint.innerHTML, /<small>ไม่แก้ไฟล์ Excel<\/small>/, 'ต้องมีบรรทัดกำกับว่าไม่แตะไฟล์ Excel');
+    assert.ok(!/ต้องปรับ Book/.test(hint.innerHTML), 'ห้ามใช้คำว่า "ต้องปรับ Book" อีก');
+});
+
+test('[ui] ทั้งไฟล์ต้องไม่เหลือคำว่า "ต้องปรับ Book" (ป้ายที่ทำให้เข้าใจผิดมาแล้ว 2 ครั้ง)', () => {
+    assert.ok(!/ต้องปรับ Book/.test(RECONCILE), 'ยังมีคำเดิมค้างอยู่ในหน้า');
 });

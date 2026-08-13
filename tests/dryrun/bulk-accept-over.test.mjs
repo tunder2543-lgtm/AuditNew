@@ -14,6 +14,8 @@ import { liftFunctions } from '../helpers/lift.mjs';
 suite('ยอมรับเกินเป็นชุด + ประวัติ/คืนค่า (reconcile)');
 
 const RECONCILE = fs.readFileSync(path.join(PROJECT_ROOT, 'Html', 'reconcile.html'), 'utf8');
+// buildAdjustHistoryEntries ย้ายไป shared แล้ว (หน้า adjust_history.html ใช้ตัวเดียวกัน)
+const RECONCILE_SHARED = fs.readFileSync(path.join(PROJECT_ROOT, 'Js', 'reconcile-shared.js'), 'utf8');
 const norm = v => String(v ?? '').trim().toUpperCase();
 
 const line = o => ({ sku_id: 'X', book_qty: 0, adjustment_applied: 0, counted_qty: 0, ...o });
@@ -187,7 +189,7 @@ test('[flow] มี Draft ค้างอยู่ = บล็อกทั้ง
 // ประวัติ + คืนค่า
 // -----------------------------------------------------------------------------
 test('ประวัติรวมยอดปรับ + การยืนยัน เรียงใหม่ → เก่า', () => {
-    const f = liftFunctions(RECONCILE, ['buildAdjustHistoryEntries'], {});
+    const f = liftFunctions(RECONCILE_SHARED, ['buildAdjustHistoryEntries'], {});
     const out = f.buildAdjustHistoryEntries(
         [
             { sku_id: 'A1', adjustment_qty: 3, status: 'applied', note: 'ยอมรับผลนับ', created_by: 'BAM', created_at: '2026-08-11T05:00:00Z', applied_at: '2026-08-11T05:01:00Z' },

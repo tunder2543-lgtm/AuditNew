@@ -39,6 +39,7 @@ Static HTML + vanilla JS + Supabase (UI ภาษาไทย) — ไม่ม�
 | `Html/count_search.html` | [docs/pages/count_search.md](docs/pages/count_search.md) | ค้นหาผลนับย้อนหลัง (อ่านอย่างเดียว) |
 | `Html/audit_check.html` | [docs/pages/audit_check.md](docs/pages/audit_check.md) | ตรวจคุณภาพข้อมูล + bulk แก้/ลบ (หน้าเสี่ยงสูงสุด) |
 | `Html/reconcile.html` | [docs/pages/reconcile.md](docs/pages/reconcile.md) | Match ยอด BOOK vs ผลนับ + ปรับยอด (รวม reconcile-shared.js) |
+| `Html/adjust_history.html` | [docs/pages/adjust_history.md](docs/pages/adjust_history.md) | ประวัติการปรับ/ยืนยันของรอบ — ค้นหา/กรอง/เรียง/Export/คืนค่า |
 | `Html/cycle_config.html` | [docs/pages/cycle_config.md](docs/pages/cycle_config.md) | สร้างรอบนับ + อัปโหลด BOOK + ผูกผลนับ |
 | `Html/book_explorer.html` | [docs/pages/book_explorer.md](docs/pages/book_explorer.md) | ดู BOOK (อ่านอย่างเดียว) |
 | `Html/dashboard.html` | [docs/pages/dashboard.md](docs/pages/dashboard.md) | สรุปภาพรวม 2 แท็บ (ความเร็วนับ / Match) |
@@ -150,4 +151,11 @@ node tests/run.mjs
 - ✅ **reconcile: "ยอมรับเกิน/ขาด (Apply เป็นชุด)" + "ประวัติ / คืนค่า"** (2026-08-11 ค่ำ): เลือกรายการตามเพดานค่าต่าง (เกิน +1..+N · ขาด −1..−N ใช้ `selectRowsForBulkAccept(mode)` ตัวเดียว · ปุ่มโผล่เฉพาะโหมดตัวเอง) → ดูรายการ/Export → ยืนยัน 2 ขั้น → batch create + `applyAllDraftsForCycle` (refresh ครั้งเดียว) · โมดัลประวัติดึงสดจาก DB คืนค่าผ่าน `clearAdjustmentsAndMatchAcceptancesForSkus` (H6) แล้ว `runRefresh()` เต็ม · **เทส 418 PASS**
   - ⛔ **`apply_all_drafts_for_cycle` Apply ทุก draft ของรอบ** — flow แบบชุดต้องบล็อกเมื่อมี draft ค้าง ไม่งั้นพ่วง draft ที่ไม่เกี่ยวไปด้วย (มีเทสบังคับ)
   - ⚠️ **คืนค่า = ต่อ SKU ทั้งการตัดสิน** (ยอดปรับ+การยืนยันของ SKU นั้นในรอบ) ไม่ใช่ต่อรายการ log — ผลนับไม่ถูกแตะ · เขียน `RECONCILE_ADJ_CLEAR` ก่อนลบเสมอ
+- ✅ **หน้าใหม่ "ประวัติการปรับ / ยืนยัน"** (2026-08-13): แยก modal เดิมของ reconcile ออกเป็นหน้าเต็ม [`Html/adjust_history.html`](docs/pages/adjust_history.md) — ค้นหา SKU · กรอง 5 เกณฑ์ (ประเภท/SKU/รายละเอียด/ช่วงวัน/ช่วงจำนวน) · เรียง 4 คอลัมน์ · Export Excel+CSV · คืนค่า · หน้าเว็บ 11 → **12** · **เทส 459 PASS / 0 FAIL** (baseline 425) · **mutation 6 แบบแดงครบ 6**
+  - modal เดิมใน reconcile **คงไว้ทั้งหมด** เพิ่มแค่ปุ่ม "เปิดหน้าเต็ม" (`?cycle=<id>`) — ไม่แตะของเดิม = ไม่เสี่ยงกับปุ่มคืนค่าที่ใช้อยู่
+  - ⛔ `buildAdjustHistoryEntries` ย้ายจาก inline ใน `reconcile.html` ขึ้น `Js/reconcile-shared.js` — **ห้ามคัดลอกกลับไปไว้ในหน้า** (บทเรียน M34 / M8) · เพิ่ม field ดิบ `qty` / `status` / `note` ให้ filter/sort ใช้ โดย `detail` ยังคำนวณจาก field เดิม ⇒ ข้อความบน 2 หน้าจอตรงกันเป๊ะ
+  - ⚠️ **`now instanceof Date` ใช้ข้าม realm ไม่ได้** — Date จาก vm ของเทส (หรือ iframe) ไม่ผ่าน instanceof แล้ว **เงียบ ๆ ตกไปใช้เวลาปัจจุบัน** แทนค่าที่ส่งมา · เทสจับได้ตอนแรก ⇒ ใช้ `new Date(now)` แทน (เจอ cross-realm เป็นครั้งที่ 3 ต่อจาก `deepStrictEqual`)
+  - ⚠️ **หน้าที่มี filter + ปุ่มลบ/คืนค่า = ความเสี่ยงใหม่ที่ modal เดิมไม่มี** — "เลือกทั้งหมด" ต้องเลือกเฉพาะแถวที่เห็นหลังกรอง และเปลี่ยน filter/sort/รอบต้องล้าง selection ทิ้ง ไม่งั้นกดคืนค่า SKU ที่มองไม่เห็น · selection เก็บเป็น `Set` ไม่ใช่อ่านจาก DOM ตอนกด (render ใหม่แล้ว checkbox หาย)
+  - ⚠️ ชื่อไฟล์ Export ต้อง sanitize `\ / : * ? " < > |` — รอบหลายคลังเก็บ warehouse เป็น `"A|B"` ซึ่งเป็นอักขระต้องห้ามบน Windows พอดี
+  - smoke จริงบนข้อมูลรอบ 2026-08: 656 รายการ / 624 SKU · filter/sort/deep-link/selection-guard ผ่าน · modal เดิมยังให้ผลเหมือนเดิมเป๊ะ (656 แถว ข้อความตรงกัน)
 - ⏳ **รอ admin เลือกหัวข้อถัดไปใน [docs/ISSUES.md](docs/ISSUES.md)** — สถานะรายข้อดู [docs/FIX_TRACKING.md](docs/FIX_TRACKING.md)

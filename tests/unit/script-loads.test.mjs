@@ -33,6 +33,7 @@ const PROVIDERS = {
     warehouseService: 'warehouses-shared.js',
     reconcileService: 'reconcile-shared.js',
     countScanService: 'count-scan-shared.js',
+    adjustHistoryService: 'adjust-history-shared.js',
     apiService: 'api.js',
     dashboardShared: 'dashboard-shared.js',
     sidebarShared: 'sidebar-shared.js',

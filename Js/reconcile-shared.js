@@ -3215,6 +3215,53 @@
 
 
 
+    /**
+     * รวม "ยอดปรับ" + "การยืนยันเป็นถูกต้อง" ของรอบ เป็นรายการเดียว เรียงใหม่ → เก่า
+     *
+     * ⚠️ ห้ามคัดลอกตรรกะนี้ไปไว้ในหน้า HTML — เดิมเคยเป็น inline ใน reconcile.html
+     * แล้วหน้า adjust_history ต้องใช้ด้วย ⇒ ยกขึ้นมาที่เดียว (บทเรียนเดียวกับ M34 / M8)
+     * `detail` คำนวณจาก field ดิบในนี้เสมอ เพื่อให้ข้อความบนทุกหน้าจอตรงกันเป๊ะ
+     *
+     * @param {Array} adjustments แถวจาก stock_adjustments
+     * @param {Map}   acceptanceMap ผลจาก fetchMatchAcceptanceMap
+     * @returns {Array<{type:string,sku:string,qty:number|null,status:string|null,note:string,detail:string,by:string,at:string|null}>}
+     */
+    function buildAdjustHistoryEntries(adjustments, acceptanceMap) {
+        const out = [];
+        (adjustments || []).forEach(a => {
+            const qty = Number(a.adjustment_qty);
+            const status = a.status === 'draft' ? 'draft' : 'applied';
+            const note = a.note || a.reason || '';
+            out.push({
+                type: 'adj',
+                sku: a.sku_id,
+                qty: Number.isFinite(qty) ? qty : null,
+                status,
+                note,
+                detail: `${qty > 0 ? '+' : ''}${qty} (${status})${note ? ` — ${note}` : ''}`,
+                by: a.created_by || '',
+                at: a.applied_at || a.created_at || null
+            });
+        });
+        if (acceptanceMap) {
+            for (const [sku, r] of acceptanceMap) {
+                const note = r.note || '';
+                out.push({
+                    type: 'ack',
+                    sku,
+                    qty: null,
+                    status: null,
+                    note,
+                    detail: `ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)${note ? ` — ${note}` : ''}`,
+                    by: r.accepted_by || '',
+                    at: r.accepted_at || null
+                });
+            }
+        }
+        out.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
+        return out;
+    }
+
     window.reconcileService = {
 
         ACTIVE_CYCLE_KEY,
@@ -3232,6 +3279,10 @@
         yearMonthToRangeISO,
 
         isoToBangkokYmd,
+
+        dateToBangkokStartISO,
+
+        dateToBangkokEndExclusiveISO,
 
         isAllWarehousesCycle,
 
@@ -3364,6 +3415,8 @@
         acceptCountedQtyAsMatch,
 
         fetchMatchAcceptanceMap,
+
+        buildAdjustHistoryEntries,
 
         acceptReconciliationAsMatch,
 

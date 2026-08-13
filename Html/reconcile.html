@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Match ยอด — Stock Audit</title>
     <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="../Css/style.css?v=20260811b">
+    <link rel="stylesheet" href="../Css/style.css?v=20260813a">
     <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260810a">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -314,26 +314,73 @@
         .rc-main { min-width: 0; display: flex; flex-direction: column; }
 
         .rc-table-head {
-            padding: 0.85rem 1.15rem 0.5rem; display: flex; flex-wrap: wrap;
-            align-items: center; gap: 0.65rem; justify-content: space-between;
+            padding: 0.85rem 1.15rem 0.55rem; display: flex; flex-wrap: wrap;
+            align-items: center; gap: 0.55rem 0.9rem; justify-content: space-between;
         }
-        .rc-table-head-title { font-family: 'Kanit', sans-serif; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem; }
+        .rc-table-head-title {
+            font-family: 'Kanit', sans-serif; font-size: 0.92rem;
+            display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;
+        }
+
+        /* แถบตัวกรองอินไลน์ — เห็นทุกช่องพร้อมกันในแถวเดียว ไม่ต้องกดเปิดก่อน */
+        .rc-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin-left: auto; }
+        .rc-field { position: relative; display: flex; align-items: center; }
+        .rc-field > svg {
+            position: absolute; left: 0.58rem; width: 14px; height: 14px;
+            color: var(--text-muted); pointer-events: none;
+        }
+        .rc-field input, .rc-field select {
+            padding: 0.42rem 0.65rem 0.42rem 1.95rem; border-radius: 9px; font-size: 0.8rem;
+            border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+            font-family: 'Kanit', sans-serif;
+            transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+        }
+        .rc-field input { width: 150px; }
+        .rc-field select { width: 178px; cursor: pointer; appearance: none; padding-right: 1.5rem; }
+        .rc-field-select::after {
+            content: ''; position: absolute; right: 0.72rem; width: 5px; height: 5px;
+            border-right: 1.5px solid var(--text-muted); border-bottom: 1.5px solid var(--text-muted);
+            transform: rotate(45deg) translateY(-2px); pointer-events: none;
+        }
+        .rc-field input:focus, .rc-field select:focus {
+            outline: none; border-color: rgba(96,165,250,0.65);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+        }
+        /* ช่องที่มีค่า = เน้นให้เห็นว่ากำลังกรองอยู่ (CSS ล้วน ไม่พึ่ง JS) */
+        .rc-field input:not(:placeholder-shown) {
+            border-color: rgba(96,165,250,0.5); background: rgba(59,130,246,0.1);
+        }
+        .rc-field select:not(:has(option[value=""]:checked)) {
+            border-color: rgba(96,165,250,0.5); background: rgba(59,130,246,0.1);
+        }
+        .rc-field:has(input:not(:placeholder-shown)) > svg,
+        .rc-field:has(select:not(:has(option[value=""]:checked))) > svg { color: #93c5fd; }
+
+        .rc-btn-clear {
+            display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer;
+            padding: 0.42rem 0.7rem; border-radius: 9px; font-size: 0.78rem;
+            font-family: 'Kanit', sans-serif; white-space: nowrap;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.03);
+            color: var(--text-muted);
+        }
+        .rc-btn-clear:hover { border-color: rgba(248,113,113,0.45); background: rgba(239,68,68,0.12); color: #fca5a5; }
+        .rc-btn-clear svg { width: 13px; height: 13px; }
 
         .rc-filter-bar {
             padding: 0 1.15rem 0.75rem; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
         }
-        .rc-filter-bar select, .rc-filter-bar input {
-            padding: 0.38rem 0.65rem; border-radius: 8px; font-size: 0.82rem;
-            border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+        .rc-count-badge {
+            font-size: 0.75rem; color: var(--text-muted);
+            padding: 0.2rem 0.6rem; border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.04);
         }
-        .rc-filter-bar input[type="text"] { min-width: 140px; }
 
-        .rc-adv-panel {
-            display: none; padding: 0.85rem 1.15rem; background: rgba(255,255,255,0.02);
-            border-top: 1px solid rgba(255,255,255,0.06); border-bottom: 1px solid rgba(255,255,255,0.06);
+        @media (max-width: 760px) {
+            .rc-tools { width: 100%; margin-left: 0; }
+            .rc-field { flex: 1 1 46%; }
+            .rc-field input, .rc-field select { width: 100%; }
+            .rc-btn-clear { flex: 1 1 100%; justify-content: center; }
         }
-        .rc-adv-panel.show { display: block; }
-        .rc-adv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.65rem; }
 
         .rc-table-wrap { overflow: auto; max-height: 520px; }
         .rc-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
@@ -574,26 +621,19 @@
                     <div class="rc-main">
                         <div class="rc-table-head">
                             <div class="rc-table-head-title"><i data-lucide="table" style="width:16px;"></i> รายการ Match</div>
-                            <button type="button" class="rc-btn rc-btn-ghost rc-btn-sm" id="btnAdvFilter">
-                                <i data-lucide="search"></i> ค้นหาพิเศษ
-                                <i data-lucide="chevron-down" id="advChevron" style="width:14px;transition:transform 0.2s;"></i>
-                            </button>
-                        </div>
-
-                        <div class="rc-adv-panel" id="advPanel">
-                            <div class="rc-adv-grid">
-                                <div class="rc-form-group" style="margin:0;">
-                                    <label>SKU</label>
-                                    <input type="text" id="filterSku" placeholder="ค้นหา SKU...">
+                            <div class="rc-tools">
+                                <div class="rc-field">
+                                    <i data-lucide="search"></i>
+                                    <input type="text" id="filterSku" placeholder="ค้นหา SKU" aria-label="ค้นหา SKU" title="ค้นหา SKU">
                                 </div>
-                                <div class="rc-form-group" style="margin:0;">
-                                    <label>ชื่อสินค้า</label>
-                                    <input type="text" id="filterName" placeholder="ค้นหาชื่อ...">
+                                <div class="rc-field">
+                                    <i data-lucide="tag"></i>
+                                    <input type="text" id="filterName" placeholder="ค้นหาชื่อสินค้า" aria-label="ค้นหาชื่อสินค้า" title="ค้นหาชื่อสินค้า">
                                 </div>
-                                <div class="rc-form-group" style="margin:0;">
-                                    <label>สถานะ</label>
-                                    <select id="filterStatus">
-                                        <option value="">ทั้งหมด</option>
+                                <div class="rc-field rc-field-select">
+                                    <i data-lucide="filter"></i>
+                                    <select id="filterStatus" aria-label="กรองตามสถานะ" title="กรองตามสถานะ">
+                                        <option value="">ทุกสถานะ</option>
                                         <option value="match">✓ ถูกต้อง</option>
                                         <option value="short">↓ ขาด</option>
                                         <option value="over">↑ เกิน</option>
@@ -602,16 +642,14 @@
                                         <option value="book_only">ยังไม่ได้นับ</option>
                                     </select>
                                 </div>
-                                <div class="rc-form-group" style="margin:0;display:flex;align-items:flex-end;">
-                                    <button type="button" class="rc-btn rc-btn-danger rc-btn-sm" id="btnClearFilters" style="width:100%;justify-content:center;">
-                                        <i data-lucide="rotate-ccw"></i> ล้างตัวกรอง
-                                    </button>
-                                </div>
+                                <button type="button" class="rc-btn-clear" id="btnClearFilters" title="ล้างตัวกรองทั้งหมด (SKU / ชื่อ / สถานะ / โหมดขาด-เกิน)">
+                                    <i data-lucide="rotate-ccw"></i> ล้างตัวกรอง
+                                </button>
                             </div>
                         </div>
 
                         <div class="rc-filter-bar">
-                            <span id="filterCount" style="font-size:0.78rem;color:var(--text-muted);"></span>
+                            <span id="filterCount" class="rc-count-badge"></span>
                             <button type="button" class="rc-btn rc-btn-green rc-btn-sm" id="btnBulkAddBook" style="display:none;margin-left:auto;">
                                 <i data-lucide="book-plus"></i> <span id="btnBulkAddBookLabel">สร้างลง Book ทั้งหมด</span>
                             </button>
@@ -690,6 +728,7 @@
         </div>
         <div class="rc-modal-actions">
             <button type="button" class="rc-btn rc-btn-ghost" id="btnAdjHistoryClose">ปิด</button>
+            <a class="rc-btn rc-btn-ghost" id="linkAdjHistoryFull" href="adjust_history.html" target="_blank" rel="noopener" title="เปิดหน้าเต็ม — ค้นหา SKU, กรอง, เรียง, Export Excel/CSV"><i data-lucide="external-link"></i> เปิดหน้าเต็ม</a>
             <button type="button" class="rc-btn rc-btn-warn" id="btnHistoryRestoreSelected" disabled><i data-lucide="undo-2"></i> คืนค่าที่เลือก (<span id="adjHistorySelCount">0</span>)</button>
         </div>
     </div>
@@ -705,12 +744,12 @@
 </div>
 <div class="toast-container" id="toastContainer"></div>
 
-<script src="../Js/sidebar-shared.js?v=20260811b"></script>
+<script src="../Js/sidebar-shared.js?v=20260813a"></script>
 <script src="../Js/api.js?v=20260809k"></script>
 <script src="../Js/sku-utils.js?v=20260809k"></script>
 <script src="../Js/settings-shared.js?v=20260809k"></script>
-<script src="../Js/count-scan-shared.js?v=20260811g"></script>
-<script src="../Js/reconcile-shared.js?v=20260811g"></script>
+<script src="../Js/count-scan-shared.js?v=20260813a"></script>
+<script src="../Js/reconcile-shared.js?v=20260813a"></script>
 <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
 <script>
     lucide.createIcons();
@@ -726,7 +765,6 @@
     let activeStatusFilter = '';
     let adjustViewMode = 'all';
     let selectedAdjLine = null;
-    let advFilterOpen = false;
     let bookSkuSet = new Set();
     /** SKU ที่ยืนยันเป็นถูกต้องแล้ว (ไม่ปรับยอด) */
     let matchAcceptanceMap = new Map();
@@ -2670,31 +2708,8 @@
 
     /* ── ประวัติการปรับ + คืนค่า ─────────────────────────────────────────── */
 
-    /** รวมยอดปรับ + การยืนยันของรอบ เป็นรายการเดียว เรียงใหม่ → เก่า */
-    function buildAdjustHistoryEntries(adjustments, acceptanceMap) {
-        const out = [];
-        (adjustments || []).forEach(a => out.push({
-            type: 'adj',
-            sku: a.sku_id,
-            detail: `${Number(a.adjustment_qty) > 0 ? '+' : ''}${Number(a.adjustment_qty)} ` +
-                `(${a.status === 'draft' ? 'draft' : 'applied'})${a.note ? ` — ${a.note}` : (a.reason ? ` — ${a.reason}` : '')}`,
-            by: a.created_by || '',
-            at: a.applied_at || a.created_at || null
-        }));
-        if (acceptanceMap) {
-            for (const [sku, r] of acceptanceMap) {
-                out.push({
-                    type: 'ack',
-                    sku,
-                    detail: `ยืนยันเป็นถูกต้อง (ไม่ปรับยอด)${r.note ? ` — ${r.note}` : ''}`,
-                    by: r.accepted_by || '',
-                    at: r.accepted_at || null
-                });
-            }
-        }
-        out.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
-        return out;
-    }
+    // ตัวรวมรายการย้ายไป Js/reconcile-shared.js (RS.buildAdjustHistoryEntries) แล้ว
+    // เพราะหน้า adjust_history.html ต้องใช้ตัวเดียวกัน — กติกาต้องอยู่ที่เดียว (บทเรียน M34 / M8)
 
     function fmtHistoryDt(iso) {
         if (!iso) return '—';
@@ -2712,6 +2727,9 @@
         if (!currentCycle?.id) return showToast('เลือกรอบก่อน', 'error');
         document.getElementById('adjHistoryCycleLabel').textContent =
             `${RS.formatWarehouseDisplay?.(currentCycle.warehouse) || currentCycle.warehouse} · ${currentCycle.year_month}`;
+        // พาไปหน้าเต็มที่รอบเดียวกัน — ตั้ง href ผ่าน property ไม่ใช่ต่อสตริงเข้า HTML
+        document.getElementById('linkAdjHistoryFull').href =
+            'adjust_history.html?cycle=' + encodeURIComponent(currentCycle.id);
         document.getElementById('adjHistoryModal').classList.add('active');
         const body = document.getElementById('adjHistoryList');
         body.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:1rem;color:var(--text-muted);">กำลังโหลด...</td></tr>';
@@ -2721,7 +2739,7 @@
                 RS.fetchAdjustments(currentCycle.id),
                 RS.fetchMatchAcceptanceMap(currentCycle.id)
             ]);
-            const entries = buildAdjustHistoryEntries(adjustments, ackMap);
+            const entries = RS.buildAdjustHistoryEntries(adjustments, ackMap);
             body.innerHTML = entries.map(e =>
                 `<tr><td><input type="checkbox" class="adj-history-cb" data-sku="${RS.escapeHtml(e.sku)}"></td>` +
                 `<td>${e.type === 'adj' ? 'ยอดปรับ' : 'ยืนยันถูกต้อง'}</td>` +
@@ -2803,12 +2821,6 @@
     document.getElementById('filterSku').addEventListener('input', () => { renderTable(); });
     document.getElementById('filterName').addEventListener('input', () => { renderTable(); });
     document.getElementById('btnBulkAddBook').addEventListener('click', bulkAddBookLines);
-
-    document.getElementById('btnAdvFilter').addEventListener('click', () => {
-        advFilterOpen = !advFilterOpen;
-        document.getElementById('advPanel').classList.toggle('show', advFilterOpen);
-        document.getElementById('advChevron').style.transform = advFilterOpen ? 'rotate(180deg)' : '';
-    });
 
     document.getElementById('btnClearFilters').addEventListener('click', () => {
         document.getElementById('filterSku').value = '';

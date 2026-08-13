@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ประวัติการปรับ / ยืนยัน — Stock Audit</title>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../Css/style.css?v=20260813a">
+    <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260810a">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .ah-page { max-width: 1360px; width: 100%; display: flex; flex-direction: column; gap: 1.25rem; }
+        .ah-page .dashboard-header { align-items: flex-start; gap: 0.75rem; }
+        .ah-page .connection-badge {
+            padding: 0.22rem 0.55rem; font-size: 0.68rem; font-weight: 500; gap: 0.28rem; flex-shrink: 0;
+        }
+        .ah-page .connection-badge svg { width: 11px; height: 11px; }
+        .ah-panel {
+            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .ah-toolbar {
+            display: flex; flex-wrap: wrap; gap: 0.7rem; align-items: flex-end;
+            padding: 1rem 1.15rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+            background:
+                radial-gradient(at 0% 0%, rgba(59,130,246,0.07) 0, transparent 45%),
+                rgba(8,10,14,0.42);
+        }
+        .ah-toolbar + .ah-toolbar { background: rgba(8,10,14,0.28); }
+        .ah-field { display: flex; flex-direction: column; gap: 0.32rem; min-width: 140px; flex: 0 0 auto; }
+        .ah-field label {
+            font-size: 0.7rem; color: #9ca3af; letter-spacing: 0.03em;
+            text-transform: uppercase; line-height: 1;
+        }
+        .ah-field input, .ah-field select { height: 40px; box-sizing: border-box; }
+        .ah-field input, .ah-field select {
+            padding: 0 0.75rem; border-radius: 10px; font-size: 0.85rem;
+            border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text);
+            transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+        }
+        .ah-field input:focus, .ah-field select:focus {
+            outline: none; border-color: rgba(96,165,250,0.9);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.17); background: rgba(10,12,18,0.95);
+        }
+        .ah-field-grow { flex: 1 1 170px; min-width: 150px; }
+        .ah-field-cycle { flex: 1 1 340px; min-width: 240px; }
+        .ah-qty-row { display: flex; align-items: center; gap: 0.35rem; }
+        .ah-qty-row input { width: 78px; text-align: right; }
+        .ah-qty-row span { color: var(--text-muted); font-size: 0.8rem; }
+        .ah-btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+            height: 40px; padding: 0 1.05rem; border-radius: 10px; border: none;
+            font-size: 0.85rem; font-family: 'Kanit', sans-serif; font-weight: 500; cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
+            white-space: nowrap; flex: 0 0 auto;
+        }
+        .ah-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,0.24); }
+        .ah-btn:active:not(:disabled) { transform: translateY(0); }
+        .ah-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+        .ah-btn-primary { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: #fff; }
+        .ah-btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid rgba(255,255,255,0.14); }
+        .ah-btn-warn { background: linear-gradient(135deg, #b45309, #f59e0b); color: #fff; }
+        .ah-btn svg { width: 15px; height: 15px; }
+        .ah-summary {
+            padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--text-muted);
+            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.12);
+            display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; align-items: center;
+        }
+        .ah-summary strong { color: #93c5fd; font-variant-numeric: tabular-nums; }
+        .ah-table-wrap { overflow: auto; max-height: 620px; }
+        .ah-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        .ah-table th {
+            position: sticky; top: 0; background: #1e293b; text-align: left; white-space: nowrap;
+            padding: 0.55rem 0.75rem; color: #e2e8f0; border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .ah-table th.ah-sortable { cursor: pointer; user-select: none; }
+        .ah-table th.ah-sortable:hover { background: #27364d; }
+        .ah-sort-mark { color: #60a5fa; font-size: 0.7rem; margin-left: 0.25rem; }
+        .ah-table td { padding: 0.48rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .ah-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
+        .ah-sku { font-family: ui-monospace, monospace; color: #e0f2fe; }
+        .ah-num { text-align: right; font-variant-numeric: tabular-nums; }
+        .ah-pos { color: #4ade80; }
+        .ah-neg { color: #f87171; }
+        .ah-detail { white-space: normal; max-width: 360px; }
+        .ah-tag {
+            display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px;
+            font-size: 0.7rem; white-space: nowrap;
+        }
+        .ah-tag-adj { background: rgba(59,130,246,0.16); color: #93c5fd; border: 1px solid rgba(147,197,253,0.3); }
+        .ah-tag-ack { background: rgba(34,197,94,0.14); color: #86efac; border: 1px solid rgba(134,239,172,0.3); }
+        .ah-tag-draft { background: rgba(148,163,184,0.16); color: #cbd5e1; border: 1px solid rgba(203,213,225,0.28); }
+        .ah-empty { text-align: center; padding: 2rem; color: var(--text-muted); }
+        .ah-loading {
+            position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
+            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+        }
+        .ah-loading.active { display: flex; }
+        .ah-loading-box {
+            width: min(360px, calc(100vw - 2rem)); padding: 1.35rem 1.4rem 1.2rem; border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: linear-gradient(165deg, rgba(24,24,27,0.98) 0%, rgba(15,15,18,0.99) 100%);
+            box-shadow: 0 24px 48px rgba(0,0,0,0.45); text-align: center;
+        }
+        .ah-loading-spinner {
+            width: 42px; height: 42px; margin: 0 auto 0.85rem;
+            border: 3px solid rgba(255,255,255,0.12); border-top-color: #60a5fa;
+            border-radius: 50%; animation: ahSpin 0.85s linear infinite;
+        }
+        @keyframes ahSpin { to { transform: rotate(360deg); } }
+        .ah-loading-title {
+            margin: 0 0 0.35rem; font-family: 'Kanit', sans-serif; font-size: 1.05rem;
+            font-weight: 500; color: #f8fafc;
+        }
+        .ah-loading-status { margin: 0; font-size: 0.8rem; color: var(--text-muted); line-height: 1.45; }
+        @media (max-width: 900px) {
+            .ah-field, .ah-field-grow { min-width: calc(50% - 0.7rem); flex: 1 1 calc(50% - 0.7rem); }
+            .ah-field-cycle { min-width: 100%; flex: 1 1 100%; }
+            .ah-btn { flex: 1 1 calc(50% - 0.7rem); }
+        }
+        @media (max-width: 480px) {
+            .ah-field, .ah-field-grow, .ah-btn { min-width: 100%; flex: 1 1 100%; }
+        }
+    </style>
+</head>
+<body class="has-sidebar">
+<div class="app-layout">
+    <aside class="sidebar" id="appSidebar" data-active-page="adjust_history" aria-label="เมนูหลัก"></aside>
+    <main class="main-area">
+        <div class="ah-page dashboard-container">
+            <header class="dashboard-header" style="border:none;padding:0;background:transparent;">
+                <div class="header-content" style="align-items:flex-start;text-align:left;">
+                    <h1 style="font-family:'Kanit',sans-serif;font-size:1.65rem;">ประวัติการปรับ / ยืนยัน</h1>
+                    <p style="font-size:0.85rem;color:var(--text-muted);margin:0.2rem 0 0;">
+                        การตัดสินทั้งหมดของรอบ — ยอดปรับ (<code>stock_adjustments</code>)
+                        และการยืนยันว่าถูกต้อง (<code>reconciliation_match_acceptances</code>) · ผลนับไม่ถูกแตะ
+                    </p>
+                </div>
+                <div id="connectionBadge" data-connection-badge class="connection-badge badge-disconnected connection-badge-status">
+                    <i data-lucide="wifi-off" data-badge-icon></i><span data-badge-text>ไม่ได้เชื่อมต่อ</span>
+                </div>
+            </header>
+
+            <section class="ah-panel">
+                <div class="ah-toolbar">
+                    <div class="ah-field ah-field-cycle">
+                        <label for="cycleSelect">รอบนับ</label>
+                        <select id="cycleSelect"><option value="">— กำลังโหลด —</option></select>
+                    </div>
+                    <button type="button" class="ah-btn ah-btn-primary" id="btnReload">
+                        <i data-lucide="refresh-cw"></i> โหลดใหม่
+                    </button>
+                    <button type="button" class="ah-btn ah-btn-ghost" id="btnExportXlsx" disabled>
+                        <i data-lucide="file-spreadsheet"></i> Export Excel
+                    </button>
+                    <button type="button" class="ah-btn ah-btn-ghost" id="btnExportCsv" disabled>
+                        <i data-lucide="file-text"></i> Export CSV
+                    </button>
+                    <button type="button" class="ah-btn ah-btn-warn" id="btnRestore" disabled>
+                        <i data-lucide="undo-2"></i> คืนค่าที่เลือก (<span id="selCount">0</span>)
+                    </button>
+                </div>
+
+                <div class="ah-toolbar">
+                    <div class="ah-field">
+                        <label for="fType">ประเภท</label>
+                        <select id="fType">
+                            <option value="">ทั้งหมด</option>
+                            <option value="adj">ยอดปรับ</option>
+                            <option value="adj:applied">ยอดปรับ — ปรับแล้ว</option>
+                            <option value="adj:draft">ยอดปรับ — ร่าง</option>
+                            <option value="ack">ยืนยันถูกต้อง</option>
+                        </select>
+                    </div>
+                    <div class="ah-field ah-field-grow">
+                        <label for="fSku">SKU</label>
+                        <input type="text" id="fSku" placeholder="เช่น PK089, RH024">
+                    </div>
+                    <div class="ah-field ah-field-grow">
+                        <label for="fDetail">รายละเอียด</label>
+                        <input type="text" id="fDetail" placeholder="เช่น ยอมรับผลนับ">
+                    </div>
+                    <div class="ah-field">
+                        <label for="fDateFrom">วันที่ตั้งแต่</label>
+                        <input type="date" id="fDateFrom">
+                    </div>
+                    <div class="ah-field">
+                        <label for="fDateTo">ถึงวันที่</label>
+                        <input type="date" id="fDateTo">
+                    </div>
+                    <div class="ah-field">
+                        <label>จำนวนที่ปรับ</label>
+                        <div class="ah-qty-row">
+                            <input type="number" id="fQtyMin" placeholder="ต่ำสุด" title="จำนวนต่ำสุด (มีเครื่องหมาย)">
+                            <span>—</span>
+                            <input type="number" id="fQtyMax" placeholder="สูงสุด" title="จำนวนสูงสุด (มีเครื่องหมาย)">
+                        </div>
+                    </div>
+                    <button type="button" class="ah-btn ah-btn-ghost" id="btnClearFilters">
+                        <i data-lucide="filter-x"></i> ล้างตัวกรอง
+                    </button>
+                </div>
+
+                <div class="ah-summary" id="summaryText">เลือกรอบเพื่อดูประวัติ</div>
+
+                <div class="ah-table-wrap">
+                    <table class="ah-table">
+                        <thead>
+                            <tr>
+                                <th style="width:34px;"><input type="checkbox" id="selectAll" title="เลือกทั้งหมดที่เห็น"></th>
+                                <th class="ah-sortable" data-sort="type">ประเภท<span class="ah-sort-mark" data-mark="type"></span></th>
+                                <th class="ah-sortable" data-sort="sku">SKU<span class="ah-sort-mark" data-mark="sku"></span></th>
+                                <th class="ah-sortable ah-num" data-sort="qty">จำนวน<span class="ah-sort-mark" data-mark="qty"></span></th>
+                                <th>สถานะ</th>
+                                <th>รายละเอียด</th>
+                                <th>โดย</th>
+                                <th class="ah-sortable" data-sort="at">วันเวลา (ไทย)<span class="ah-sort-mark" data-mark="at"></span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyBody">
+                            <tr><td colspan="8" class="ah-empty">ยังไม่ได้เลือกรอบ</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+<div class="ah-loading" id="loading" aria-live="polite" aria-busy="false">
+    <div class="ah-loading-box">
+        <div class="ah-loading-spinner" aria-hidden="true"></div>
+        <p class="ah-loading-title">กำลังทำงาน...</p>
+        <p class="ah-loading-status" id="loadingText">กำลังเตรียมข้อมูล</p>
+    </div>
+</div>
+<div class="toast-container" id="toastContainer"></div>
+
+<script src="../Js/api.js?v=20260809k"></script>
+<script src="../Js/sku-utils.js?v=20260809k"></script>
+<script src="../Js/settings-shared.js?v=20260809k"></script>
+<script src="../Js/count-scan-shared.js?v=20260813a"></script>
+<script src="../Js/reconcile-shared.js?v=20260813a"></script>
+<script src="../Js/adjust-history-shared.js?v=20260813a"></script>
+<script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
+<script src="../Js/sidebar-shared.js?v=20260813a"></script>
+<script>
+    lucide.createIcons();
+
+    const RS = window.reconcileService;
+    const AH = window.adjustHistoryService;
+
+    /** รอบที่ "โหลดข้อมูลมาแล้ว" — ไม่ใช่ค่าใน dropdown (อาจถูกสลับระหว่าง await) */
+    let currentCycle = null;
+    let allEntries = [];
+    let viewEntries = [];
+    /** SKU ที่ติ๊กไว้ — เก็บเป็น Set ไม่ใช่อ่านจาก DOM ตอนกด เพราะ render ใหม่แล้ว checkbox หาย */
+    let selectedSkus = new Set();
+    let sortKey = 'at';
+    let sortDir = 'desc';
+    let isBusy = false;
+
+    /* ── UI helpers ────────────────────────────────────────────────────────── */
+
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('toastContainer');
+        const t = document.createElement('div');
+        t.className = 'toast ' + type;
+        t.textContent = msg;
+        el.appendChild(t);
+        setTimeout(() => t.remove(), 4000);
+    }
+
+    function setLoading(on, text) {
+        const el = document.getElementById('loading');
+        el.classList.toggle('active', !!on);
+        el.setAttribute('aria-busy', on ? 'true' : 'false');
+        if (text) document.getElementById('loadingText').textContent = text;
+    }
+
+    /* ── รอบ ───────────────────────────────────────────────────────────────── */
+
+    async function loadCycles() {
+        const sel = document.getElementById('cycleSelect');
+        try {
+            const cycles = await RS.fetchCycles();
+            if (!cycles.length) {
+                sel.innerHTML = '<option value="">— ยังไม่มีรอบ (ไปที่ ตั้งค่ารอบ) —</option>';
+                return;
+            }
+            sel.innerHTML = '<option value="">— เลือกรอบ —</option>' +
+                cycles.map(c => `<option value="${RS.escapeHtml(c.id)}">${RS.escapeHtml(RS.formatCycleLabel(c))} [${RS.escapeHtml(RS.statusLabel(c.status))}]</option>`).join('');
+            const q = new URLSearchParams(location.search).get('cycle');
+            if (q && sel.querySelector(`option[value="${CSS.escape(q)}"]`)) sel.value = q;
+        } catch (err) {
+            sel.innerHTML = `<option value="">— โหลดล้มเหลว: ${RS.escapeHtml(err.message)} —</option>`;
+        }
+    }
+
+    /** รอบที่โหลดไว้ยังตรงกับ dropdown ไหม (บทเรียน H5 — ห้ามอ่าน global ตอนจะเขียน DB) */
+    function isCycleInSync() {
+        const selected = document.getElementById('cycleSelect').value || '';
+        return !!currentCycle && String(currentCycle.id) === selected;
+    }
+
+    function lockCycleId() {
+        if (isCycleInSync()) return currentCycle.id;
+        showToast('รอบที่เลือกเปลี่ยนไปแล้ว — กด "โหลดใหม่" ก่อนทำรายการ', 'error');
+        return null;
+    }
+
+    function stillOnCycle(lockedId) {
+        if (isCycleInSync() && String(currentCycle.id) === String(lockedId)) return true;
+        showToast('ยกเลิก — รอบถูกเปลี่ยนระหว่างดำเนินการ', 'error');
+        return false;
+    }
+
+    /* ── โหลดประวัติ ───────────────────────────────────────────────────────── */
+
+    async function loadHistory() {
+        const sel = document.getElementById('cycleSelect');
+        const id = sel.value;
+        if (!id) return showToast('กรุณาเลือกรอบ', 'error');
+        if (isBusy) return showToast('กำลังทำงานอยู่ — กรุณารอจนเสร็จ', 'error');
+        isBusy = true;
+        sel.disabled = true;
+        setLoading(true, 'กำลังโหลดประวัติ...');
+        try {
+            const cycle = await RS.fetchCycleById(id);
+            // ดึงสดจาก DB — คนอื่นอาจเพิ่งกดปรับ/ยืนยันไปหลังจากที่หน้านี้เปิด
+            const [adjustments, ackMap] = await Promise.all([
+                RS.fetchAdjustments(id),
+                RS.fetchMatchAcceptanceMap(id)
+            ]);
+            currentCycle = cycle;
+            allEntries = RS.buildAdjustHistoryEntries(adjustments, ackMap);
+            clearSelection();
+            applyView();
+        } catch (err) {
+            allEntries = [];
+            currentCycle = null;
+            clearSelection();
+            document.getElementById('historyBody').innerHTML =
+                `<tr><td colspan="8" class="ah-empty" style="color:#f87171;">${RS.escapeHtml(err.message)}</td></tr>`;
+            document.getElementById('summaryText').textContent = 'โหลดล้มเหลว';
+            showToast(err.message, 'error');
+        } finally {
+            isBusy = false;
+            sel.disabled = false;
+            setLoading(false);
+        }
+    }
+
+    /* ── filter / sort / render ────────────────────────────────────────────── */
+
+    function readCriteria() {
+        return {
+            type: document.getElementById('fType').value,
+            sku: document.getElementById('fSku').value,
+            detail: document.getElementById('fDetail').value,
+            dateFrom: document.getElementById('fDateFrom').value,
+            dateTo: document.getElementById('fDateTo').value,
+            qtyMin: document.getElementById('fQtyMin').value,
+            qtyMax: document.getElementById('fQtyMax').value
+        };
+    }
+
+    function clearSelection() {
+        selectedSkus = new Set();
+        document.getElementById('selectAll').checked = false;
+        refreshSelCount();
+    }
+
+    function refreshSelCount() {
+        const n = selectedSkus.size;
+        document.getElementById('selCount').textContent = String(n);
+        document.getElementById('btnRestore').disabled = n === 0;
+    }
+
+    function renderSortMarks() {
+        document.querySelectorAll('[data-mark]').forEach(el => {
+            el.textContent = el.dataset.mark === sortKey ? (sortDir === 'asc' ? '▲' : '▼') : '';
+        });
+    }
+
+    function applyView() {
+        viewEntries = AH.sortHistoryEntries(
+            AH.filterHistoryEntries(allEntries, readCriteria()),
+            sortKey, sortDir
+        );
+        renderTable();
+        renderSortMarks();
+        const hasRows = viewEntries.length > 0;
+        document.getElementById('btnExportXlsx').disabled = !hasRows;
+        document.getElementById('btnExportCsv').disabled = !hasRows;
+    }
+
+    function renderTable() {
+        const body = document.getElementById('historyBody');
+        if (!currentCycle) {
+            body.innerHTML = '<tr><td colspan="8" class="ah-empty">ยังไม่ได้เลือกรอบ</td></tr>';
+            document.getElementById('summaryText').textContent = 'เลือกรอบเพื่อดูประวัติ';
+            return;
+        }
+        if (!viewEntries.length) {
+            body.innerHTML = `<tr><td colspan="8" class="ah-empty">${allEntries.length ? 'ไม่มีรายการที่ตรงกับตัวกรอง' : 'รอบนี้ยังไม่มีการปรับ/ยืนยัน'}</td></tr>`;
+        } else {
+            body.innerHTML = viewEntries.map(e => {
+                const qtyCell = Number.isFinite(e.qty)
+                    ? `<span class="${e.qty > 0 ? 'ah-pos' : (e.qty < 0 ? 'ah-neg' : '')}">${e.qty > 0 ? '+' : ''}${e.qty}</span>`
+                    : '—';
+                const typeTag = e.type === 'adj'
+                    ? '<span class="ah-tag ah-tag-adj">ยอดปรับ</span>'
+                    : '<span class="ah-tag ah-tag-ack">ยืนยันถูกต้อง</span>';
+                const statusTag = e.type !== 'adj'
+                    ? '—'
+                    : (e.status === 'draft'
+                        ? '<span class="ah-tag ah-tag-draft">ร่าง</span>'
+                        : '<span class="ah-tag ah-tag-adj">ปรับแล้ว</span>');
+                const sku = RS.escapeHtml(e.sku || '');
+                const checked = selectedSkus.has(e.sku) ? ' checked' : '';
+                return `<tr>` +
+                    `<td><input type="checkbox" class="ah-cb" data-sku="${sku}"${checked}></td>` +
+                    `<td>${typeTag}</td>` +
+                    `<td class="ah-sku">${sku}</td>` +
+                    `<td class="ah-num">${qtyCell}</td>` +
+                    `<td>${statusTag}</td>` +
+                    `<td class="ah-detail">${RS.escapeHtml(e.detail || '')}</td>` +
+                    `<td>${RS.escapeHtml(e.by || '—')}</td>` +
+                    `<td>${RS.escapeHtml(AH.fmtBangkokDateTime(e.at) || '—')}</td>` +
+                    `</tr>`;
+            }).join('');
+        }
+        const skuCount = new Set(viewEntries.map(e => e.sku)).size;
+        const cycleLabel = `${RS.formatWarehouseDisplay(currentCycle.warehouse)} · ${currentCycle.year_month}`;
+        document.getElementById('summaryText').innerHTML =
+            `<span>รอบ: <strong>${RS.escapeHtml(cycleLabel)}</strong></span>` +
+            `<span>แสดง <strong>${viewEntries.length.toLocaleString()}</strong> / ${allEntries.length.toLocaleString()} รายการ</span>` +
+            `<span><strong>${skuCount.toLocaleString()}</strong> SKU</span>`;
+        syncSelectAllBox();
+    }
+
+    /** "เลือกทั้งหมด" ติ๊กเมื่อทุกแถวที่เห็นถูกเลือกครบเท่านั้น */
+    function syncSelectAllBox() {
+        const boxes = [...document.querySelectorAll('.ah-cb')];
+        const all = boxes.length > 0 && boxes.every(cb => cb.checked);
+        document.getElementById('selectAll').checked = all;
+    }
+
+    /* ── Export ────────────────────────────────────────────────────────────── */
+
+    function exportRows() {
+        if (!viewEntries.length) return showToast('ไม่มีรายการให้ส่งออก', 'error');
+        return AH.buildHistoryExportRows(viewEntries);
+    }
+
+    function exportXlsx() {
+        const rows = exportRows();
+        if (!rows) return;
+        const ws = XLSX.utils.json_to_sheet(rows, { header: AH.EXPORT_HEADERS });
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'ประวัติการปรับ');
+        XLSX.writeFile(wb, AH.buildHistoryFileName(currentCycle, 'xlsx'));
+        showToast(`ส่งออก ${rows.length.toLocaleString()} รายการแล้ว`);
+    }
+
+    function exportCsv() {
+        const rows = exportRows();
+        if (!rows) return;
+        const blob = new Blob([AH.toCsv(rows)], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = AH.buildHistoryFileName(currentCycle, 'csv');
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        showToast(`ส่งออก ${rows.length.toLocaleString()} รายการแล้ว`);
+    }
+
+    /* ── คืนค่า ─────────────────────────────────────────────────────────────── */
+
+    async function restoreSelected() {
+        if (isBusy) return showToast('กำลังทำงานอยู่ — กรุณารอจนเสร็จ', 'error');
+        const skus = [...selectedSkus];
+        if (!skus.length) return showToast('เลือกรายการก่อน', 'error');
+        const cycleId = lockCycleId();
+        if (!cycleId) return;
+
+        const bullets = skus.slice(0, 10);
+        if (skus.length > 10) bullets.push(`… และอีก ${skus.length - 10} SKU`);
+        const ok = await uiConfirm.twoStep({
+            title: 'คืนค่าการตัดสิน',
+            variant: 'amber',
+            step1: {
+                intro: `คืนค่า ${skus.length.toLocaleString()} SKU — ลบยอดปรับและการยืนยันของ SKU เหล่านี้ทั้งหมดในรอบนี้`,
+                bullets,
+                confirmLabel: 'ดำเนินการต่อ'
+            },
+            step2: {
+                intro: 'คืนค่าเป็นราย SKU — ติ๊กแถวไหนก็ตามของ SKU นั้น การตัดสินทั้งหมดของ SKU นั้นในรอบนี้จะถูกลบ (ทั้งยอดปรับและการยืนยัน) แล้วคำนวณ Match ใหม่',
+                note: 'เขียนประวัติก่อนลบเสมอ (ดูได้ในประวัติหน้า ตรวจสอบ) · ผลนับไม่ถูกแตะ',
+                noteVariant: 'danger',
+                confirmLabel: 'คืนค่า'
+            }
+        });
+        if (!ok) return;
+        // ผู้ใช้ใช้เวลาอยู่กับ modal — รอบอาจถูกสลับไปแล้วระหว่างนั้น
+        if (!stillOnCycle(cycleId)) return;
+
+        isBusy = true;
+        const btn = document.getElementById('btnRestore');
+        btn.disabled = true;
+        setLoading(true, `กำลังคืนค่า ${skus.length} SKU...`);
+        try {
+            await RS.clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skus, {
+                onProgress: ({ done, total }) => setLoading(true, `กำลังคืนค่า... ${done}/${total}`)
+            });
+            setLoading(true, 'กำลังคำนวณ Match ใหม่...');
+            await RS.refreshReconciliation(cycleId);
+            showToast(`คืนค่าแล้ว ${skus.length.toLocaleString()} SKU`);
+        } catch (err) {
+            showToast(err.message, 'error');
+        } finally {
+            isBusy = false;
+            btn.disabled = false;
+            setLoading(false);
+        }
+        // โหลดใหม่เสมอ ไม่ว่าจะสำเร็จหรือไม่ — สถานะบนจอต้องตรงกับ DB จริง
+        await loadHistory();
+    }
+
+    /* ── Events ────────────────────────────────────────────────────────────── */
+
+    document.getElementById('cycleSelect').addEventListener('change', () => {
+        // เปลี่ยนรอบ = ของที่เลือกไว้ไม่เกี่ยวกับรอบใหม่แล้ว
+        currentCycle = null;
+        allEntries = [];
+        viewEntries = [];
+        clearSelection();
+        renderTable();
+        if (document.getElementById('cycleSelect').value) loadHistory();
+    });
+
+    document.getElementById('btnReload').addEventListener('click', loadHistory);
+    document.getElementById('btnExportXlsx').addEventListener('click', exportXlsx);
+    document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
+    document.getElementById('btnRestore').addEventListener('click', restoreSelected);
+
+    ['fType', 'fSku', 'fDetail', 'fDateFrom', 'fDateTo', 'fQtyMin', 'fQtyMax'].forEach(id => {
+        const el = document.getElementById(id);
+        const ev = el.tagName === 'SELECT' || el.type === 'date' ? 'change' : 'input';
+        el.addEventListener(ev, () => {
+            // เปลี่ยนตัวกรองแล้วยังถือ selection เดิมไว้ = กดคืนค่าแถวที่มองไม่เห็น
+            clearSelection();
+            applyView();
+        });
+    });
+
+    document.getElementById('btnClearFilters').addEventListener('click', () => {
+        ['fSku', 'fDetail', 'fDateFrom', 'fDateTo', 'fQtyMin', 'fQtyMax'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+        document.getElementById('fType').value = '';
+        clearSelection();
+        applyView();
+    });
+
+    document.querySelectorAll('.ah-sortable').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.dataset.sort;
+            if (sortKey === key) {
+                sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortKey = key;
+                sortDir = key === 'at' ? 'desc' : 'asc';
+            }
+            clearSelection();
+            applyView();
+        });
+    });
+
+    document.getElementById('selectAll').addEventListener('change', (e) => {
+        const on = e.target.checked;
+        // เลือกเฉพาะแถวที่ "มองเห็นหลังกรอง" — ห้ามลากทั้งรอบมาด้วย
+        document.querySelectorAll('.ah-cb').forEach(cb => {
+            cb.checked = on;
+            if (on) selectedSkus.add(cb.dataset.sku);
+            else selectedSkus.delete(cb.dataset.sku);
+        });
+        refreshSelCount();
+    });
+
+    document.getElementById('historyBody').addEventListener('change', (e) => {
+        const cb = e.target.closest('.ah-cb');
+        if (!cb) return;
+        if (cb.checked) selectedSkus.add(cb.dataset.sku);
+        else selectedSkus.delete(cb.dataset.sku);
+        refreshSelCount();
+        syncSelectAllBox();
+    });
+
+    /* ── Init ──────────────────────────────────────────────────────────────── */
+
+    (async function init() {
+        try {
+            await RS.ensureSchemaReadyWithNotice(showToast);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+        await loadCycles();
+        if (document.getElementById('cycleSelect').value) await loadHistory();
+        renderSortMarks();
+        lucide.createIcons();
+    })();
+</script>
+</body>
+</html>

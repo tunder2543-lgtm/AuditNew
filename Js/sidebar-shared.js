@@ -9,7 +9,7 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260811b';
+    const ASSET_VER = '20260813a';
 
     /** จอที่แคบกว่านี้ เมนูซ้ายทำงานเป็นลิ้นชักสไลด์ — ต้องตรงกับ @media ใน Css/style.css */
     const MOBILE_QUERY = '(max-width: 900px)';
@@ -35,6 +35,7 @@
                 { id: 'audit_check', label: 'ตรวจสอบ', icon: 'shield-check' },
                 { id: 'count_search', label: 'ค้นหาผลนับ', icon: 'search' },
                 { id: 'reconcile', label: 'Match ยอด', icon: 'scale' },
+                { id: 'adjust_history', label: 'ประวัติการปรับ', icon: 'history' },
                 { id: 'book_explorer', label: 'Book Explorer', icon: 'book-copy' },
                 { id: 'dashboard', label: 'Dashboard', icon: 'layout-dashboard' },
                 { id: 'live_count_wall', label: 'จอนับสด', icon: 'monitor' }
@@ -58,6 +59,7 @@
         audit_check: 'audit_check.html',
         count_search: 'count_search.html',
         reconcile: 'reconcile.html',
+        adjust_history: 'adjust_history.html',
         book_explorer: 'book_explorer.html',
         dashboard: 'dashboard.html',
         live_count_wall: 'live_count_wall.html',

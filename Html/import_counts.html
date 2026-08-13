@@ -16,7 +16,7 @@
     })();
     </script>
     <link rel="stylesheet" href="../Css/style.css?v=20260813d">
-    <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260813b">
+    <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260813d">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -87,9 +87,9 @@
         }
 
         .ic-btn-amber {
-            background: linear-gradient(135deg, #92400e, #f59e0b);
+            background: var(--grad-amber);
             color: var(--primary-contrast);
-            box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+            box-shadow: 0 4px 12px var(--warn-border);
         }
 
         .ic-template-banner {
@@ -400,7 +400,7 @@
         }
 
         .import-cycle-banner.unlinked {
-            border: 1px solid rgba(245, 158, 11, 0.35);
+            border: 1px solid var(--warn-border);
             background: var(--warn-bg);
             color: var(--warn-text);
         }

@@ -15,7 +15,7 @@
     })();
     </script>
     <link rel="stylesheet" href="../Css/style.css?v=20260813d">
-    <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260813b">
+    <link rel="stylesheet" href="../Css/ui-confirm.css?v=20260813d">
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -72,11 +72,11 @@
         .ah-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
         .ah-btn-primary { background: linear-gradient(135deg, var(--primary-hover), var(--primary)); color: var(--primary-contrast); }
         .ah-btn-ghost { background: var(--overlay-2); color: var(--text); border: 1px solid var(--border-strong); }
-        .ah-btn-warn { background: linear-gradient(135deg, #b45309, #f59e0b); color: #fff; }
+        .ah-btn-warn { background: var(--grad-amber); color: var(--primary-contrast); }
         .ah-btn svg { width: 15px; height: 15px; }
         .ah-summary {
             padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--text-muted);
-            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.12);
+            border-bottom: 1px solid var(--border); background: var(--overlay-1);
             display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; align-items: center;
         }
         .ah-summary strong { color: var(--link-accent); font-variant-numeric: tabular-nums; }

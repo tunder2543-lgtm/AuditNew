@@ -140,26 +140,26 @@
 
 .ui-confirm-btn-ok.primary {
     background: linear-gradient(135deg, var(--primary-hover), var(--primary));
-    color: #fff;
+    color: var(--primary-contrast);
     box-shadow: 0 4px 14px var(--primary-glow);
 }
 
 .ui-confirm-btn-ok.amber {
-    background: linear-gradient(135deg, #d97706, #f59e0b);
+    background: var(--grad-amber);
     color: #1c1917;
-    box-shadow: 0 4px 14px rgba(245, 158, 11, 0.35);
+    box-shadow: 0 4px 14px var(--warn-border);
 }
 
 .ui-confirm-btn-ok.danger {
-    background: linear-gradient(135deg, #dc2626, #ef4444);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(239, 68, 68, 0.35);
+    background: var(--grad-danger);
+    color: var(--primary-contrast);
+    box-shadow: 0 4px 14px var(--bad-border);
 }
 
 .ui-confirm-btn-ok.green {
-    background: linear-gradient(135deg, #065f46, #10b981);
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+    background: var(--grad-green);
+    color: var(--primary-contrast);
+    box-shadow: 0 4px 14px var(--ok-border);
 }
 
 #uiConfirmModal .cs-modal-header h2 {

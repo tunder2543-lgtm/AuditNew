@@ -2092,11 +2092,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (detailsContainer.style.display === 'none') {
             detailsContainer.style.display = 'block';
-            element.style.background = 'rgba(59, 130, 246, 0.2)';
+            element.style.background = 'var(--primary-soft-strong)';
             if (icon) icon.style.transform = 'rotate(180deg)';
         } else {
             detailsContainer.style.display = 'none';
-            element.style.background = 'rgba(59, 130, 246, 0.1)';
+            element.style.background = 'var(--primary-soft)';
             if (icon) icon.style.transform = 'rotate(0deg)';
         }
     };

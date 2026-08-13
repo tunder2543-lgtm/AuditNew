@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-theme-ready>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -33,9 +33,9 @@
             height: 11px;
         }
         .cs-panel {
-            background: linear-gradient(165deg, rgba(24,24,27,0.97) 0%, rgba(15,15,18,0.99) 100%);
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
             border: 1px solid var(--card-border); border-radius: 14px; overflow: hidden;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow-sm);
         }
         .cs-toolbar {
             display: flex;
@@ -43,14 +43,14 @@
             gap: 0.7rem;
             align-items: flex-end;
             padding: 1rem 1.15rem;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            border-bottom: 1px solid var(--border);
             background:
-                radial-gradient(at 0% 0%, rgba(59,130,246,0.07) 0, transparent 45%),
-                rgba(8,10,14,0.42);
+                radial-gradient(at 0% 0%, var(--bg-glow-1) 0, transparent 45%),
+                var(--overlay-1);
             overflow-x: auto;
         }
         .cs-toolbar::-webkit-scrollbar { height: 6px; }
-        .cs-toolbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 999px; }
+        .cs-toolbar::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
         .cs-field {
             display: flex;
             flex-direction: column;
@@ -60,7 +60,7 @@
         }
         .cs-field label {
             font-size: 0.7rem;
-            color: #9ca3af;
+            color: var(--text-3);
             letter-spacing: 0.03em;
             text-transform: uppercase;
             line-height: 1;
@@ -82,9 +82,9 @@
         }
         .cs-field input:focus, .cs-field select:focus {
             outline: none;
-            border-color: rgba(96,165,250,0.9);
-            box-shadow: 0 0 0 3px rgba(59,130,246,0.17);
-            background: rgba(10,12,18,0.95);
+            border-color: var(--primary);
+            box-shadow: var(--focus-ring);
+            background: var(--input-bg);
         }
         .cs-field-grow { flex: 1 1 160px; min-width: 140px; }
         .cs-field-sku { flex: 1 1 200px; min-width: 160px; }
@@ -108,11 +108,11 @@
             color: var(--text);
             font-size: 0.85rem;
         }
-        .cs-month-row select:focus { box-shadow: none; background: rgba(59,130,246,0.08); border-radius: 7px; }
+        .cs-month-row select:focus { box-shadow: none; background: var(--primary-soft); border-radius: 7px; }
         .cs-month-row #qYear { flex: 0 0 78px; }
         .cs-month-row .cs-divider {
             width: 1px;
-            background: rgba(255,255,255,0.08);
+            background: var(--overlay-2);
             margin: 4px 0;
             flex: 0 0 1px;
         }
@@ -125,17 +125,17 @@
             margin: 2px;
             padding: 0;
             border-radius: 7px;
-            background: rgba(59,130,246,0.12);
-            border: 1px solid rgba(147,197,253,0.32);
-            color: #93c5fd;
+            background: var(--primary-soft);
+            border: 1px solid var(--primary-border);
+            color: var(--link-accent);
             cursor: pointer;
             transition: all 0.18s;
             flex: 0 0 30px;
         }
         .cs-icon-btn:hover {
-            background: rgba(59,130,246,0.22);
-            color: #dbeafe;
-            border-color: rgba(147,197,253,0.55);
+            background: var(--primary-soft-strong);
+            color: var(--link-accent);
+            border-color: var(--primary-border);
         }
         .cs-icon-btn svg { width: 14px; height: 14px; }
         .cs-btn {
@@ -151,46 +151,46 @@
             font-family: 'Kanit', sans-serif;
             font-weight: 500;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+            box-shadow: var(--shadow-sm);
             transition: transform 0.15s, box-shadow 0.2s, filter 0.2s;
             white-space: nowrap;
             flex: 0 0 auto;
         }
-        .cs-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 16px rgba(0,0,0,0.24); }
+        .cs-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
         .cs-btn:active { transform: translateY(0); }
-        .cs-btn-primary { background: linear-gradient(135deg, #1d4ed8, #3b82f6); color: #fff; }
-        .cs-btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); border: 1px solid rgba(255,255,255,0.14); }
+        .cs-btn-primary { background: linear-gradient(135deg, var(--primary-hover), var(--primary)); color: var(--primary-contrast); }
+        .cs-btn-ghost { background: var(--overlay-2); color: var(--text); border: 1px solid var(--border-strong); }
         .cs-summary {
             padding: 0.65rem 1.25rem; font-size: 0.8rem; color: var(--text-muted);
-            border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.12);
+            border-bottom: 1px solid var(--border); background: var(--overlay-1);
         }
         .cs-table-wrap { overflow: auto; max-height: 560px; }
         .cs-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         .cs-table th {
-            position: sticky; top: 0; background: #1e293b; text-align: left;
-            padding: 0.55rem 0.75rem; color: #e2e8f0; border-bottom: 1px solid rgba(255,255,255,0.1);
+            position: sticky; top: 0; background: var(--surface-3); text-align: left;
+            padding: 0.55rem 0.75rem; color: var(--text-2); border-bottom: 1px solid var(--border-strong);
         }
-        .cs-table td { padding: 0.48rem 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .cs-table tbody tr:hover td { background: rgba(59,130,246,0.06); }
-        .cs-sku { font-family: ui-monospace, monospace; color: #e0f2fe; }
+        .cs-table td { padding: 0.48rem 0.75rem; border-bottom: 1px solid var(--border); }
+        .cs-table tbody tr:hover td { background: var(--primary-soft); }
+        .cs-sku { font-family: ui-monospace, monospace; color: var(--text); }
         .cs-loading {
             position: fixed; inset: 0; z-index: 15000; display: none; align-items: center; justify-content: center;
-            background: rgba(15,23,42,0.78); backdrop-filter: blur(6px);
+            background: var(--scrim-heavy); backdrop-filter: blur(6px);
         }
         .cs-loading.active { display: flex; }
         .cs-loading-box {
             width: min(360px, calc(100vw - 2rem));
             padding: 1.35rem 1.4rem 1.2rem;
             border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.1);
-            background: linear-gradient(165deg, rgba(24,24,27,0.98) 0%, rgba(15,15,18,0.99) 100%);
-            box-shadow: 0 24px 48px rgba(0,0,0,0.45);
+            border: 1px solid var(--border);
+            background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+            box-shadow: var(--shadow-lg);
             text-align: center;
         }
         .cs-loading-spinner {
             width: 42px; height: 42px; margin: 0 auto 0.85rem;
-            border: 3px solid rgba(255,255,255,0.12);
-            border-top-color: #60a5fa;
+            border: 3px solid var(--border-strong);
+            border-top-color: var(--primary);
             border-radius: 50%;
             animation: csSpin 0.85s linear infinite;
         }
@@ -200,7 +200,7 @@
             font-family: 'Kanit', sans-serif;
             font-size: 1.05rem;
             font-weight: 500;
-            color: #f8fafc;
+            color: var(--text);
         }
         .cs-loading-status {
             margin: 0 0 0.85rem;
@@ -212,7 +212,7 @@
         .cs-loading-progress {
             height: 6px;
             border-radius: 999px;
-            background: rgba(255,255,255,0.08);
+            background: var(--overlay-2);
             overflow: hidden;
             margin-bottom: 0.55rem;
         }
@@ -220,16 +220,16 @@
             height: 100%;
             width: 0%;
             border-radius: 999px;
-            background: linear-gradient(90deg, #2563eb, #60a5fa);
+            background: linear-gradient(90deg, var(--primary), var(--link-accent));
             transition: width 0.25s ease;
         }
         .cs-loading-count {
             margin: 0;
             font-size: 0.78rem;
-            color: #93c5fd;
+            color: var(--link-accent);
             font-variant-numeric: tabular-nums;
         }
-        .cs-summary-warn { color: #fbbf24; }
+        .cs-summary-warn { color: var(--warn-text); }
         @media (max-width: 1200px) {
             .cs-toolbar { flex-wrap: wrap; overflow-x: visible; }
             .cs-field { min-width: calc(33.333% - 0.7rem); }

@@ -578,6 +578,8 @@
                             <label for="adjQty" id="adjQtyLabel">ยอดจริงที่ต้องการ (Excel ใช้เทียบหลังปรับ)</label>
                             <input type="number" id="adjQty" step="any" min="0" placeholder="เช่น ตามผลนับ">
                             <button type="button" class="rc-adj-use-counted" id="btnUseCountedTarget" style="display:none;">ใส่ตามผลนับ</button>
+                            <button type="button" class="rc-adj-use-counted" id="btnUseEffectiveTarget" style="display:none;"
+                                title="เชื่อยอด Excel — ใส่ยอด Excel ใช้เทียบลงช่อง แล้วกดปุ่มเดียวกัน ระบบจะบันทึกว่ายอด Excel คือยอดจริงโดยไม่สร้างยอดปรับ">ใส่ตามยอด Excel</button>
                         </div>
 
                         <div class="rc-form-group">
@@ -1270,19 +1272,30 @@
         const effective = getLineEffectiveBook(line);
         // ⚠️ `Number('')` = 0 ไม่ใช่ NaN — ช่องว่างจะกลายเป็น "ยอด 0" ถ้าไม่กันไว้
         const t = (target == null || target === '' || !Number.isFinite(Number(target))) ? null : Number(target);
+
+        // ยังไม่มีใครนับ = ไม่มีผลนับให้ยอมรับ ปุ่มเดียวที่โผล่คือฝั่ง Excel
+        if (resolveComputedStatus(line) === 'book_only') {
+            return {
+                recommend: 'excel',
+                dim: null,
+                reason: `ยังไม่มีใครนับ SKU นี้ — ปิดเคสได้ทางเดียวคือยืนยันว่ายอด Excel ${effective.toLocaleString()} คือยอดจริง`
+            };
+        }
+
         if (t == null) {
             return { recommend: null, dim: null, reason: 'ใส่ยอดจริงที่ต้องการในช่องด้านบนก่อน' };
         }
+        // ขาด/เกิน มีปุ่มเดียว — ปุ่มนั้นครอบทั้ง 2 เจตนา ต่างกันที่เลขในช่อง
         if (Math.abs(t - effective) < 1e-6) {
             return {
-                recommend: 'excel',
-                dim: 'typed',
-                reason: `ยอดที่กรอกเท่ากับ Excel ใช้เทียบ (${effective.toLocaleString()}) อยู่แล้ว — ไม่มีอะไรต้องปรับ`
+                recommend: 'typed',
+                dim: null,
+                reason: `ยอดที่กรอกเท่ากับ Excel ใช้เทียบ (${effective.toLocaleString()}) — กดแล้วระบบจะบันทึกว่ายอด Excel คือยอดจริง โดยไม่สร้างยอดปรับ`
             };
         }
         return {
             recommend: 'typed',
-            dim: 'excel',
+            dim: null,
             reason: `ยอดที่กรอก ${t.toLocaleString()} ต่างจาก Excel ใช้เทียบ ${effective.toLocaleString()} — ต้องบันทึกปรับ`
         };
     }
@@ -1453,10 +1466,20 @@
         if (btnUseCounted) {
             btnUseCounted.style.display = isAdjustable ? 'inline-block' : 'none';
         }
+        const btnUseEffective = document.getElementById('btnUseEffectiveTarget');
+        if (btnUseEffective) {
+            btnUseEffective.style.display = isAdjustable ? 'inline-block' : 'none';
+        }
         // ⚠️ ต้องซ่อน/โชว์ที่ "กล่องครอบ" ไม่ใช่ที่ปุ่ม ไม่งั้นปุ่ม "?" จะลอยอยู่เดี่ยว ๆ
+        //
+        // ⛔ ปุ่มฝั่ง Excel โผล่**เฉพาะ book_only** (2026-08-13 ตามมติ admin "เหลือปุ่มเดียว")
+        // ตอนขาด/เกิน มันซ้ำซ้อนกับปุ่มกรอกแบบ 100% — พิมพ์เลข Excel ลงช่องแล้วกดปุ่มกรอก
+        // จะวิ่งเข้าเส้นทาง noAdjustment เขียน acceptance แถวเดียวเหมือนกันเป๊ะ (ไม่สร้างยอดปรับ)
+        // การมี 2 ปุ่มจึงมีแต่โอกาสกดผิดแล้ว**ทิ้งผลนับเงียบ ๆ** · ทางลัดคือปุ่ม "ใส่ตามยอด Excel"
         const wrapMark = document.getElementById('actWrapMarkMatch');
         if (wrapMark) {
-            wrapMark.style.display = canMarkAsMatchAccepted(selectedAdjLine) ? 'flex' : 'none';
+            const excelOnlyCase = computed === 'book_only' && canMarkAsMatchAccepted(selectedAdjLine);
+            wrapMark.style.display = excelOnlyCase ? 'flex' : 'none';
         }
         const wrapAccept = document.getElementById('actWrapAcceptApply');
         if (wrapAccept) {
@@ -1519,7 +1542,7 @@
         if (guidance.reason) {
             html += `<div class="rc-adj-sum-note">${RS.escapeHtml(guidance.reason)}</div>`;
         }
-        html += `<div class="rc-adj-sum-note">ใส่<strong>ยอดจริง</strong>ที่ต้องการในช่องด้านบน · ปุ่มที่มีกรอบแดง = ปุ่มที่ควรกด · ปุ่มที่จาง = ไม่ต้องกด · กด <strong>?</strong> ดูตัวอย่างผลลัพธ์ก่อนได้</div>`;
+        html += `<div class="rc-adj-sum-note">ใส่<strong>ยอดจริง</strong>ที่ต้องการในช่องด้านบน แล้วกดปุ่มเดียวด้านล่าง · เชื่อผลนับกด「ใส่ตามผลนับ」· เชื่อ Excel กด「ใส่ตามยอด Excel」· กด <strong>?</strong> ดูตัวอย่างผลลัพธ์ก่อนได้</div>`;
         hint.classList.add('show');
         hint.innerHTML = html;
         renderAdjActionButtons();
@@ -3010,6 +3033,12 @@
         if (e.target.id === 'adjExplainModal') e.currentTarget.classList.remove('active');
     });
 
+    document.getElementById('btnUseEffectiveTarget').addEventListener('click', () => {
+        if (!selectedAdjLine) return;
+        document.getElementById('adjQty').value = getLineEffectiveBook(selectedAdjLine);
+        resetAcceptApplyBtn();
+        renderAdjPanelSummary(selectedAdjLine);
+    });
     document.getElementById('btnUseCountedTarget').addEventListener('click', () => {
         if (!selectedAdjLine) return;
         document.getElementById('adjQty').value = Number(selectedAdjLine.counted_qty);

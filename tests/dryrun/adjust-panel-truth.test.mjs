@@ -190,43 +190,50 @@ test('[ui] ปุ่ม "บันทึก Draft" และฟังก์ช�
 // -----------------------------------------------------------------------------
 // ตัวช่วยเลือกปุ่ม — "กดแค่ปุ่มเดียว ป้องกันความผิดพลาด" (admin สั่ง 2026-08-13)
 // -----------------------------------------------------------------------------
-function liftGuidance() {
+function liftGuidance(status = 'short') {
     return liftFunctions(RECONCILE, [
         'resolveAdjButtonGuidance', 'getLineEffectiveBook', 'getTotalAdjustment',
-    ], { getDraftAdjustmentSum: () => 0 });
+    ], { getDraftAdjustmentSum: () => 0, resolveComputedStatus: () => status });
 }
 
-test('[guidance] ยอดที่กรอก ≠ Excel ใช้เทียบ → ชี้ปุ่ม "ใช้ยอดที่กรอก" · หรี่ปุ่ม Excel', () => {
-    const f = liftGuidance();
+test('[guidance] ขาด/เกิน: ชี้ปุ่มเดียวที่มีอยู่ (ปุ่มกรอก) และไม่หรี่อะไร', () => {
+    const f = liftGuidance('short');
     const line = { sku_id: 'BG001-1', book_qty: 278, adjustment_applied: 0, counted_qty: 197 };
     const g = f.resolveAdjButtonGuidance(line, 197);
     assert.equal(g.recommend, 'typed');
-    assert.equal(g.dim, 'excel');
+    assert.equal(g.dim, null, 'ปุ่ม Excel ถูกซ่อนไปแล้ว ไม่ต้องหรี่');
     assert.match(g.reason, /ต่างจาก Excel ใช้เทียบ 278/);
 });
 
-test('[guidance] ⛔ เคสค่าเริ่มต้น (ช่อง = ผลนับ) ต้องชี้ปุ่ม "ใช้ยอดที่กรอก" เสมอ', () => {
-    // กติกาที่ admin เสนอตอนแรกคือเทียบกับ "ผลนับ" ⇒ เคสนี้จะหรี่ปุ่มที่ถูกต้อง
-    // แล้วชี้ไปปุ่ม Excel ซึ่งบันทึกยอด Book เป็นยอดจริง = ทิ้งผลนับทั้งที่คนตั้งใจใช้
-    const f = liftGuidance();
+test('[guidance] ⛔ เคสค่าเริ่มต้น (ช่อง = ผลนับ) ต้องชี้ปุ่มกรอกเสมอ', () => {
+    // กติกาที่ admin เสนอตอนแรกคือเทียบกับ "ผลนับ" ⇒ เคสนี้จะชี้ผิดไปปุ่ม Excel
+    // ซึ่งบันทึกยอด Book เป็นยอดจริง = ทิ้งผลนับทั้งที่คนตั้งใจใช้
+    const f = liftGuidance('short');
     for (const [book, counted] of [[278, 197], [10, 25], [500, 200], [0, 7]]) {
         const g = f.resolveAdjButtonGuidance({ sku_id: 'X', book_qty: book, adjustment_applied: 0, counted_qty: counted }, counted);
         assert.equal(g.recommend, 'typed', `Book ${book} / นับ ${counted} ต้องชี้ปุ่มกรอก`);
-        assert.equal(g.dim, 'excel');
     }
 });
 
-test('[guidance] ยอดที่กรอก = Excel ใช้เทียบ → ไม่มีอะไรต้องปรับ ⇒ ชี้ปุ่ม Excel · หรี่ปุ่มกรอก', () => {
-    const f = liftGuidance();
+test('[guidance] ขาด/เกิน + กรอกเท่า Excel: ยังชี้ปุ่มเดิม แต่บอกว่าจะไม่สร้างยอดปรับ', () => {
+    const f = liftGuidance('short');
     const line = { sku_id: 'X', book_qty: 500, adjustment_applied: -50, counted_qty: 200 };
     const g = f.resolveAdjButtonGuidance(line, 450);   // effective = 450
+    assert.equal(g.recommend, 'typed', 'ปุ่มเดียวครอบทั้ง 2 เจตนา — ต่างที่เลขในช่อง');
+    assert.match(g.reason, /บันทึกว่ายอด Excel คือยอดจริง/);
+    assert.match(g.reason, /ไม่สร้างยอดปรับ/);
+});
+
+test('[guidance] ยังไม่ได้นับเลย (book_only): ชี้ปุ่ม Excel ซึ่งเป็นปุ่มเดียวที่โผล่', () => {
+    const f = liftGuidance('book_only');
+    const g = f.resolveAdjButtonGuidance({ sku_id: 'B1', book_qty: 9, adjustment_applied: 0, counted_qty: 0 }, null);
     assert.equal(g.recommend, 'excel');
-    assert.equal(g.dim, 'typed');
-    assert.match(g.reason, /ไม่มีอะไรต้องปรับ/);
+    assert.equal(g.dim, null);
+    assert.match(g.reason, /ยังไม่มีใครนับ/);
 });
 
 test('[guidance] ยังไม่ใส่ยอด / ไม่มีแถว = ไม่ชี้ปุ่มไหนเลย (ห้ามเดาแทนคน)', () => {
-    const f = liftGuidance();
+    const f = liftGuidance('short');
     const line = { sku_id: 'X', book_qty: 10, adjustment_applied: 0, counted_qty: 5 };
     for (const bad of [null, undefined, NaN, '']) {
         const g = f.resolveAdjButtonGuidance(line, bad);
@@ -236,7 +243,7 @@ test('[guidance] ยังไม่ใส่ยอด / ไม่มีแถว
     assert.equal(f.resolveAdjButtonGuidance(null, 5).recommend, null);
 });
 
-test('[ui] ปุ่มที่ควรกดได้กรอบแดง · ปุ่มที่ไม่เกี่ยวถูกหรี่ (รันจริง)', () => {
+test('[ui] ปุ่มที่ควรกดได้กรอบแดง + ตัวเลขจริงอยู่บนปุ่ม (รันจริง)', () => {
     const btnMark = fakeEl(), btnAccept = fakeEl();
     const els = { btnMarkMatchOk: btnMark, btnAcceptCountApply: btnAccept, adjQty: fakeEl({ value: '197' }) };
     const fns = liftFunctions(RECONCILE, [
@@ -247,19 +254,66 @@ test('[ui] ปุ่มที่ควรกดได้กรอบแดง ·
         selectedAdjLine: { sku_id: 'BG001-1', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
         acceptApplyArmed: false,
         getDraftAdjustmentSum: () => 0,
+        resolveComputedStatus: () => 'short',
         ADJ_BTN_DEFAULT_MARK: 'mark', ADJ_BTN_DEFAULT_ACCEPT: 'accept',
         lucide: { createIcons() {} },
         document: { getElementById: id => els[id] || fakeEl() },
     });
     fns.renderAdjActionButtons();
     assert.ok(btnAccept.classList.contains('rc-btn-recommend'), 'ปุ่มที่ควรกดต้องมีกรอบแดง');
-    assert.ok(btnMark.classList.contains('rc-btn-dimmed'), 'ปุ่ม Excel ต้องถูกหรี่');
     assert.ok(!btnAccept.classList.contains('rc-btn-dimmed'));
-    assert.ok(!btnMark.classList.contains('rc-btn-recommend'));
     // ตัวเลขจริงต้องอยู่บนปุ่ม — ผู้ใช้ต้องอ่านออกว่ากดแล้วได้ยอดไหนโดยไม่ต้องเดา
     assert.match(btnMark.innerHTML, /ใช้ยอด Excel \(278\) เป็นยอดจริง/);
     assert.match(btnAccept.innerHTML, /ใช้ยอดที่กรอก \(197\) เป็นยอดจริง/);
     assert.match(btnAccept.innerHTML, /บันทึกปรับ ลด 81 ชิ้น/);
+});
+
+// -----------------------------------------------------------------------------
+// "เหลือปุ่มเดียว" — ปุ่มไหนโผล่ตอนไหน (มติ admin 2026-08-13)
+// -----------------------------------------------------------------------------
+function liftChrome(status, { canMark = true } = {}) {
+    const els = {
+        adjQtyLabel: fakeEl(), adjQty: fakeEl({ value: '197' }),
+        btnAcceptCountApply: fakeEl(), btnMarkMatchOk: fakeEl(),
+        btnUseCountedTarget: fakeEl(), btnUseEffectiveTarget: fakeEl(),
+        actWrapMarkMatch: fakeEl(), actWrapAcceptApply: fakeEl(),
+    };
+    const fns = liftFunctions(RECONCILE, ['refreshAdjPanelChrome'], {
+        adjInputMode: 'target',
+        selectedAdjLine: { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
+        resolveComputedStatus: () => status,
+        canMarkAsMatchAccepted: () => canMark,
+        resetAcceptApplyBtn() {}, renderAdjActionButtons() {},
+        document: { getElementById: id => els[id] || fakeEl() },
+    });
+    fns.refreshAdjPanelChrome();
+    return els;
+}
+
+test('[หนึ่งปุ่ม] ขาด/เกิน → โผล่เฉพาะปุ่มกรอก · ปุ่ม Excel ต้องถูกซ่อน', () => {
+    for (const st of ['short', 'over']) {
+        const els = liftChrome(st);
+        assert.equal(els.actWrapAcceptApply.style.display, 'flex', `${st}: ปุ่มกรอกต้องโผล่`);
+        assert.equal(els.actWrapMarkMatch.style.display, 'none',
+            `${st}: ปุ่ม Excel ซ้ำซ้อน 100% กับปุ่มกรอก ต้องไม่โผล่ (กดผิดแล้วผลนับถูกทิ้งเงียบ ๆ)`);
+        assert.equal(els.btnUseEffectiveTarget.style.display, 'inline-block', 'ต้องมีทางลัด "ใส่ตามยอด Excel"');
+        assert.equal(els.btnUseCountedTarget.style.display, 'inline-block');
+    }
+});
+
+test('[หนึ่งปุ่ม] ยังไม่ได้นับเลย (book_only) → โผล่เฉพาะปุ่ม Excel (ไม่มีผลนับให้ยอมรับ)', () => {
+    const els = liftChrome('book_only');
+    assert.equal(els.actWrapMarkMatch.style.display, 'flex');
+    assert.equal(els.actWrapAcceptApply.style.display, 'none');
+    assert.equal(els.btnUseCountedTarget.style.display, 'none', 'ไม่มีผลนับ ทางลัดนี้ต้องไม่โผล่');
+});
+
+test('[หนึ่งปุ่ม] ถูกต้องแล้ว / ยืนยันไปแล้ว → ไม่โผล่ปุ่มไหนเลย', () => {
+    const els = liftChrome('match', { canMark: false });
+    assert.equal(els.actWrapMarkMatch.style.display, 'none');
+    assert.equal(els.actWrapAcceptApply.style.display, 'none');
+    const accepted = liftChrome('book_only', { canMark: false });   // ยืนยันไปแล้ว
+    assert.equal(accepted.actWrapMarkMatch.style.display, 'none');
 });
 
 test('[ui] ตอน armed ห้ามเขียนทับป้าย "กดอีกครั้ง" (ไม่งั้นผู้ใช้ไม่รู้ว่าติดอาวุธอยู่)', () => {
@@ -273,6 +327,7 @@ test('[ui] ตอน armed ห้ามเขียนทับป้าย "ก
         selectedAdjLine: { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
         acceptApplyArmed: true,
         getDraftAdjustmentSum: () => 0,
+        resolveComputedStatus: () => 'short',
         ADJ_BTN_DEFAULT_MARK: 'mark', ADJ_BTN_DEFAULT_ACCEPT: 'accept',
         lucide: { createIcons() {} },
         document: { getElementById: id => els[id] || fakeEl() },
@@ -348,6 +403,7 @@ test('[ui] ป้ายปุ่มใหม่: reset หลัง arm ต้�
         selectedAdjLine: { sku_id: 'X', book_qty: 278, adjustment_applied: 0, counted_qty: 197 },
         acceptApplyArmed: true, acceptApplyArmSku: 'X', acceptApplyArmTimer: null,
         getDraftAdjustmentSum: () => 0,
+        resolveComputedStatus: () => 'short',
         ADJ_BTN_DEFAULT_MARK: 'mark', ADJ_BTN_DEFAULT_ACCEPT: 'accept',
         clearTimeout() {}, lucide: { createIcons() {} },
         document: { getElementById: id => els[id] || fakeEl() },
@@ -386,7 +442,8 @@ test('[ui] สรุปในแผง (รันจริง): บอกวิ�
     });
     fns.renderAdjPanelSummary({ sku_id: 'PC999', book_qty: 500, adjustment_applied: 0, counted_qty: 200 });
     assert.match(hint.innerHTML, /ยอดจริงที่ต้องการ \(หลังปรับ\)/);
-    assert.match(hint.innerHTML, /ปุ่มที่มีกรอบแดง = ปุ่มที่ควรกด/, 'ต้องอธิบายความหมายของกรอบแดง/ปุ่มจาง');
+    assert.match(hint.innerHTML, /กดปุ่มเดียวด้านล่าง/, 'ต้องบอกว่าเหลือปุ่มเดียว');
+    assert.match(hint.innerHTML, /ใส่ตามยอด Excel/, 'ต้องชี้ทางลัดฝั่ง Excel');
     assert.match(hint.innerHTML, /ลด 50 ชิ้น/, 'กรอก 450 จาก Excel 500 ต้องบอก "ลด 50"');
     assert.match(hint.innerHTML, /ต่างจาก Excel ใช้เทียบ 500/, 'ต้องบอกเหตุผลว่าทำไมชี้ปุ่มนั้น');
     // ป้ายแถวส่วนต่าง: คำว่า "ต้องปรับ Book" ทำให้ admin เข้าใจว่าระบบไปแก้ยอดในไฟล์ Excel

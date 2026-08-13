@@ -77,6 +77,16 @@
     --neutral-text: #94a3b8;
     --neutral-bg: rgba(148, 163, 184, 0.12);
     --neutral-border: rgba(148, 163, 184, 0.30);
+    --purple-text: #c084fc;
+    --purple-bg: rgba(168, 85, 247, 0.10);
+    --purple-border: rgba(168, 85, 247, 0.35);
+
+    /* gradient ปุ่ม action ทึบ — สีอิ่มตัว ใช้ได้ทั้ง 2 ธีม (ตัวอักษรบนปุ่มขาว/เข้มคงที่) */
+    --grad-primary: linear-gradient(135deg, var(--primary-hover), var(--primary));
+    --grad-green: linear-gradient(135deg, #065f46, #10b981);
+    --grad-amber: linear-gradient(135deg, #92400e, #f59e0b);
+    --grad-purple: linear-gradient(135deg, #5b21b6, #a855f7);
+    --grad-danger: linear-gradient(135deg, #dc2626, #ef4444);
 
     /* กราฟ (Chart.js อ่านผ่าน getComputedStyle — ห้าม freeze ตอน module load) */
     --chart-match: #1ec98a;
@@ -151,6 +161,13 @@ html[data-theme="light"] {
     --neutral-text: #475569;
     --neutral-bg: #f1f5f9;
     --neutral-border: #cbd5e1;
+    --purple-text: #6d28d9;
+    --purple-bg: #f5f3ff;
+    --purple-border: #ddd6fe;
+    --grad-green: linear-gradient(135deg, #047857, #10b981);
+    --grad-amber: linear-gradient(135deg, #b45309, #f59e0b);
+    --grad-purple: linear-gradient(135deg, #6d28d9, #a855f7);
+    --grad-danger: linear-gradient(135deg, #b91c1c, #ef4444);
     --chart-match: #059669;
     --chart-short: #e11d48;
     --chart-over: #d97706;

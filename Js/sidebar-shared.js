@@ -9,7 +9,7 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260813b';
+    const ASSET_VER = '20260813c';
 
     /** จอที่แคบกว่านี้ เมนูซ้ายทำงานเป็นลิ้นชักสไลด์ — ต้องตรงกับ @media ใน Css/style.css */
     const MOBILE_QUERY = '(max-width: 900px)';

@@ -9,10 +9,38 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260813a';
+    const ASSET_VER = '20260813b';
 
     /** จอที่แคบกว่านี้ เมนูซ้ายทำงานเป็นลิ้นชักสไลด์ — ต้องตรงกับ @media ใน Css/style.css */
     const MOBILE_QUERY = '(max-width: 900px)';
+
+    // -------------------------------------------------------------------------
+    //  ธีม Light/Dark — ค่าจริงถูก set ตั้งแต่ boot script ใน <head> ของทุกหน้า
+    //  (กัน flash ธีมผิดก่อน CSS โหลด) ที่นี่มีแค่ปุ่มสลับ + ประกาศ event
+    //  หน้าที่ inline style ยังไม่แปลงเป็น token จะไม่มี data-theme-ready บน <html>
+    //  → boot script บังคับ dark และปุ่มนี้จะ disabled
+    // -------------------------------------------------------------------------
+    const THEME_KEY = 'theme_v1';
+
+    function currentTheme() {
+        return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark';
+    }
+
+    function applyTheme(theme) {
+        document.documentElement.dataset.theme = theme;
+        try { localStorage.setItem(THEME_KEY, theme); } catch (e) { /* private mode */ }
+        updateThemeToggleUi();
+        window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: theme } }));
+    }
+
+    function updateThemeToggleUi() {
+        const btn = document.getElementById('sidebarThemeToggle');
+        if (!btn) return;
+        const light = currentTheme() === 'light';
+        const label = btn.querySelector('.sidebar-theme-label');
+        if (label) label.textContent = light ? 'โหมดมืด' : 'โหมดสว่าง';
+        btn.setAttribute('aria-pressed', light ? 'true' : 'false');
+    }
 
     /** หน้าเหล่านี้: เปิดทุกกลุ่มเป็นค่าเริ่มต้น (ยังพับได้) — ไม่ซ่อนรายการย่อยแบบพับปิดตลอด */
     const FLAT_PAGES = new Set(['index', 'import_counts', 'settings']);
@@ -168,7 +196,24 @@
         });
 
         html += '</nav>';
+
+        // ปุ่มสลับธีมท้ายเมนู — ข้อความ/สถานะ set ทีหลังผ่าน updateThemeToggleUi()
+        const themeReady = document.documentElement.hasAttribute('data-theme-ready');
+        html += '<button type="button" class="sidebar-theme-toggle" id="sidebarThemeToggle"'
+            + (themeReady ? '' : ' disabled title="หน้านี้ยังไม่รองรับโหมดสว่าง"') + '>'
+            + '<i data-lucide="sun" class="icon-sun"></i>'
+            + '<i data-lucide="moon" class="icon-moon"></i>'
+            + '<span class="sidebar-theme-label"></span></button>';
+
         aside.innerHTML = html;
+
+        const themeBtn = aside.querySelector('.sidebar-theme-toggle');
+        if (themeBtn && !themeBtn.disabled) {
+            themeBtn.addEventListener('click', function () {
+                applyTheme(currentTheme() === 'light' ? 'dark' : 'light');
+            });
+        }
+        updateThemeToggleUi();
 
         aside.querySelectorAll('.sidebar-group-head').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -375,7 +420,8 @@
         GROUPS: GROUPS,
         FLAT_PAGES: FLAT_PAGES,
         pageHref: pageHref,
-        getActivePage: getActivePagePublic
+        getActivePage: getActivePagePublic,
+        getTheme: currentTheme        // ให้โค้ดกราฟ/หน้าอื่นอ่านธีมปัจจุบัน (คู่กับ event 'themechange')
     };
 
     function bootSidebar() {

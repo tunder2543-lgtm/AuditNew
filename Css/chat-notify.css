@@ -15,7 +15,7 @@
     font-weight: 700;
     line-height: 1.15rem;
     text-align: center;
-    box-shadow: 0 0 0 2px rgba(9, 9, 11, 0.9);
+    box-shadow: 0 0 0 2px var(--bg);
 }
 
 .sidebar-chat-badge[hidden] {
@@ -49,9 +49,9 @@
     gap: 0.65rem;
     padding: 0.75rem 0.85rem;
     border-radius: 12px;
-    border: 1px solid rgba(59, 130, 246, 0.45);
-    background: linear-gradient(165deg, rgba(24, 24, 27, 0.98), rgba(15, 15, 18, 0.98));
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    border: 1px solid var(--primary-border);
+    background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+    box-shadow: var(--shadow-lg);
     cursor: pointer;
     animation: chatNotifyIn 0.28s ease-out;
     transition: transform 0.12s, border-color 0.12s;
@@ -59,11 +59,11 @@
 
 .chat-notify-toast:hover {
     transform: translateY(-1px);
-    border-color: rgba(96, 165, 250, 0.7);
+    border-color: var(--primary);
 }
 
 .chat-notify-toast.join {
-    border-color: rgba(16, 185, 129, 0.45);
+    border-color: var(--ok-border);
 }
 
 .chat-notify-toast.closing {
@@ -78,13 +78,13 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: rgba(59, 130, 246, 0.18);
-    color: #93c5fd;
+    background: var(--primary-soft-strong);
+    color: var(--link-accent);
 }
 
 .chat-notify-toast.join .chat-notify-icon {
-    background: rgba(16, 185, 129, 0.18);
-    color: #6ee7b7;
+    background: var(--ok-bg-strong);
+    color: var(--ok-text);
 }
 
 .chat-notify-body {

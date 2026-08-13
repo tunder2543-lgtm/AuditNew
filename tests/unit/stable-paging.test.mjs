@@ -45,6 +45,19 @@ const ALLOWLIST = {
     'Html/book_explorer.html': 'query ประกอบผ่าน applySort() ซึ่งจบด้วย .order("id") อยู่แล้ว (regex มองข้ามฟังก์ชันไม่ได้)'
 };
 
+/**
+ * ตารางที่ **ไม่มีคอลัมน์ `id`** จึงเรียงด้วย id ไม่ได้ — ต้องระบุคอลัมน์ทดแทนที่ unique จริง
+ * ยกเว้นเป็นราย "ตาราง" ไม่ใช่ราย "ไฟล์" เพราะ ALLOWLIST ระดับไฟล์จะปิดตาให้ query อื่น
+ * ในไฟล์เดียวกันไปด้วยทั้งหมด
+ * key = ชื่อตาราง · value = { column, reason }
+ */
+const NO_ID_TABLES = {
+    reconciliation_match_acceptances: {
+        column: 'sku_id',
+        reason: 'PK เป็น (cycle_id, sku_id) ไม่มีคอลัมน์ id — query กรอง cycle_id อยู่แล้ว sku_id จึง unique'
+    }
+};
+
 test('[paging-guard] ทุก query ที่แบ่งหน้าด้วย .range() ต้องเรียงด้วย id เพื่อให้ลำดับเสถียร', () => {
     const offenders = [];
 
@@ -57,6 +70,9 @@ test('[paging-guard] ทุก query ที่แบ่งหน้าด้ว�
             const [, table, body] = m;
             if (/\.from\(/.test(body)) continue;            // จับข้าม statement — ไม่นับ
             if (/\.order\(\s*['"]id['"]/.test(body)) continue;
+            // ตารางที่ไม่มีคอลัมน์ id — ต้องเรียงด้วยคอลัมน์ทดแทนที่ประกาศไว้เท่านั้น
+            const noId = NO_ID_TABLES[table];
+            if (noId && new RegExp(`\\.order\\(\\s*['"]${noId.column}['"]`).test(body)) continue;
             if (ALLOWLIST[rel]) continue;                    // ตรวจมือแล้ว (ดูเหตุผลใน ALLOWLIST)
             const line = src.slice(0, m.index).split('\n').length;
             offenders.push(`${rel}~${line} (${table})`);
@@ -72,6 +88,23 @@ test('[paging-guard] ไฟล์ใน ALLOWLIST ต้องยังมี .o
         const src = fs.readFileSync(path.join(PROJECT_ROOT, rel), 'utf8');
         assert.ok(/\.order\(\s*['"]id['"]/.test(src),
             `${rel} อยู่ใน ALLOWLIST เพราะ "${reason}" แต่หา .order("id") ในไฟล์ไม่เจอแล้ว`);
+    }
+});
+
+test('[paging-guard] ตารางใน NO_ID_TABLES ต้องไม่มีคอลัมน์ id ใน schema จริง', () => {
+    // ถ้าวันหนึ่งมี migration เพิ่ม id ให้ตารางนี้ ข้อยกเว้นต้องหายไป ไม่ใช่ค้างไว้ตลอด
+    const sqlDir = path.join(PROJECT_ROOT, 'docs/sql');
+    for (const [table, { column }] of Object.entries(NO_ID_TABLES)) {
+        const ddl = fs.readdirSync(sqlDir)
+            .map(f => fs.readFileSync(path.join(sqlDir, f), 'utf8'))
+            .map(src => {
+                const at = src.indexOf(`CREATE TABLE IF NOT EXISTS ${table}`);
+                return at < 0 ? '' : src.slice(at, src.indexOf(');', at));
+            })
+            .find(Boolean);
+        assert.ok(ddl, `หา DDL ของ ${table} ใน docs/sql ไม่เจอ — NO_ID_TABLES ล้าสมัยแล้ว?`);
+        assert.ok(!/^\s*id\s+/m.test(ddl), `${table} มีคอลัมน์ id แล้ว — เอาออกจาก NO_ID_TABLES และใช้ .order("id")`);
+        assert.ok(new RegExp(`^\\s*${column}\\s+`, 'm').test(ddl), `${table} ไม่มีคอลัมน์ ${column} ที่อ้างไว้`);
     }
 });
 

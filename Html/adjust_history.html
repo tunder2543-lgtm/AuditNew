@@ -294,8 +294,10 @@
             }
             sel.innerHTML = '<option value="">— เลือกรอบ —</option>' +
                 cycles.map(c => `<option value="${RS.escapeHtml(c.id)}">${RS.escapeHtml(RS.formatCycleLabel(c))} [${RS.escapeHtml(RS.statusLabel(c.status))}]</option>`).join('');
+            // เทียบค่าตรง ๆ ไม่ใช้ querySelector — id เป็น UUID ที่ขึ้นต้นด้วยตัวเลขได้
+            // ซึ่งต้องพึ่ง CSS.escape แล้วผลลัพธ์อ่านยากและพึ่งพฤติกรรมที่ละเอียดอ่อนเกินจำเป็น
             const q = new URLSearchParams(location.search).get('cycle');
-            if (q && sel.querySelector(`option[value="${CSS.escape(q)}"]`)) sel.value = q;
+            if (q && [...sel.options].some(o => o.value === q)) sel.value = q;
         } catch (err) {
             sel.innerHTML = `<option value="">— โหลดล้มเหลว: ${RS.escapeHtml(err.message)} —</option>`;
         }
@@ -331,6 +333,9 @@
         setLoading(true, 'กำลังโหลดประวัติ...');
         try {
             const cycle = await RS.fetchCycleById(id);
+            // รอบหายไประหว่างทาง (ถูกลบ / RLS) — ต้องดังตรงนี้ ไม่ใช่เดินต่อด้วย currentCycle = null
+            // ไม่งั้นชื่อไฟล์ Export จะตกไปเป็น "คลังทั้งหมด" ทั้งที่ไม่รู้ว่ารอบไหน
+            if (!cycle) throw new Error('ไม่พบรอบนี้แล้ว — อาจถูกลบไป กรุณาเลือกรอบใหม่');
             // ดึงสดจาก DB — คนอื่นอาจเพิ่งกดปรับ/ยืนยันไปหลังจากที่หน้านี้เปิด
             const [adjustments, ackMap] = await Promise.all([
                 RS.fetchAdjustments(id),
@@ -341,9 +346,13 @@
             clearSelection();
             applyView();
         } catch (err) {
+            // ต้องล้าง viewEntries ด้วย ไม่ใช่แค่ allEntries — ไม่งั้นปุ่ม Export ยังเปิดค้าง
+            // แล้วกดออกมาได้ข้อมูลของ "รอบก่อนหน้า" ในไฟล์ที่ชื่อบอกรอบผิด
             allEntries = [];
+            viewEntries = [];
             currentCycle = null;
             clearSelection();
+            applyView();
             document.getElementById('historyBody').innerHTML =
                 `<tr><td colspan="8" class="ah-empty" style="color:#f87171;">${RS.escapeHtml(err.message)}</td></tr>`;
             document.getElementById('summaryText').textContent = 'โหลดล้มเหลว';
@@ -394,9 +403,11 @@
         );
         renderTable();
         renderSortMarks();
-        const hasRows = viewEntries.length > 0;
-        document.getElementById('btnExportXlsx').disabled = !hasRows;
-        document.getElementById('btnExportCsv').disabled = !hasRows;
+        // ต้องมี currentCycle ด้วย ไม่ใช่ดูแค่จำนวนแถว — ชื่อไฟล์ Export ประกอบจากรอบ
+        // ถ้ารอบหลุดไปแต่แถวยังค้าง จะได้ไฟล์ที่ติดป้ายรอบผิด
+        const canExport = !!currentCycle && viewEntries.length > 0;
+        document.getElementById('btnExportXlsx').disabled = !canExport;
+        document.getElementById('btnExportCsv').disabled = !canExport;
     }
 
     function renderTable() {
@@ -454,6 +465,7 @@
     /* ── Export ────────────────────────────────────────────────────────────── */
 
     function exportRows() {
+        if (!currentCycle) return showToast('ยังไม่ได้เลือกรอบ', 'error');
         if (!viewEntries.length) return showToast('ไม่มีรายการให้ส่งออก', 'error');
         return AH.buildHistoryExportRows(viewEntries);
     }
@@ -492,6 +504,33 @@
         const cycleId = lockCycleId();
         if (!cycleId) return;
 
+        // กันทั้งงานตั้งแต่ก่อนเปิด modal ยืนยัน — ไม่ใช่หลังกดยืนยันแล้ว
+        // เพราะระหว่าง modal เปิดอยู่ ผู้ใช้ยัง Tab ไปกดปุ่มหลังฉากได้ (overlay กันแค่เมาส์)
+        // และ uiConfirm ใช้ resolvePending ตัวเดียว เปิดซ้อนกันแล้ว promise แรกค้างถาวร
+        isBusy = true;
+        const sel = document.getElementById('cycleSelect');
+        sel.disabled = true;
+        const btn = document.getElementById('btnRestore');
+        btn.disabled = true;
+        let attempted = false;
+        try {
+            attempted = await restoreSelectedInner(cycleId, skus);
+        } finally {
+            isBusy = false;
+            sel.disabled = false;
+            setLoading(false);
+        }
+        // ลงมือแล้วต้องโหลดใหม่เสมอ **แม้จะ error** เพราะอาจลบไปได้บางส่วน
+        // จอต้องตรงกับ DB จริง · กดยกเลิกตั้งแต่ modal = ไม่มีอะไรเปลี่ยน ไม่ต้องโหลด
+        // (อยู่นอก finally เพราะ loadHistory ต้องการ isBusy = false แล้ว)
+        if (attempted) await loadHistory();
+    }
+
+    /**
+     * เนื้องานคืนค่า — เรียกจาก restoreSelected เท่านั้น (การ์ด isBusy/dropdown อยู่ข้างนอก)
+     * @returns {Promise<boolean>} true = ลงมือเขียน DB ไปแล้ว (สำเร็จหรือไม่ก็ตาม) ⇒ ต้องโหลดใหม่
+     */
+    async function restoreSelectedInner(cycleId, skus) {
         const bullets = skus.slice(0, 10);
         if (skus.length > 10) bullets.push(`… และอีก ${skus.length - 10} SKU`);
         const ok = await uiConfirm.twoStep({
@@ -509,13 +548,10 @@
                 confirmLabel: 'คืนค่า'
             }
         });
-        if (!ok) return;
+        if (!ok) return false;
         // ผู้ใช้ใช้เวลาอยู่กับ modal — รอบอาจถูกสลับไปแล้วระหว่างนั้น
-        if (!stillOnCycle(cycleId)) return;
+        if (!stillOnCycle(cycleId)) return false;
 
-        isBusy = true;
-        const btn = document.getElementById('btnRestore');
-        btn.disabled = true;
         setLoading(true, `กำลังคืนค่า ${skus.length} SKU...`);
         try {
             await RS.clearAdjustmentsAndMatchAcceptancesForSkus(cycleId, skus, {
@@ -526,13 +562,8 @@
             showToast(`คืนค่าแล้ว ${skus.length.toLocaleString()} SKU`);
         } catch (err) {
             showToast(err.message, 'error');
-        } finally {
-            isBusy = false;
-            btn.disabled = false;
-            setLoading(false);
         }
-        // โหลดใหม่เสมอ ไม่ว่าจะสำเร็จหรือไม่ — สถานะบนจอต้องตรงกับ DB จริง
-        await loadHistory();
+        return true;
     }
 
     /* ── Events ────────────────────────────────────────────────────────────── */

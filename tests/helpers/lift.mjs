@@ -25,6 +25,20 @@ export function bodyOf(src, marker) {
  * คืน object ของฟังก์ชันที่เรียกได้จริง
  */
 export function liftFunctions(src, names, context = {}) {
+    return liftInto(src, names, context).fns;
+}
+
+/**
+ * เหมือน `liftFunctions` แต่คืน sandbox มาด้วย
+ *
+ * ทำไมต้องมี: `sandbox` เป็น **สำเนา** ของ `context` การที่ฟังก์ชันเขียนทับตัวแปรระดับ
+ * โมดูล (เช่น `viewEntries = ...`) จึงไปลงที่ sandbox ไม่ใช่ object ที่ผู้เรียกถืออยู่
+ * เทสที่อยากตรวจ "สถานะหลังรัน" ต้องอ่านจาก sandbox โดยตรง
+ * ⚠️ object ใน sandbox อยู่คนละ realm — เทียบด้วย `deepStrictEqual` ไม่ได้ ใช้ JSON แทน
+ *
+ * @returns {{fns: Record<string, Function>, sandbox: object}}
+ */
+export function liftInto(src, names, context = {}) {
     const decls = names.map(n => {
         // รองรับทั้ง `function f()`, `async function f()` และ `window.f = function ()`
         // (หน้าเว็บในโปรเจกต์นี้ผูกฟังก์ชันไว้กับ window เพื่อให้ onclick= เรียกได้)
@@ -54,5 +68,5 @@ export function liftFunctions(src, names, context = {}) {
     const sandbox = { console: { warn() {}, info() {}, error() {} }, ...context };
     vm.createContext(sandbox);
     vm.runInContext(decls.join('\n') + `\n;globalThis.__fns = { ${names.join(', ')} };`, sandbox);
-    return sandbox.__fns;
+    return { fns: sandbox.__fns, sandbox };
 }

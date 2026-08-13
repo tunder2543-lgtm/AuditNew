@@ -2205,6 +2205,9 @@
 
     const RECON_PAGE_SIZE = 1000;
 
+    /** เพดานรอบวนแบ่งหน้า — กันลูปไม่จบถ้า PostgREST คืนผลแปลก (1,000 รอบ = 1 ล้านแถว) */
+    const MAX_PAGE_LOOPS = 1000;
+
 
 
     /** ดึง reconciliation_lines ทั้งหมด — ครั้งละ 1000 แถว (ข้าม limit ของ Supabase) */
@@ -2557,26 +2560,40 @@
 
 
 
+    /**
+     * ยอดปรับทั้งหมดของรอบ — เรียงใหม่ → เก่า
+     *
+     * ⚠️ ต้องแบ่งหน้า: PostgREST ตัดผลลัพธ์ที่ ~1,000 แถว **เงียบ ๆ** (บทเรียน M1)
+     * และ bulk accept รอบเดียวสร้างได้หลายร้อย SKU ⇒ รอบที่ปรับเยอะจะได้ข้อมูลไม่ครบ
+     * โดยไม่มีอะไรเตือน แล้วหน้า Match / ประวัติ / Export จะบอกตัวเลขผิดทั้งหมด
+     *
+     * ⚠️ เรียงหน้าด้วย `id` ไม่ใช่ `created_at`: bulk insert ทำให้ `created_at` ซ้ำกันเป๊ะ
+     * (`now()` คงที่ทั้ง transaction) การแบ่งหน้าจะข้าม/ซ้ำแถวเงียบ ๆ (invariant ข้อ 13)
+     * แล้วค่อยเรียงใหม่ → เก่า ในหน่วยความจำเพื่อคงสัญญาเดิมของฟังก์ชันนี้
+     */
     async function fetchAdjustments(cycleId) {
-
         const client = getClient();
-
         if (!client) throw new Error('ยังไม่ได้เชื่อมต่อ Supabase');
-
-        const { data, error } = await client
-
-            .from('stock_adjustments')
-
-            .select('*')
-
-            .eq('cycle_id', cycleId)
-
-            .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
-        return data || [];
-
+        const rows = [];
+        let from = 0;
+        for (let guard = 0; guard < MAX_PAGE_LOOPS; guard++) {
+            const { data, error } = await client
+                .from('stock_adjustments')
+                .select('*')
+                .eq('cycle_id', cycleId)
+                .order('id', { ascending: true })
+                .range(from, from + RECON_PAGE_SIZE - 1);
+            if (error) throw error;
+            const chunk = data || [];
+            rows.push(...chunk);
+            if (chunk.length < RECON_PAGE_SIZE) break;
+            // เดินตามจำนวนแถวที่ได้จริง — ถ้า PostgREST ตั้ง max-rows ต่ำกว่าที่ขอ
+            // การบวกทีละ page size คงที่จะข้ามแถวกลางหายเงียบ ๆ (บทเรียนเดิม)
+            from += chunk.length;
+        }
+        rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || ''))
+            || String(a.id || '').localeCompare(String(b.id || '')));
+        return rows;
     }
 
 
@@ -2773,26 +2790,40 @@
 
 
 
-    /** ดึงรายการที่ยืนยันเป็นถูกต้องแล้ว (ไม่ปรับยอด) */
+    /**
+     * ดึงรายการที่ยืนยันเป็นถูกต้องแล้ว (ไม่ปรับยอด)
+     *
+     * ⚠️ แบ่งหน้าเช่นเดียวกับ fetchAdjustments — รอบ 2026-08 เคยมี 168 แถวและเคยลบไป
+     * 733 แถวของรอบเก่า จำนวนแตะ 1,000 ได้จริง · ตารางนี้ **ไม่มีคอลัมน์ `id`**
+     * (PK = cycle_id + sku_id) จึงเรียงด้วย `sku_id` ซึ่ง unique ภายในรอบ = เสถียรพอ
+     */
     async function fetchMatchAcceptanceMap(cycleId) {
         const client = getClient();
         if (!client || !cycleId) return new Map();
-        const { data, error } = await client
-            .from('reconciliation_match_acceptances')
-            .select('sku_id, note, accepted_at, accepted_by')
-            .eq('cycle_id', cycleId);
-        if (error) {
-            if (/does not exist|relation|schema cache/i.test(error.message)) {
-                console.warn('[fetchMatchAcceptanceMap] ตารางยังไม่มี — รัน docs/sql/008_reconciliation_match_acceptances.sql');
-                return new Map();
-            }
-            throw error;
-        }
         const map = new Map();
-        (data || []).forEach(row => {
-            const sku = normalizeSku(row.sku_id);
-            if (sku) map.set(sku, row);
-        });
+        let from = 0;
+        for (let guard = 0; guard < MAX_PAGE_LOOPS; guard++) {
+            const { data, error } = await client
+                .from('reconciliation_match_acceptances')
+                .select('sku_id, note, accepted_at, accepted_by')
+                .eq('cycle_id', cycleId)
+                .order('sku_id', { ascending: true })
+                .range(from, from + RECON_PAGE_SIZE - 1);
+            if (error) {
+                if (/does not exist|relation|schema cache/i.test(error.message)) {
+                    console.warn('[fetchMatchAcceptanceMap] ตารางยังไม่มี — รัน docs/sql/008_reconciliation_match_acceptances.sql');
+                    return new Map();
+                }
+                throw error;
+            }
+            const chunk = data || [];
+            chunk.forEach(row => {
+                const sku = normalizeSku(row.sku_id);
+                if (sku) map.set(sku, row);
+            });
+            if (chunk.length < RECON_PAGE_SIZE) break;
+            from += chunk.length;
+        }
         return map;
     }
 

@@ -10,7 +10,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { suite, test } from '../helpers/harness.mjs';
 import { PROJECT_ROOT } from '../helpers/sandbox.mjs';
-import { liftFunctions } from '../helpers/lift.mjs';
+import { liftFunctions, liftInto, bodyOf } from '../helpers/lift.mjs';
 
 suite('ประวัติการปรับ / ยืนยัน (adjust_history)');
 
@@ -263,8 +263,8 @@ function fakeEl(extra = {}) {
 function liftRestore({ confirm = true, selected = ['P1', 'P2'], cycleId = 'cyc-1', clearThrows = null } = {}) {
     const calls = { clear: null, refresh: [], reload: 0, locked: 0 };
     const toasts = [];
-    const els = { loading: fakeEl(), loadingText: fakeEl(), btnRestore: fakeEl() };
-    const fns = liftFunctions(PAGE, ['restoreSelected'], {
+    const els = { loading: fakeEl(), loadingText: fakeEl(), btnRestore: fakeEl(), cycleSelect: fakeEl() };
+    const fns = liftFunctions(PAGE, ['restoreSelected', 'restoreSelectedInner'], {
         isBusy: false,
         selectedSkus: new Set(selected),
         RS: {
@@ -329,6 +329,185 @@ test('[flow] คืนค่า: ลบล้มเหลว = ต้องร�
 });
 
 // -----------------------------------------------------------------------------
+// รันเส้นทางโหลด/แสดงผลจริง — ไม่ใช่อ่านซอร์ส
+//
+// ช่องนี้คือช่องเดียวกับที่ทำให้ `submitGroup` และ `createRow` หลุดถึงผู้ใช้:
+// เทส regex ผ่านหมดเพราะไม่มีข้อไหน *รัน* ฟังก์ชันที่พัง
+// -----------------------------------------------------------------------------
+
+/** DOM ปลอมพอให้ inline script ของหน้าทำงานได้จริง */
+function makeDom(ids) {
+    const store = new Map();
+    const get = (id) => {
+        if (!store.has(id)) store.set(id, fakeEl({ id }));
+        return store.get(id);
+    };
+    (ids || []).forEach(get);
+    return { store, get };
+}
+
+/** ยกชุดฟังก์ชันแสดงผลของหน้ามารันจริง พร้อม state ที่แชร์กันได้ */
+function liftView({ entries = sample(), cycle = { id: 'cy1', warehouse: 'คลังA', year_month: '2026-08' } } = {}) {
+    const dom = makeDom(['historyBody', 'summaryText', 'selectAll', 'selCount',
+        'btnRestore', 'btnExportXlsx', 'btnExportCsv',
+        'fType', 'fSku', 'fDetail', 'fDateFrom', 'fDateTo', 'fQtyMin', 'fQtyMax']);
+    // checkbox ที่ "เรนเดอร์อยู่" — จำลองผลของ innerHTML ด้วยการ parse data-sku ออกมา
+    let rendered = [];
+    const ctx = {
+        currentCycle: cycle,
+        allEntries: entries,
+        viewEntries: [],
+        selectedSkus: new Set(),
+        sortKey: 'at',
+        sortDir: 'desc',
+        AH: loadAH(),
+        RS: {
+            ...FAKE_RS,
+            escapeHtml: v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;'),
+        },
+        showToast() {},
+        document: {
+            getElementById: dom.get,
+            querySelectorAll: (sel) => {
+                if (sel === '[data-mark]') return [];
+                if (sel === '.ah-cb') return rendered;
+                return [];
+            },
+        },
+    };
+    // ⚠️ ต้องอ่านสถานะจาก sandbox ไม่ใช่ ctx — sandbox เป็นสำเนา การเขียนทับตัวแปร
+    //    ระดับโมดูล (viewEntries = ...) จะไม่สะท้อนกลับมาที่ ctx
+    const { fns, sandbox } = liftInto(PAGE, [
+        'readCriteria', 'clearSelection', 'refreshSelCount', 'renderSortMarks',
+        'applyView', 'renderTable', 'syncSelectAllBox', 'exportRows',
+    ], ctx);
+    // หลัง renderTable เขียน innerHTML แล้ว สร้าง checkbox ปลอมตาม data-sku ที่ออกมาจริง
+    const syncRendered = () => {
+        const html = dom.get('historyBody').innerHTML || '';
+        rendered = [...html.matchAll(/data-sku="([^"]*)"/g)]
+            .map(m => fakeEl({ dataset: { sku: m[1] }, checked: false }));
+    };
+    return { fns, state: sandbox, dom, syncRendered, getRendered: () => rendered };
+}
+
+test('[run] applyView → renderTable วิ่งจนจบ และสรุปตรงกับจำนวนที่กรองได้', () => {
+    const { fns, state, dom, syncRendered } = liftView();
+    fns.applyView();
+    syncRendered();
+    assert.equal(state.viewEntries.length, 4);
+    assert.match(dom.get('summaryText').innerHTML, /แสดง <strong>4<\/strong> \/ 4 รายการ/);
+    assert.match(dom.get('summaryText').innerHTML, /<strong>4<\/strong> SKU/);
+    assert.equal(dom.get('btnExportXlsx').disabled, false);
+});
+
+test('[run] แถวที่เรนเดอร์ต้องตรงกับที่กรองได้ ไม่ใช่ข้อมูลทั้งรอบ', () => {
+    const { fns, state, dom, syncRendered, getRendered } = liftView();
+    dom.get('fType').value = 'adj';
+    fns.applyView();
+    syncRendered();
+    assert.equal(state.viewEntries.length, 3);
+    assert.equal(getRendered().length, 3, 'checkbox ต้องมีเท่าแถวที่เห็น');
+    // ค่าเริ่มต้นเรียงวันเวลาใหม่ → เก่า ⇒ C3 (08-12), B2 (08-11), A1 (08-10)
+    assert.equal(getRendered().map(cb => cb.dataset.sku).join(','), 'C3,B2,A1',
+        'ลำดับ checkbox ต้องตรงกับลำดับที่เรียงไว้ ไม่ใช่ลำดับใน allEntries');
+    assert.ok(!dom.get('historyBody').innerHTML.includes('D4'), 'แถวที่ถูกกรองออกต้องไม่อยู่ใน DOM');
+});
+
+test('[run] ไม่มีรอบ = ปุ่ม Export ต้องปิด แม้จะยังมีแถวค้างอยู่ (finding #4)', () => {
+    const { fns, state, dom } = liftView();
+    fns.applyView();
+    assert.equal(dom.get('btnExportXlsx').disabled, false);
+    state.currentCycle = null;               // รอบหลุดไป แต่ viewEntries ยังมีของ
+    fns.applyView();
+    assert.equal(dom.get('btnExportXlsx').disabled, true, 'ไม่งั้นได้ไฟล์ที่ติดป้ายรอบผิด');
+    assert.equal(dom.get('btnExportCsv').disabled, true);
+    assert.equal(fns.exportRows(), undefined, 'exportRows ต้องไม่คืนแถวเมื่อไม่รู้ว่ารอบไหน');
+});
+
+test('[run] ไม่มีแถว = ปุ่ม Export ปิด และขึ้นข้อความต่างกันตามสาเหตุ', () => {
+    const { fns, state, dom } = liftView();
+    dom.get('fSku').value = 'ไม่มีทางเจอ';
+    fns.applyView();
+    assert.equal(dom.get('btnExportXlsx').disabled, true);
+    assert.match(dom.get('historyBody').innerHTML, /ไม่มีรายการที่ตรงกับตัวกรอง/);
+    state.allEntries = [];
+    fns.applyView();
+    assert.match(dom.get('historyBody').innerHTML, /ยังไม่มีการปรับ\/ยืนยัน/);
+});
+
+test('[run] selectAll เลือกได้เฉพาะแถวที่เรนเดอร์อยู่ แล้วนับถูก', () => {
+    const { fns, state, dom, syncRendered, getRendered } = liftView();
+    dom.get('fType').value = 'adj';
+    fns.applyView();
+    syncRendered();
+    // จำลองสิ่งที่ handler ของ selectAll ทำ (วนเฉพาะ .ah-cb ที่เรนเดอร์อยู่)
+    getRendered().forEach(cb => { cb.checked = true; state.selectedSkus.add(cb.dataset.sku); });
+    fns.refreshSelCount();
+    assert.equal(dom.get('selCount').textContent, '3');
+    assert.equal(dom.get('btnRestore').disabled, false);
+    assert.ok(!state.selectedSkus.has('D4'), 'SKU ที่ถูกกรองออกต้องไม่ถูกเลือก');
+    fns.clearSelection();
+    assert.equal(dom.get('selCount').textContent, '0');
+    assert.equal(dom.get('btnRestore').disabled, true);
+});
+
+test('[run] loadHistory: รอบหาย (fetchCycleById คืน null) ต้องดัง ไม่ใช่เดินต่อเงียบ ๆ', async () => {
+    const dom = makeDom(['cycleSelect', 'historyBody', 'summaryText', 'loading', 'loadingText',
+        'btnExportXlsx', 'btnExportCsv', 'selCount', 'btnRestore', 'selectAll']);
+    dom.get('cycleSelect').value = 'cy-gone';
+    const toasts = [];
+    const state = { currentCycle: { id: 'old' }, allEntries: [1, 2, 3], viewEntries: [1, 2, 3] };
+    const fns = liftFunctions(PAGE, ['loadHistory'], {
+        ...state,
+        isBusy: false,
+        RS: {
+            fetchCycleById: async () => null,            // รอบถูกลบไปแล้ว
+            fetchAdjustments: async () => { throw new Error('ไม่ควรถูกเรียก'); },
+            fetchMatchAcceptanceMap: async () => new Map(),
+            escapeHtml: v => String(v ?? ''),
+            buildAdjustHistoryEntries: () => [],
+        },
+        setLoading() {},
+        clearSelection() {},
+        applyView() { state.applied = (state.applied || 0) + 1; },
+        showToast: (m) => toasts.push(String(m)),
+        document: { getElementById: dom.get },
+        console: { error() {} },
+    });
+    await fns.loadHistory();
+    assert.ok(toasts.some(t => /ไม่พบรอบนี้แล้ว/.test(t)), toasts.join(' | '));
+    assert.match(dom.get('summaryText').textContent, /โหลดล้มเหลว/);
+    assert.equal(dom.get('cycleSelect').disabled, false, 'ต้องปลดล็อก dropdown ใน finally');
+});
+
+test('[run] loadHistory: โหลดล้มเหลวต้องเรียก applyView เพื่อปิดปุ่ม Export (finding #3)', async () => {
+    const dom = makeDom(['cycleSelect', 'historyBody', 'summaryText', 'loading', 'loadingText']);
+    dom.get('cycleSelect').value = 'cy1';
+    const seen = { applied: 0 };
+    const fns = liftFunctions(PAGE, ['loadHistory'], {
+        currentCycle: { id: 'old' },
+        allEntries: [1, 2, 3],
+        viewEntries: [1, 2, 3],
+        isBusy: false,
+        RS: {
+            fetchCycleById: async () => ({ id: 'cy1' }),
+            fetchAdjustments: async () => { throw new Error('เน็ตหลุด'); },
+            fetchMatchAcceptanceMap: async () => new Map(),
+            escapeHtml: v => String(v ?? ''),
+            buildAdjustHistoryEntries: () => [],
+        },
+        setLoading() {},
+        clearSelection() {},
+        applyView() { seen.applied++; },
+        showToast() {},
+        document: { getElementById: dom.get },
+        console: { error() {} },
+    });
+    await fns.loadHistory();
+    assert.equal(seen.applied, 1, 'catch ต้องเรียก applyView — ไม่งั้นปุ่ม Export ค้างเปิดกับข้อมูลรอบเก่า');
+});
+
+// -----------------------------------------------------------------------------
 // โครงหน้า
 // -----------------------------------------------------------------------------
 test('[ui] หน้าใหม่ต้องไม่เขียนกติกาซ้ำ — ใช้ตัวรวมรายการจาก shared เท่านั้น', () => {
@@ -365,8 +544,9 @@ test('[ui] เปลี่ยนรอบต้องล้างทั้ง se
 
 test('[ui] ยืนยัน 2 ขั้น + บอกชัดว่าคืนค่าเป็นราย SKU ทั้งรอบ', () => {
     assert.match(PAGE, /uiConfirm\.twoStep/);
-    const at = PAGE.indexOf('async function restoreSelected');
-    const body = PAGE.slice(at, at + 2200);
+    // ใช้ bodyOf() นับวงเล็บ ไม่ใช่ slice ด้วยเลขคงที่ — ฟังก์ชันยาวขึ้นนิดเดียว
+    // เทสแบบเลขคงที่จะเริ่มมองไม่เห็นท้ายฟังก์ชันแบบเงียบ ๆ
+    const body = bodyOf(PAGE, 'async function restoreSelectedInner');
     assert.match(body, /ราย SKU/, 'ต้องบอกว่าติ๊กแถวเดียวก็ลบการตัดสินทั้งหมดของ SKU นั้น');
     assert.match(body, /ผลนับไม่ถูกแตะ/, 'ต้องย้ำว่าไม่แตะ inventory_counts (invariant ข้อ 1)');
 });

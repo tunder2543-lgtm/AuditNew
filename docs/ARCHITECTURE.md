@@ -45,7 +45,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 6. `reconcile.html` — กด "คำนวณ Match" → ปรับยอด/ยอมรับ → export
 7. `book_explorer.html` / `dashboard.html` / `live_count_wall.html` — ดูผล
 
-## Shared JS Layer (`Js/` — 17 ไฟล์)
+## Shared JS Layer (`Js/` — 18 ไฟล์)
 
 | ไฟล์ | Global ที่ export | หน้าที่ |
 |---|---|---|
@@ -57,7 +57,8 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `db-errors.js` | `window.DbErrors` | แปล error Postgres (23505/23502/23503/23514) เป็นภาษาไทย |
 | `ui-confirm-modal.js` | `window.uiConfirm` | modal ยืนยัน (แทน `confirm()`) รองรับ 2 ขั้น (`show`, `twoStep`) — คู่กับ `Css/ui-confirm.css` |
 | `count-scan-shared.js` | `window.countScanService` | อ่าน "เดือน/วันที่มีข้อมูลนับ" จาก `inventory_counts` (RPC ก่อน ไม่มีค่อยแบ่งหน้า) · ⛔ ห้ามใช้ `.limit()` กับตารางนี้ · **ต้องโหลดก่อน `reconcile-shared.js`** (invariant ข้อ 8) — ใช้โดย reconcile-shared (delegate), cycle_config, count_search, audit_check |
-| `reconcile-shared.js` | `window.reconcileService` | service ใหญ่สุด (~78 exports): cycle CRUD, Book import, active cycle, เวลา Bangkok, reconciliation, adjustments — ดูรายละเอียดใน [pages/reconcile.md](pages/reconcile.md) |
+| `reconcile-shared.js` | `window.reconcileService` | service ใหญ่สุด (85 exports): cycle CRUD, Book import, active cycle, เวลา Bangkok, reconciliation, adjustments — ดูรายละเอียดใน [pages/reconcile.md](pages/reconcile.md) |
+| `adjust-history-shared.js` | `window.adjustHistoryService` | filter / sort / Export (Excel+CSV) / ชื่อไฟล์ ของหน้า `adjust_history` · **ต้องโหลดหลัง `reconcile-shared.js`** (invariant ข้อ 8) — ตัวรวมรายการ `buildAdjustHistoryEntries` อยู่ใน reconcile-shared ห้ามคัดลอกมา |
 | `dashboard-shared.js` | `window.dashboardShared` | helper คำนวณ bucket/สถิติ + สร้าง Chart.js (ไม่มี I/O) |
 | `audit-dedupe.js` | `window.AuditDedupe` | นิยาม "แถวซ้ำ" ของ `inventory_counts` ตามนโยบาย migration 011 (ใช้โดย audit_check — แยกออกมาให้เทสได้) |
 | `audit-book-impact.js` | audit_check | คำนวณผลกระทบของแถวทับซ้อนต่อ Match + สถานะ "ยืนยันว่าปกติ" |
@@ -78,6 +79,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | audit_check | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | audit-dedupe, audit-log, audit-book-impact, audit-loc-compare |
 | count_search | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | |
 | reconcile | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | |
+| adjust_history | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ | count-scan, adjust-history-shared |
 | book_explorer | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ | |
 | dashboard | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ | ✅ | ❌ | dashboard-shared |
 | live_count_wall | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | live-count-wall.js |
@@ -91,7 +93,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 
 จุดที่ drift:
 - ลำดับ `<script>` ไม่มีมาตรฐาน (6 หน้า sidebar มาก่อน api, 7 หน้ามาหลัง) — ทำงานได้เพราะ sidebar รอ DOMContentLoaded ยกเว้น `live-count-wall.js` ที่ลำดับสำคัญจริง
-- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 11 หน้าด้วย
+- **cache-buster**: ทุกไฟล์ใน `Js/` และ `Css/` ที่อ้างจาก HTML มี `?v=` ครบแล้ว และมีเทส `[asset-ver]` 3 ข้อบังคับอัตโนมัติ — ⚠️ **แก้ shared JS ทีไร ต้อง bump `?v=` ทุก tag ด้วยมือ** · แตะ `Css/style.css` หรือ `Js/sidebar-shared.js` ต้อง bump `ASSET_VER` + ทั้ง 12 หน้าด้วย
 - `reconcile` และ `book_explorer` โหลด `reconcile-shared.js` โดยไม่โหลด `warehouses-shared.js` — ไม่พัง เพราะ `refreshStandardWarehousesFromRegistry()` ถูกเรียกจาก `cycle_config` / `settings` เท่านั้น ซึ่งโหลดครบ · `book_explorer` ไม่โหลด `sku-utils.js` ก็ไม่พัง เพราะ `reconcile-shared.js:70` มี fallback normalize ที่เหมือน `SkuUtils.normalizeSku` เป๊ะ
 - `escapeHtml` มี **5 เวอร์ชัน** คนละชุดอักขระ (warehouses-shared, ui-confirm-modal, chat.html, dashboard.html, live-count-wall.js)
 - Connection badge มี 3 implementation (settings-shared กลาง, dashboard `#connectionPill`, live_count_wall id-based)
@@ -127,7 +129,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | เมนูตรวจสอบ | audit_check, count_search, reconcile, book_explorer, dashboard, live_count_wall |
 | ตั้งค่า | settings, cycle_config, chat |
 
-ลิงก์ครบทั้ง 11 หน้า ไม่มีลิงก์เสีย (มีเทส `[menu-guard]` บังคับว่าทุกรายการต้องชี้ไฟล์ที่มีจริง และทุกกลุ่มต้องมีอย่างน้อย 1 รายการ)
+ลิงก์ครบทั้ง 12 หน้า ไม่มีลิงก์เสีย (มีเทส `[menu-guard]` บังคับว่าทุกรายการต้องชี้ไฟล์ที่มีจริง และทุกกลุ่มต้องมีอย่างน้อย 1 รายการ)
 
 ## CSS
 

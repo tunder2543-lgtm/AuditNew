@@ -249,6 +249,58 @@
             </label>
             <div id="warehouseListWrap" class="warehouse-list"></div>
         </div>
+
+        <style>
+            /* การ์ด Supabase Keep-Alive — ใช้ design token กลางเท่านั้น (กติกาธีม: ห้าม hex ดิบ) */
+            .keepalive-grid { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+            .keepalive-box { flex: 1 1 220px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 0.85rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; }
+            .keepalive-box-title { font-size: 0.78rem; color: var(--text-muted); }
+            .keepalive-box strong { font-size: 1.05rem; color: var(--text); }
+            .keepalive-muted { font-size: 0.8rem; color: var(--text-muted); }
+            .keepalive-status.keepalive-success { color: var(--success); }
+            .keepalive-status.keepalive-failure { color: var(--danger); }
+            .keepalive-status.keepalive-running { color: var(--warn-text); }
+            .keepalive-runs-head { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+            .keepalive-runs { display: flex; flex-direction: column; gap: 0.35rem; }
+            .keepalive-run-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.85rem; padding: 0.45rem 0.6rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; flex-wrap: wrap; }
+            .keepalive-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+            .keepalive-dot.keepalive-success { background: var(--success); }
+            .keepalive-dot.keepalive-failure { background: var(--danger); }
+            .keepalive-dot.keepalive-running { background: var(--warn-text); }
+        </style>
+        <div class="card settings-card full-width-card">
+            <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="heart-pulse" style="width: 20px; height: 20px; color: var(--primary);"></i>
+                Supabase Keep-Alive
+            </h2>
+            <p class="cs-modal-desc" style="margin-bottom: 1rem;">
+                ระบบยิงอ่านข้อมูล 1 แถวจาก GitHub อัตโนมัติทุก<strong>วันจันทร์และพฤหัส 10:00 น.</strong>
+                เพื่อกันโปรเจกต์ Supabase (free tier) ถูกพักจากการไม่มีความเคลื่อนไหว — อ่านอย่างเดียว ไม่แตะข้อมูลนับจริง
+            </p>
+
+            <div class="keepalive-grid">
+                <div class="keepalive-box">
+                    <span class="keepalive-box-title">รอบ ping ถัดไป</span>
+                    <strong id="kaCountdown">—</strong>
+                    <span id="kaNextTime" class="keepalive-muted">—</span>
+                </div>
+                <div class="keepalive-box">
+                    <span class="keepalive-box-title">รอบล่าสุด</span>
+                    <strong id="kaLastStatus">กำลังโหลด…</strong>
+                    <span id="kaLastTime" class="keepalive-muted">—</span>
+                </div>
+            </div>
+
+            <div class="keepalive-runs-head">ประวัติ 5 รอบล่าสุด</div>
+            <div id="kaRunsList" class="keepalive-runs">กำลังโหลด…</div>
+
+            <p style="margin-top: 0.9rem; margin-bottom: 0;">
+                <a id="kaGithubLink" href="#" target="_blank" rel="noopener" style="color: var(--primary); font-size: 0.85rem; display: inline-flex; align-items: center; gap: 0.35rem;">
+                    <i data-lucide="external-link" style="width: 15px; height: 15px;"></i>
+                    เปิดดูบน GitHub Actions
+                </a>
+            </p>
+        </div>
     </div>
         </main>
     </div>
@@ -259,6 +311,7 @@
     <script src="../Js/warehouses-shared.js?v=20260809j"></script>
     <script src="../Js/settings-shared.js?v=20260809j"></script>
     <script src="../Js/sidebar-shared.js?v=20260813d"></script>
+    <script src="../Js/keepalive-status.js?v=20260814a"></script>
     <script>
         lucide.createIcons();
 

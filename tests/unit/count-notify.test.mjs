@@ -38,7 +38,13 @@ function constFromSource(name) {
 
 const ENABLED_KEY = constFromSource('ENABLED_KEY');
 
-/** DOM จำลองเท่าที่โมดูลใช้ — element ที่สร้างจริงเก็บลูกไว้ให้ assert ได้ */
+/**
+ * DOM จำลองเท่าที่โมดูลใช้ — element ที่สร้างจริงเก็บลูกไว้ให้ assert ได้
+ *
+ * ⚠️ `remove()` ต้อง "ถอดออกจากพ่อจริง ๆ" เหมือนของจริง — เดิมเขียนเป็น no-op
+ *    ทำให้ลูปตัด toast (`while children.length > MAX_TOASTS`) วนไม่รู้จบและเทสค้าง
+ *    (เจอตอน mutation 2026-08-16) · test double ที่โกหกความจริง = เทสที่เชื่อไม่ได้
+ */
 function fakeEl(tag) {
     return {
         tag,
@@ -46,14 +52,21 @@ function fakeEl(tag) {
         style: {},
         type: '',
         children: [],
+        parentNode: null,
         textContent: '',
         attrs: {},
         classList: { add() {}, toggle() {} },
         setAttribute(k, v) { this.attrs[k] = v; },
-        appendChild(c) { this.children.push(c); return c; },
-        prepend(c) { this.children.unshift(c); return c; },
+        appendChild(c) { c.parentNode = this; this.children.push(c); return c; },
+        prepend(c) { c.parentNode = this; this.children.unshift(c); return c; },
         addEventListener() {},
-        remove() {},
+        remove() {
+            const p = this.parentNode;
+            if (!p) return;
+            const i = p.children.indexOf(this);
+            if (i >= 0) p.children.splice(i, 1);
+            this.parentNode = null;
+        },
         get lastElementChild() { return this.children[this.children.length - 1] || null; },
         getBoundingClientRect() { return { height: 0, bottom: 0 }; },
     };
@@ -69,6 +82,12 @@ function setup({ enabled = true, pathname = '/Html/dashboard.html', activePage =
         ENABLED_KEY,
         META: constFromSource('META'),
         TOAST_MS: constFromSource('TOAST_MS'),
+        COALESCE_MS: constFromSource('COALESCE_MS'),
+        SUMMARY_MIN: constFromSource('SUMMARY_MIN'),
+        SUMMARY_WORD: constFromSource('SUMMARY_WORD'),
+        pending: [],
+        flushTimer: null,
+        clearTimeout: () => {},
         MAX_TOASTS: constFromSource('MAX_TOASTS'),
         stackEl: null,
         localStorage: {
@@ -92,7 +111,7 @@ function setup({ enabled = true, pathname = '/Html/dashboard.html', activePage =
     context.window.window = context.window;
     const fns = liftFunctions(src, [
         'isEnabled', 'setEnabled', 'isOnLiveWallPage', 'toQty', 'fmtQty', 'buildToastModel',
-        'ensureStack', 'syncStackOffset', 'clearAllToasts', 'el', 'showToast', 'handlePayload',
+        'ensureStack', 'syncStackOffset', 'clearAllToasts', 'el', 'showToast', 'showSummaryToast', 'handlePayload', 'flushPending',
     ], context);
     return { fns, store, created, context };
 }
@@ -133,13 +152,14 @@ test('DELETE: ใช้ค่าจากแถวเก่า (payload.new ว�
     assert.equal(m.sku, 'BNP20');
 });
 
-test('ข้อมูลไม่ครบต้องไม่โยน error และไม่โชว์ค่าเพี้ยน (DELETE ส่งมาไม่ครบทุกคอลัมน์)', () => {
+test('ข้อมูลไม่ครบต้องไม่โยน error และไม่โชว์ค่าเพี้ยน', () => {
     const { fns } = setup();
-    const bare = fns.buildToastModel('INSERT', {}, null);
-    assert.equal(bare.who, 'ไม่ระบุผู้นับ');
-    assert.equal(bare.sku, '-');
-    assert.equal(bare.place, '- / -');
-    assert.equal(bare.qtyText, 'จำนวน -', 'จำนวนที่อ่านไม่ได้ต้องเป็น - ไม่ใช่ 0 หรือ NaN');
+    // มีบางคอลัมน์ (ขาดผู้นับ/ตำแหน่ง) → ยังเล่ารายละเอียดเท่าที่มี ที่ขาดใช้ - ได้
+    const partial = fns.buildToastModel('INSERT', { sku_id: 'BNP20' }, null);
+    assert.equal(partial.hasDetail, true);
+    assert.equal(partial.who, 'ไม่ระบุผู้นับ');
+    assert.equal(partial.place, '- / -');
+    assert.equal(partial.qtyText, 'จำนวน -', 'จำนวนที่อ่านไม่ได้ต้องเป็น - ไม่ใช่ 0 หรือ NaN');
     assert.equal(fns.buildToastModel('TRUNCATE', ROW, null), null, 'เหตุการณ์ที่ไม่รู้จัก = ไม่เด้ง');
     assert.equal(fns.buildToastModel('INSERT', null, null), null, 'ไม่มีข้อมูลแถว = ไม่เด้ง');
 });
@@ -149,6 +169,7 @@ test('ข้อมูลไม่ครบต้องไม่โยน error �
 test('handlePayload: เปิดสวิตช์อยู่ + ไม่ใช่หน้าจอนับสด → เด้ง popup จริง', () => {
     const { fns, created } = setup();
     assert.equal(fns.handlePayload({ eventType: 'INSERT', new: ROW }), true);
+    fns.flushPending();
     const texts = created.map(e => e.textContent).join(' | ');
     assert.ok(texts.includes('เพิ่มรายการนับ'), 'ต้องมีหัวข้อในกล่อง');
     assert.ok(texts.includes('สมชาย · BNP20'), 'ต้องมีบรรทัดผู้นับ+SKU');
@@ -169,6 +190,53 @@ test('handlePayload: หน้าจอนับสดต้องข้าม (
     // เผื่อ sidebarShared ยังไม่โหลด — ต้องดู pathname เป็นทางสำรอง
     const byPath = setup({ activePage: '', pathname: '/Html/live_count_wall.html' });
     assert.equal(byPath.fns.handlePayload({ eventType: 'INSERT', new: ROW }), false);
+});
+
+// ---------- payload จริงจาก Postgres (REPLICA IDENTITY) ----------
+//
+// 🔴 บั๊กที่หลุดถึงผู้ใช้ 2026-08-16: REPLICA IDENTITY ของ inventory_counts เป็นค่าเริ่มต้น
+//    ⇒ DELETE/UPDATE ส่ง `old` มาแค่ { id } · popup เลยขึ้น "- / - · จำนวนที่ลบ -"
+//    เทสชุดแรกไม่จับเพราะป้อนแถวเต็มเป็น oldRow ทั้งที่ของจริงไม่มี
+
+test('DELETE ที่ payload มีแค่ id: ห้ามโชว์ขีดกลางรัว ๆ ต้องบอกตรง ๆ ว่าไม่มีรายละเอียด', () => {
+    const { fns } = setup();
+    const m = fns.buildToastModel('DELETE', {}, { id: 'abc-123' });
+    assert.ok(m, 'ยังต้องเด้งเตือน — การลบผลนับเป็นเรื่องที่คนอื่นควรรู้');
+    assert.equal(m.hasDetail, false, 'ต้องรู้ตัวว่าไม่มีรายละเอียด');
+    assert.equal(m.qtyText, '', 'ห้ามเดาจำนวนเมื่อไม่มีข้อมูล');
+    const joined = [m.who, m.sku, m.place].join(' ');
+    assert.ok(!joined.includes('-'), 'ห้ามมีขีดกลางหลอกว่าเป็นข้อมูล: ' + joined);
+});
+
+test('UPDATE ที่ old มีแค่ id: โชว์จำนวนใหม่ได้ปกติ ห้ามมีลูกศรจากค่าที่ไม่รู้', () => {
+    const { fns } = setup();
+    const m = fns.buildToastModel('UPDATE', { ...ROW, counted_qty: 270 }, { id: 'abc-123' });
+    assert.equal(m.hasDetail, true, 'แถวใหม่มาครบ ต้องถือว่ามีรายละเอียด');
+    assert.equal(m.qtyText, 'จำนวน 270');
+    assert.ok(!m.qtyText.includes('→'), 'ไม่รู้ค่าเดิม ห้ามแสดงลูกศร');
+});
+
+// ---------- รวบเหตุการณ์ (กัน popup ยิงรัวตอนนำเข้า Excel) ----------
+
+test('เหตุการณ์รัว ๆ ต้องยุบเหลือ popup เดียวพร้อมยอดรวม ไม่ใช่เด้งทีละอัน', () => {
+    const { fns, created } = setup();
+    for (let i = 0; i < 200; i++) fns.handlePayload({ eventType: 'INSERT', new: ROW });
+    fns.handlePayload({ eventType: 'DELETE', old: ROW });
+    fns.flushPending();
+    const toasts = created.filter(e => String(e.className).includes('count-notify-toast'));
+    assert.equal(toasts.length, 1, 'ต้องเหลือกล่องเดียว แต่ได้ ' + toasts.length);
+    const text = created.map(e => e.textContent).join(' ');
+    assert.ok(text.includes('201'), 'ต้องบอกยอดรวมทั้งหมด 201 รายการ');
+    assert.ok(text.includes('200'), 'ต้องแยกให้เห็นว่าเพิ่ม 200');
+});
+
+test('เหตุการณ์เดียวโดด ๆ ยังต้องได้ popup แบบละเอียดเหมือนเดิม', () => {
+    const { fns, created } = setup();
+    fns.handlePayload({ eventType: 'INSERT', new: ROW });
+    fns.flushPending();
+    const text = created.map(e => e.textContent).join(' | ');
+    assert.ok(text.includes('สมชาย · BNP20'), 'ต้องมีรายละเอียดผู้นับ+SKU');
+    assert.ok(text.includes('จำนวน 200'), 'ต้องมีจำนวน');
 });
 
 test('setEnabled: สลับค่าแล้วอ่านกลับได้ · ค่าเริ่มต้น (ไม่เคยตั้ง) = เปิด', () => {
@@ -194,9 +262,36 @@ test('[guard] sidebar-shared.js ฉีดทั้ง CSS และ JS ของ
         'scriptReady ต้องเช็ค window.countNotifyShared');
 });
 
+test('[sql-guard] 022 ต้องตั้ง REPLICA IDENTITY FULL ให้ inventory_counts (ต้นเหตุที่ DELETE ส่ง old มาแค่ id)', () => {
+    const sqlPath = path.join(PROJECT_ROOT, 'docs', 'sql', '022_inventory_counts_replica_identity_full.sql');
+    assert.ok(fs.existsSync(sqlPath), 'ยังไม่มีไฟล์ migration 022');
+    const sql = fs.readFileSync(sqlPath, 'utf8').replace(/--[^\n]*/g, '').toLowerCase();
+    assert.match(sql, /alter\s+table\s+public\.inventory_counts\s+replica\s+identity\s+full/,
+        'ต้องมีคำสั่งตั้ง REPLICA IDENTITY FULL');
+    // ⛔ ห้ามแตะ replica identity ของตารางอื่นในไฟล์นี้ — ตารางใหญ่จะทำให้ WAL บวมโดยไม่ตั้งใจ
+    const targets = sql.match(/alter\s+table\s+public\.(\w+)\s+replica/g) || [];
+    assert.equal(targets.length, 1, 'ไฟล์นี้ต้องแตะตารางเดียวเท่านั้น แต่เจอ: ' + targets.join(', '));
+});
+
 test('[guard] count-notify-shared.js ห้ามใช้ innerHTML ทั้งไฟล์ (invariant ข้อ 7)', () => {
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
     assert.ok(!code.includes('innerHTML'), 'พบ innerHTML ในโค้ดจริง');
+});
+
+test('[click-guard] popup ต้องให้คลิกทะลุไปหาปุ่มข้างใต้ได้ — บังปุ่มใน drawer/modal ไม่ได้', () => {
+    // 🔴 พิสูจน์ในเบราว์เซอร์จริง 2026-08-16: เปิดลิ้นชักประวัติแล้วมี popup ค้างอยู่
+    //    ปุ่มในลิ้นชักตรงมุมขวาบนกดไม่ได้ ~6 วินาที (toast z-index 10040 > drawer 210)
+    //    popup นี้เป็นข้อมูลอย่างเดียว ไม่มี action ⇒ ให้คลิกทะลุ เหลือแค่ปุ่ม × ที่รับคลิก
+    const css = fs.readFileSync(CSS_PATH, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+    const ruleBody = (selector) => {
+        const at = css.indexOf(selector + ' {');
+        assert.ok(at >= 0, 'หา rule ' + selector + ' ไม่เจอ');
+        return css.slice(at, css.indexOf('}', at));
+    };
+    assert.match(ruleBody('.count-notify-toast'), /pointer-events:\s*none/,
+        'ตัวกล่องต้องคลิกทะลุ (pointer-events: none)');
+    assert.match(ruleBody('.count-notify-close'), /pointer-events:\s*auto/,
+        'ปุ่มปิดต้องยังกดได้ (pointer-events: auto)');
 });
 
 test('[theme-guard] count-notify.css ห้ามมีสี hex/rgba ดิบ — ต้องใช้ var(--token) เท่านั้น', () => {

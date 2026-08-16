@@ -13,8 +13,11 @@
     pointer-events: none;
 }
 
+/* ⛔ ตัวกล่องต้องคลิกทะลุ — popup นี้เป็นข้อมูลอย่างเดียว ไม่มี action (ต่างจาก toast แชท
+   ที่กดแล้วไปห้องแชท) · ถ้ารับคลิก มันจะบังปุ่มใน drawer/modal ที่อยู่ข้างใต้นาน 6 วินาที
+   (พิสูจน์ในเบราว์เซอร์จริงแล้ว: ปุ่มในลิ้นชักประวัติกดไม่ได้) · เหลือแค่ปุ่ม × ที่รับคลิก */
 .count-notify-toast {
-    pointer-events: auto;
+    pointer-events: none;
     display: flex;
     align-items: flex-start;
     gap: 0.5rem;
@@ -30,6 +33,8 @@
 .count-notify-toast.count-notify-insert { border-left-color: var(--ok-text); }
 .count-notify-toast.count-notify-update { border-left-color: var(--warn-text); }
 .count-notify-toast.count-notify-delete { border-left-color: var(--bad-text); }
+/* กล่องสรุปตอนเหตุการณ์มาพร้อมกันเยอะ (เช่น นำเข้า Excel) */
+.count-notify-toast.count-notify-bulk { border-left-color: var(--primary); }
 
 .count-notify-body {
     flex: 1;
@@ -56,6 +61,7 @@
 }
 
 .count-notify-close {
+    pointer-events: auto;
     flex-shrink: 0;
     background: none;
     border: none;

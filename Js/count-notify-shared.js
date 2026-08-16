@@ -16,12 +16,19 @@
     var MAX_TOASTS = 5;
     var INIT_RETRY_MS = 1500;
     var INIT_RETRY_MAX = 20;
+    /** รวบเหตุการณ์ที่มาติด ๆ กันก่อนวาด — สั้นพอที่คนไม่รู้สึกหน่วง */
+    var COALESCE_MS = 400;
+    /** มาพร้อมกันตั้งแต่เท่านี้ = สรุปกล่องเดียวแทนการเด้งทีละอัน */
+    var SUMMARY_MIN = 4;
+    var SUMMARY_WORD = { INSERT: 'เพิ่ม', UPDATE: 'แก้ไข', DELETE: 'ลบ' };
 
     var client = null;
     var channel = null;
     var stackEl = null;
     var initRetryTimer = null;
     var initRetryCount = 0;
+    var pending = [];
+    var flushTimer = null;
 
     var META = {
         INSERT: { title: 'เพิ่มรายการนับ', className: 'count-notify-insert' },
@@ -40,7 +47,10 @@
 
     function setEnabled(on) {
         try { localStorage.setItem(ENABLED_KEY, on ? '1' : '0'); } catch (e) { /* ignore */ }
-        if (!on) clearAllToasts();
+        if (!on) {
+            pending = []; // ปิดแล้วต้องไม่มีของค้างคิวโผล่ทีหลัง
+            clearAllToasts();
+        }
         return isEnabled();
     }
 
@@ -76,6 +86,18 @@
         var row = (type === 'DELETE' ? oldRow : newRow) || null;
         if (!row) return null;
 
+        // 🔴 REPLICA IDENTITY ของ inventory_counts เป็นค่าเริ่มต้น ⇒ DELETE/UPDATE ส่ง old
+        //    มาแค่ { id } (ยืนยันกับฐานจริง 2026-08-16 · 022 เปลี่ยนเป็น FULL แล้ว แต่ยังต้อง
+        //    ทนกับกรณีนี้เผื่อโดน reset) · ถ้าไม่มีอะไรให้เล่าเลย ห้ามยัด "-" หลอกว่าเป็นข้อมูล
+        var hasDetail = ['sku_id', 'counted_qty', 'warehouse', 'location', 'counter_name']
+            .some(function (k) { return row[k] !== undefined && row[k] !== null && row[k] !== ''; });
+        if (!hasDetail) {
+            return {
+                type: type, title: meta.title, className: meta.className,
+                hasDetail: false, who: '', sku: '', place: '', qtyText: ''
+            };
+        }
+
         var qtyText;
         if (type === 'UPDATE') {
             var before = toQty(oldRow && oldRow.counted_qty);
@@ -93,6 +115,7 @@
             type: type,
             title: meta.title,
             className: meta.className,
+            hasDetail: true,
             who: String(row.counter_name || 'ไม่ระบุผู้นับ'),
             sku: String(row.sku_id || '-'),
             place: String(row.warehouse || '-') + ' / ' + String(row.location || '-'),
@@ -153,8 +176,12 @@
 
         var body = el('div', 'count-notify-body');
         body.appendChild(el('strong', null, model.title));
-        body.appendChild(el('p', null, model.who + ' · ' + model.sku));
-        body.appendChild(el('p', 'count-notify-sub', model.place + ' · ' + model.qtyText));
+        if (model.hasDetail === false) {
+            body.appendChild(el('p', 'count-notify-sub', 'ไม่ทราบรายละเอียด — ฐานข้อมูลไม่ได้ส่งข้อมูลแถวเดิมมา'));
+        } else {
+            body.appendChild(el('p', null, model.who + ' · ' + model.sku));
+            body.appendChild(el('p', 'count-notify-sub', model.place + ' · ' + model.qtyText));
+        }
         box.appendChild(body);
 
         var closeBtn = el('button', 'count-notify-close', '×');
@@ -181,14 +208,63 @@
         return box;
     }
 
-    /** ทางเข้าหลัก: realtime → popup · คืน true เมื่อเด้งจริง (ให้เทสตรวจได้) */
+    /** สรุปเหตุการณ์เป็นกล่องเดียว — ใช้เมื่อมาพร้อมกันเกิน SUMMARY_MIN */
+    function showSummaryToast(models) {
+        var stack = ensureStack();
+        var box = el('div', 'count-notify-toast count-notify-bulk');
+        var body = el('div', 'count-notify-body');
+        body.appendChild(el('strong', null, 'ผลนับเปลี่ยนแปลง ' + models.length.toLocaleString() + ' รายการ'));
+
+        var parts = [];
+        ['INSERT', 'UPDATE', 'DELETE'].forEach(function (t) {
+            var n = models.filter(function (m) { return m.type === t; }).length;
+            if (n > 0) parts.push(SUMMARY_WORD[t] + ' ' + n.toLocaleString());
+        });
+        body.appendChild(el('p', 'count-notify-sub', parts.join(' · ')));
+        box.appendChild(body);
+
+        var closeBtn = el('button', 'count-notify-close', '×');
+        closeBtn.type = 'button';
+        closeBtn.setAttribute('aria-label', 'ปิด');
+        closeBtn.addEventListener('click', function () { box.remove(); });
+        box.appendChild(closeBtn);
+
+        stack.prepend(box);
+        syncStackOffset();
+        setTimeout(function () { box.remove(); }, TOAST_MS);
+        return box;
+    }
+
+    /**
+     * ปล่อยเหตุการณ์ที่คั่งไว้ออกเป็น popup
+     * เดี่ยว/ไม่กี่รายการ = กล่องละเอียดเหมือนเดิม · มาพร้อมกันเยอะ = สรุปกล่องเดียว
+     * (นำเข้า Excel 3,000 แถว = Postgres ยิง 3,000 event ต่อแท็บ ถ้าเด้งทีละอันจอตาย)
+     */
+    function flushPending() {
+        if (flushTimer) {
+            clearTimeout(flushTimer);
+            flushTimer = null;
+        }
+        var batch = pending;
+        pending = [];
+        if (!batch.length) return 0;
+        if (batch.length < SUMMARY_MIN) {
+            batch.forEach(showToast);
+        } else {
+            showSummaryToast(batch);
+        }
+        return batch.length;
+    }
+
+    /** ทางเข้าหลัก: realtime → คิว → popup · คืน true เมื่อรับไว้เด้ง (ให้เทสตรวจได้) */
     function handlePayload(payload) {
         if (!isEnabled()) return false;
         if (isOnLiveWallPage()) return false;
         var p = payload || {};
         var model = buildToastModel(p.eventType || p.type, p.new, p.old);
         if (!model) return false;
-        showToast(model);
+        pending.push(model);
+        if (!flushTimer) flushTimer = setTimeout(flushPending, COALESCE_MS);
         return true;
     }
 
@@ -246,6 +322,7 @@
         isEnabled: isEnabled,
         setEnabled: setEnabled,
         handlePayload: handlePayload,
+        flushPending: flushPending,
         buildToastModel: buildToastModel
     };
 })();

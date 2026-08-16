@@ -145,6 +145,7 @@ sku_master.sku_name ~(soft)~ inventory_counts.sku_id ~(soft)~ book_stock_lines.s
 | `019_inventory_count_acceptances.sql` | ตาราง "ยืนยันว่าผลนับปกติ" + RLS policy | ✅ รันแล้ว 2026-08-10 |
 | `020_match_status_count_only_in_book.sql` | M2: `count_only` ต้องแปลว่า "ไม่มีบรรทัดใน Book" ไม่ใช่ "ยอด Book = 0" | ✅ รันแล้ว 2026-08-11 (77 แถวเปลี่ยน count_only → over · refresh ครบ 6 รอบ) |
 | `021_settings_pin.sql` | รหัสปลดล็อกส่วน Supabase Config ในหน้าตั้งค่า — ตาราง `app_settings_pin` (RLS ไม่มี policy = API เข้าไม่ได้) + RPC `verify_settings_pin` (SECURITY DEFINER) · **ตัวรหัสตั้งตรงใน DB ไม่อยู่ในรีโป** | ✅ รันแล้ว 2026-08-16 + ตั้งรหัสแล้ว |
+| `022_inventory_counts_replica_identity_full.sql` | REPLICA IDENTITY FULL ให้ `inventory_counts` — realtime ต้องส่งข้อมูลแถวเดิมมาด้วยตอน UPDATE/DELETE ไม่งั้น popup แจ้งเตือนข้ามหน้าไม่มีอะไรจะแสดง | ✅ รันแล้ว 2026-08-16 (`relreplident = f`) |
 
 > **เลข migration ที่ชนกัน — อย่าเปลี่ยนชื่อไฟล์** (รันไปแล้วในฐานจริง เปลี่ยนชื่อแล้วสืบย้อนไม่ได้):
 > `003` ×2 · `004` ×2 (`004_chat_messages.sql` กับ `004_dashboard_submission_buckets.sql`)

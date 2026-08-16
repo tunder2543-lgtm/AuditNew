@@ -2040,7 +2040,7 @@
             acceptanceByKey.clear();
             acceptanceTableMissing = false;
             const ids = [...new Set((cycleIds || []).filter(id => id != null && id !== ''))];
-            if (!ids.length && !includeNoCycle) return;
+            if (!ids.length && !includeNoCycle) return true;
 
             // ดึงทีละส่วนตามเงื่อนไข — แถวที่ยังไม่ผูกรอบ (cycle_id IS NULL) ต้องดึงแยก
             // เพราะ `.in('cycle_id', ids)` ไม่มีวันคืนแถว null (เคยพลาดจน "ยืนยันแล้วก็เตือนซ้ำ")
@@ -2068,12 +2068,16 @@
             try {
                 if (ids.length) await fetchPart(q => q.in('cycle_id', ids));
                 if (includeNoCycle) await fetchPart(q => q.is('cycle_id', null));
+                return true;
             } catch (err) {
                 // "ตารางไม่มี" (ยังไม่รัน 019) เท่านั้นที่ปิดฟีเจอร์ — error ชั่วคราว (network ฯลฯ)
                 // ห้ามขึ้นข้อความหลอกว่าให้ไปรัน SQL ทั้งที่ตารางมีอยู่แล้ว
                 const msg = String(err?.message || '');
                 acceptanceTableMissing = err?.code === '42P01' || /relation .* does not exist|schema cache/i.test(msg);
                 console.warn('[Acceptance] อ่านตารางไม่ได้:', msg || err);
+                // ⛔ ต้องบอกผู้เรียกว่า "ไม่รู้" ไม่ใช่ปล่อยให้แมปว่างแล้วถูกอ่านว่า "ไม่มีใครยืนยัน"
+                //    เส้นทางที่ลบข้อมูลต้อง fail-closed (invariant ข้อ 3)
+                return false;
             }
         }
 
@@ -5639,10 +5643,21 @@
                 // กลุ่มที่คนตรวจแล้วกด "ยืนยันว่าปกติ" ต้องไม่ถูกลบ — คำยืนยันของคนชนะกฎของระบบ
                 // (1) โหลด acceptances ของ scope นี้สด ๆ เสมอ (รวมแถวที่ยังไม่ผูกรอบ) —
                 //     ปุ่มนี้ fetch แถวเองใหม่ จะพึ่ง acceptanceByKey ค้างจากการโหลดครั้งก่อนไม่ได้
-                await fetchAcceptances(
+                const acceptancesOk = await fetchAcceptances(
                     [...new Set(rows.map(r => r.cycle_id).filter(Boolean))],
                     rows.some(r => r.cycle_id == null)
                 );
+                // ⛔ "ตรวจไม่ได้" ไม่เท่ากับ "ไม่มีใครยืนยัน" — ถ้าโหลดไม่สำเร็จต้องหยุดทั้งชุด
+                //    ไม่งั้นกลุ่มที่คนกด "ยืนยันว่าปกติ" ไว้จะถูกลบถาวร (invariant ข้อ 3)
+                if (!acceptancesOk) {
+                    showToast(
+                        acceptanceTableMissing
+                            ? 'ยังไม่ได้ติดตั้งตาราง "ยืนยันว่าปกติ" (docs/sql/019) — ยังลบไม่ได้ ให้ admin รันก่อน'
+                            : 'อ่านรายการ "ยืนยันว่าปกติ" ไม่สำเร็จ — ยกเลิกการลบทั้งหมดเพื่อความปลอดภัย ลองใหม่อีกครั้ง',
+                        'error'
+                    );
+                    return;
+                }
                 // (2) เทียบด้วย shape ของ "ทั้งตำแหน่ง" (ทุกแถวทุกจำนวน) ให้ตรงกับตอนบันทึกการยืนยัน
                 //     ห้ามใช้แค่กลุ่มที่จำนวนเท่ากัน — เคส [5,5,9] ยืนยันเก็บ (3,19) ถ้าเทียบ (2,10) จะ stale ผิด ๆ
                 const locShapes = window.AuditDedupe.buildLocationShapes(rows);

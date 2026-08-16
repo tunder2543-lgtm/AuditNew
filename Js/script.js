@@ -1858,8 +1858,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (edState.warehouse) {
                         updateQuery = updateQuery.eq('warehouse', edState.warehouse);
                     }
-                    const { error } = await updateQuery;
+                    // ⛔ ต้องรู้ว่าโดนกี่แถวจริง — ถ้าแถวถูกย้ายคลังจาก audit_check ไปแล้ว
+                    //    `.eq('warehouse', …)` จะไม่แมตช์เลย แต่ PostgREST คืน error:null
+                    //    ⇒ เดิมจะอัปเดตหน้าจอ + cache ว่าแก้แล้ว ทั้งที่ DB ไม่เปลี่ยน
+                    const { data, error } = await updateQuery.select('id');
                     if (error) throw error;
+                    if ((data || []).length === 0) {
+                        throw new Error('ไม่พบแถวที่ต้องแก้ในฐานข้อมูล (อาจถูกลบหรือย้ายคลังไปแล้ว) — กรุณารีเฟรชหน้าแล้วลองใหม่');
+                    }
 
                     const rec = allRecords.find(r => String(r.id) === String(edState.id));
                     if (rec) {
@@ -1913,8 +1919,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (edState.warehouse) {
                         deleteQuery = deleteQuery.eq('warehouse', edState.warehouse);
                     }
-                    const { error } = await deleteQuery;
+                    // ⛔ ห้ามเขียน audit log ว่า "ลบแล้ว" ถ้า DB ไม่ได้ลบอะไรเลย (หลักฐานเท็จ)
+                    const { data, error } = await deleteQuery.select('id');
                     if (error) throw error;
+                    if ((data || []).length === 0) {
+                        throw new Error('ไม่พบแถวที่ต้องลบในฐานข้อมูล (อาจถูกลบหรือย้ายคลังไปแล้ว) — กรุณารีเฟรชหน้าแล้วลองใหม่');
+                    }
 
                     // Remove DOM
                     const liEl = document.getElementById(`record-${edState.id}`);

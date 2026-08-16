@@ -1003,15 +1003,32 @@
 
 
 
-        const { error: unlinkErr } = await client
+        // ⛔ ต้องรู้ว่าปลดล็อกผลนับได้กี่แถวจริง — ถ้าไม่ตรงกับที่นับไว้เมื่อครู่
+        //    แปลว่ามีคนแก้ข้อมูลคู่ขนาน หรือ RLS บล็อกบางแถว ⇒ หยุดก่อนลบรอบ
+        //    (ผลนับต้องรอดเสมอ — FK เป็น SET NULL ก็จริง แต่ต้องพิสูจน์ว่าเกิดขึ้นจริง)
+        const { data: unlinked, error: unlinkErr } = await client
 
             .from('inventory_counts')
 
             .update({ cycle_id: null })
 
-            .eq('cycle_id', cycleId);
+            .eq('cycle_id', cycleId)
+
+            .select('id');
 
         if (unlinkErr) throw unlinkErr;
+
+        if ((unlinked || []).length !== preservedCountRows) {
+
+            throw new Error(
+
+                'ปลดผลนับออกจากรอบได้ ' + (unlinked || []).length + ' จาก ' + preservedCountRows +
+
+                ' แถว — ข้อมูลเปลี่ยนระหว่างทำงาน ยกเลิกการลบรอบเพื่อความปลอดภัย'
+
+            );
+
+        }
 
 
 

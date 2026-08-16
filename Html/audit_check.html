@@ -3528,11 +3528,19 @@
             const CHUNK = 100;
             for (let i = 0; i < ids.length; i += CHUNK) {
                 const chunk = ids.slice(i, i + CHUNK);
-                const { error } = await supabaseClient
+                // ⛔ ต้องอ่านแถวที่ลบจริงกลับมา — PostgREST คืน error:null เมื่อไม่แมตช์แถวใดเลย
+                //    (RLS บล็อก / แถวถูกลบไปแล้ว) ถ้าไม่เช็ค เราจะเขียน audit log ว่าลบแล้วทั้งที่ไม่ได้ลบ
+                const { data, error } = await supabaseClient
                     .from('inventory_counts')
                     .delete()
-                    .in('id', chunk);
+                    .in('id', chunk)
+                    .select('id');
                 if (error) throw error;
+                if ((data || []).length !== chunk.length) {
+                    throw new Error(
+                        `ลบได้ ${(data || []).length} จาก ${chunk.length} แถว — บางแถวถูกลบไปแล้วหรือไม่มีสิทธิ์ลบ กรุณารีเฟรชแล้วลองใหม่`
+                    );
+                }
             }
             return true;
         }
@@ -3891,14 +3899,19 @@
                     const id = item.recordId;
                     const before = rowSnapshotFromTr(tr);   // counted_qty ใช้ dataset.originalQty
 
-                    const { error } = await supabaseClient
+                    // ⛔ `.select('id')` บังคับให้รู้ว่าโดนกี่แถวจริง — PostgREST คืน error:null
+                    //    เมื่อไม่แมตช์แถวใดเลย (แถวถูกย้ายคลัง/ถูกลบไปแล้ว) ถ้าไม่เช็ค จะนับเป็น
+                    //    "สำเร็จ" แล้วเขียน audit log ทั้งที่ DB ไม่เปลี่ยน
+                    const { data, error } = await supabaseClient
                         .from('inventory_counts')
                         .update({ counted_qty: item.newQty })
-                        .eq('id', id);
+                        .eq('id', id)
+                        .select('id');
 
-                    if (error) {
-                        console.error(error);
-                        lastUpdateError = error;
+                    const missedRow = !error && (data || []).length === 0;
+                    if (error || missedRow) {
+                        console.error(error || 'update ไม่โดนแถวใดเลย: ' + id);
+                        lastUpdateError = error || new Error('ไม่พบแถวที่ต้องแก้ (อาจถูกลบหรือย้ายคลังไปแล้ว) — รีเฟรชแล้วลองใหม่');
                         fail += 1;
                     } else {
                         tr.dataset.originalQty = String(item.newQty);
@@ -4076,14 +4089,16 @@
                     const id = item.recordId;
                     const before = rowSnapshotFromTr(tr);
 
-                    const { error } = await supabaseClient
+                    const { data, error } = await supabaseClient
                         .from('inventory_counts')
                         .update({ sku_id: item.newSkuId, location: item.destLoc })
-                        .eq('id', id);
+                        .eq('id', id)
+                        .select('id');
 
-                    if (error) {
-                        console.error(error);
-                        lastUpdateError = error;
+                    const missedRow = !error && (data || []).length === 0;
+                    if (error || missedRow) {
+                        console.error(error || 'update ไม่โดนแถวใดเลย: ' + id);
+                        lastUpdateError = error || new Error('ไม่พบแถวที่ต้องแก้ (อาจถูกลบหรือย้ายคลังไปแล้ว) — รีเฟรชแล้วลองใหม่');
                         fail += 1;
                     } else {
                         skuInput.value = item.newSkuId;
@@ -4256,14 +4271,16 @@
                     const id = item.recordId;
                     const before = rowSnapshotFromTr(tr);   // ใช้ค่าจาก DB (dataset.original*)
 
-                    const { error } = await supabaseClient
+                    const { data, error } = await supabaseClient
                         .from('inventory_counts')
                         .update({ location: item.newLoc })
-                        .eq('id', id);
+                        .eq('id', id)
+                        .select('id');
 
-                    if (error) {
-                        console.error(error);
-                        lastUpdateError = error;
+                    const missedRow = !error && (data || []).length === 0;
+                    if (error || missedRow) {
+                        console.error(error || 'update ไม่โดนแถวใดเลย: ' + id);
+                        lastUpdateError = error || new Error('ไม่พบแถวที่ต้องแก้ (อาจถูกลบหรือย้ายคลังไปแล้ว) — รีเฟรชแล้วลองใหม่');
                         fail += 1;
                     } else {
                         tr.dataset.originalLoc = item.newLoc;
@@ -5156,14 +5173,16 @@
                 for (let i = 0; i < toApply.length; i++) {
                     const entry = toApply[i];
                     const item = entry.item;
-                    const { error } = await supabaseClient
+                    const { data, error } = await supabaseClient
                         .from('inventory_counts')
                         .update({ location: norm(item.newLocation) })
-                        .eq('id', item.id);
+                        .eq('id', item.id)
+                        .select('id');
 
-                    if (error) {
-                        console.error(error);
-                        lastUpdateError = error;
+                    const missedRow = !error && (data || []).length === 0;
+                    if (error || missedRow) {
+                        console.error(error || 'update ไม่โดนแถวใดเลย: ' + item.id);
+                        lastUpdateError = error || new Error('ไม่พบแถวที่ต้องแก้ (อาจถูกลบหรือย้ายคลังไปแล้ว) — รีเฟรชแล้วลองใหม่');
                         fail += 1;
                     } else {
                         successIds.add(String(item.id));
@@ -5742,11 +5761,17 @@
                 let done = 0;
                 for (let i = 0; i < ids.length; i += CHUNK) {
                     const chunk = ids.slice(i, i + CHUNK);
-                    const { error } = await supabaseClient
+                    const { data, error } = await supabaseClient
                         .from('inventory_counts')
                         .delete()
-                        .in('id', chunk);
+                        .in('id', chunk)
+                        .select('id');
                     if (error) throw error;
+                    if ((data || []).length !== chunk.length) {
+                        throw new Error(
+                            `ลบได้ ${(data || []).length} จาก ${chunk.length} แถว — ข้อมูลเปลี่ยนระหว่างทำงาน กรุณารีเฟรชแล้วตรวจใหม่`
+                        );
+                    }
                     done += chunk.length;
                     setLoadingMessage('กำลังลบ duplicate...', `${done.toLocaleString()} / ${toDelete.length.toLocaleString()}`);
                 }

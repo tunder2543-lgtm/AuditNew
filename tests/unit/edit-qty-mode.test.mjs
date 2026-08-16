@@ -44,7 +44,13 @@ function qtyRow({ id = 'r1', sku = 'A-01', loc = 'B2-01', oldQty = '5', newQty =
     });
 }
 
-function recordingClient({ failOn = () => null } = {}) {
+/**
+ * client จำลอง — ต้องเลียนแบบ PostgREST ให้ตรง:
+ *   update(...).eq(...).select('id') ที่สำเร็จ **คืนแถวที่ถูกแก้จริงกลับมา**
+ *   ถ้าไม่แมตช์แถวใดเลย จะได้ `data: []` พร้อม `error: null` (ไม่ใช่ error)
+ * @param {{failOn?:Function, affectedRows?:number}} cfg
+ */
+function recordingClient({ failOn = () => null, affectedRows = 1 } = {}) {
     const writes = [];
     return {
         writes,
@@ -53,10 +59,12 @@ function recordingClient({ failOn = () => null } = {}) {
                 _op: null, _payload: null, _filters: {},
                 update(p) { q._op = 'update'; q._payload = p; return q; },
                 eq(col, val) { q._filters[col] = val; return q; },
+                select() { return q; },
                 then(res, rej) {
                     const err = failOn(q);
                     writes.push({ table, op: q._op, payload: q._payload, filters: { ...q._filters } });
-                    return Promise.resolve(err ? { data: null, error: err } : { data: [], error: null }).then(res, rej);
+                    const rows = Array.from({ length: affectedRows }, () => ({ id: q._filters.id || 'r1' }));
+                    return Promise.resolve(err ? { data: null, error: err } : { data: rows, error: null }).then(res, rej);
                 },
             };
             return q;
@@ -146,6 +154,20 @@ test('[qty] จำนวนไม่ใช่เลขจำนวนเต็�
         assert.equal(client.writes.length, 0, `"${bad}" หลุดไปถึง DB`);
         assert.ok(g.toasts.some(t => /จำนวนเต็ม 0 ขึ้นไป/.test(t)), g.toasts.join(' | '));
     }
+});
+
+test('[qty] แก้แล้ว DB ไม่โดนสักแถว = ต้องนับเป็นล้มเหลว ห้ามเขียน audit log', async () => {
+    // แถวถูกลบ/ย้ายไปแล้วโดยคนอื่น ⇒ PostgREST คืน error:null + data:[] (ไม่ใช่ error)
+    const g = liftSaveQty({
+        rows: [qtyRow({ id: 'rec-1', oldQty: '5', newQty: '9' })],
+        client: recordingClient({ affectedRows: 0 }),
+    });
+    await g.saveQtyChanges();
+    // ตัวปิดท้ายยังถูกเรียกได้ (n = 0) แต่ต้องไม่มี "รายการ" ไหนถูกบันทึกว่าแก้สำเร็จ
+    assert.ok(g.audits.every(a => a.n === 0),
+        'ไม่มีแถวไหนถูกแก้จริง ห้ามมี audit entry · ที่เขียนไป: ' + JSON.stringify(g.audits));
+    assert.ok(g.toasts.some(t => /error/.test(t) && /ล้มเหลว 1/.test(t)),
+        'ต้องนับเป็นล้มเหลว 1 · toasts: ' + g.toasts.join(' | '));
 });
 
 test('[qty] DB error ต้องรายงาน ไม่เงียบ', async () => {

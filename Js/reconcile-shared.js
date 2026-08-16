@@ -1001,6 +1001,26 @@
 
         const preservedCountRows = await countLinkedInventory(cycleId);
 
+        // ⛔ M29: FK ของตารางลูกเป็น ON DELETE CASCADE — ลบรอบทีเดียว ยอดปรับ/Book/
+        //    การยืนยัน หายถาวรพร้อมกันโดยไม่มีร่องรอย (รอบจริงเดือนหนึ่งมีเป็นพันแถว)
+        //    ⇒ ต้องเขียนหลักฐานว่ายอดปรับแต่ละแถวหายไปไหน **ก่อน** ลบเสมอ
+        //    (เส้นทาง import/ลบ Book ทำแบบนี้อยู่แล้วตั้งแต่ H6 — เส้นทางนี้เพิ่งตกหล่น)
+        //    ถ้าเขียน log ไม่สำเร็จ logAdjustmentsBeforeDelete จะโยน error เอง = ไม่ลบ
+
+        const { data: doomedAdj, error: doomedErr } = await client
+
+            .from('stock_adjustments')
+
+            .select('id, sku_id, adjustment_qty, status, note, reason')
+
+            .eq('cycle_id', cycleId)
+
+            .order('id', { ascending: true });
+
+        if (doomedErr) throw doomedErr;
+
+        await logAdjustmentsBeforeDelete(client, cycleId, doomedAdj || [], { source: 'reconcile_delete_cycle' });
+
 
 
         // ⛔ ต้องรู้ว่าปลดล็อกผลนับได้กี่แถวจริง — ถ้าไม่ตรงกับที่นับไว้เมื่อครู่
@@ -1226,6 +1246,53 @@
     }
 
 
+
+    /**
+     * นับ "การตัดสินใจ" ที่จะหายไปพร้อมรอบ (FK CASCADE) — ใช้เตือนก่อนกดลบ
+     * ผลนับไม่นับรวมเพราะ FK เป็น SET NULL (หลักฐานรอดเสมอ ตาม invariant ข้อ 1)
+     * ⚠️ นับไม่ได้ให้คืน null ไม่ใช่ 0 — "ไม่รู้" กับ "ไม่มี" ต้องแยกกัน ไม่งั้นคำเตือนจะโกหก
+     */
+    async function countCycleDecisions(cycleId) {
+
+        const client = getClient();
+
+        const countOf = async (table) => {
+
+            try {
+
+                const { count, error } = await client
+
+                    .from(table)
+
+                    .select('cycle_id', { count: 'exact', head: true })
+
+                    .eq('cycle_id', cycleId);
+
+                if (error) throw error;
+
+                return typeof count === 'number' ? count : null;
+
+            } catch (e) {
+
+                return null;
+
+            }
+
+        };
+
+        const [adjustments, matchAcceptances, countAcceptances] = await Promise.all([
+
+            countOf('stock_adjustments'),
+
+            countOf('reconciliation_match_acceptances'),
+
+            countOf('inventory_count_acceptances')
+
+        ]);
+
+        return { adjustments, matchAcceptances, countAcceptances };
+
+    }
 
     async function countBookLines(cycleId) {
 
@@ -3404,6 +3471,7 @@
         targetsMapFromValidRows,
 
         countBookLines,
+        countCycleDecisions,
 
         deleteBookStockBySku,
 

@@ -797,8 +797,10 @@
             <h3><i data-lucide="x-circle"></i> จะลบ</h3>
             <ul>
                 <li>Book <strong id="deleteModalBookN">0</strong> แถว</li>
-                <li>ผล Match และการปรับยอดของรอบนี้</li>
+                <li>ยอดปรับ <strong id="deleteModalAdjN">—</strong> รายการ · การยืนยัน <strong id="deleteModalAckN">—</strong> รายการ</li>
+                <li>ผล Match ทั้งหมดของรอบนี้</li>
             </ul>
+            <p class="cc-note" style="margin:0.4rem 0 0;">การตัดสินใจเหล่านี้กู้คืนไม่ได้ — ระบบจะบันทึกประวัติยอดปรับไว้ในหน้า "ประวัติการแก้ไข/ลบ" ก่อนลบ</p>
         </div>
 
         <div class="cc-del-modal-box safe">
@@ -862,7 +864,7 @@
 <script src="../Js/warehouses-shared.js?v=20260809k"></script>
 <script src="../Js/settings-shared.js?v=20260809k"></script>
 <script src="../Js/count-scan-shared.js?v=20260813a"></script>
-<script src="../Js/reconcile-shared.js?v=20260816c"></script>
+<script src="../Js/reconcile-shared.js?v=20260816d"></script>
 <script src="../Js/ui-confirm-modal.js?v=20260811b"></script>
 <script>
     lucide.createIcons();
@@ -1395,10 +1397,17 @@
 
     let deleteModalResolve = null;
 
-    function showDeleteCycleModal({ label, bookN, countN }) {
+    function showDeleteCycleModal({ label, bookN, countN, decisions }) {
         return new Promise(resolve => {
             deleteModalResolve = resolve;
+            // นับไม่ได้ต้องขึ้น "ไม่ทราบ" ไม่ใช่ 0 — คำเตือนที่บอก 0 ทั้งที่มีของ คือคำเตือนที่โกหก
+            const fmt = n => (typeof n === 'number' ? n.toLocaleString() : 'ไม่ทราบ');
+            const ackTotal = (typeof decisions?.matchAcceptances === 'number' && typeof decisions?.countAcceptances === 'number')
+                ? decisions.matchAcceptances + decisions.countAcceptances
+                : null;
             document.getElementById('deleteModalCycleName').textContent = label;
+            document.getElementById('deleteModalAdjN').textContent = fmt(decisions?.adjustments);
+            document.getElementById('deleteModalAckN').textContent = fmt(ackTotal);
             document.getElementById('deleteModalBookN').textContent = bookN.toLocaleString();
             document.getElementById('deleteModalCountN').textContent = countN.toLocaleString();
             document.getElementById('deleteCycleModal').classList.add('open');
@@ -1461,12 +1470,13 @@
     async function deleteCycleById(id) {
         const c = cyclesCache.find(x => x.id === id) || await RS.fetchCycleById(id);
         if (!c) return showToast('ไม่พบรอบ', 'error');
-        const [bookN, countN] = await Promise.all([
+        const [bookN, countN, decisions] = await Promise.all([
             RS.countBookLines(c.id).catch(() => 0),
-            RS.countLinkedInventory(c.id).catch(() => 0)
+            RS.countLinkedInventory(c.id).catch(() => 0),
+            RS.countCycleDecisions(c.id).catch(() => ({ adjustments: null, matchAcceptances: null, countAcceptances: null }))
         ]);
         const label = RS.formatCycleLabel(c);
-        const confirmed = await showDeleteCycleModal({ label, bookN, countN });
+        const confirmed = await showDeleteCycleModal({ label, bookN, countN, decisions });
         if (!confirmed) return;
 
         setLoading(true, 'กำลังลบรอบ...');

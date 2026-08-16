@@ -193,6 +193,25 @@
             </h2>
             <p class="cs-modal-desc" style="margin-bottom: 1.25rem;">กรอก URL และ API Key จาก Supabase Project ของคุณ<br>ข้อมูลจะถูกบันทึกในเครื่องนี้เท่านั้น (localStorage)</p>
 
+            <div id="sbConfigLock" class="settings-pin-lock">
+                <p style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; color: var(--text);">
+                    <i data-lucide="lock" style="width: 18px; height: 18px; color: var(--warn-text);"></i>
+                    <strong>ส่วนนี้ถูกล็อก</strong> — ใส่รหัสผู้ดูแลเพื่อแก้ไขการเชื่อมต่อ
+                </p>
+                <div style="display: flex; gap: 0.6rem; flex-wrap: wrap; align-items: center;">
+                    <input type="password" id="sbPinInput" inputmode="numeric" autocomplete="off" placeholder="รหัสปลดล็อก" style="max-width: 180px;">
+                    <button type="button" id="sbPinBtn" class="cs-btn-test" onclick="runUnlockSettings()">
+                        <i data-lucide="key-round"></i> ปลดล็อก
+                    </button>
+                    <span id="sbPinMsg" style="font-size: 0.85rem; color: var(--danger);"></span>
+                </div>
+                <p class="cs-modal-desc" style="margin-top: 0.75rem; margin-bottom: 0; font-size: 0.78rem;">
+                    หมายเหตุ: การตรวจรหัสต้องเชื่อมต่อ Supabase ได้ — ถ้าเครื่องนี้ตั้งค่าผิดจนเชื่อมต่อไม่ได้เลย
+                    ให้ล้างข้อมูลเว็บไซต์ของเบราว์เซอร์ ระบบจะกลับไปใช้ค่าเริ่มต้นเอง
+                </p>
+            </div>
+
+            <div id="sbConfigForm" style="display: none;">
             <div class="cs-form-group">
                 <label for="sbUrl">Supabase Project URL</label>
                 <input type="text" id="sbUrl" placeholder="https://xxxxxxxxxxxx.supabase.co" autocomplete="off">
@@ -217,6 +236,7 @@
                     <i data-lucide="save"></i> บันทึก
                 </button>
             </div>
+            </div><!-- /sbConfigForm -->
         </div>
 
         <div class="card settings-card full-width-card">
@@ -312,6 +332,7 @@
     <script src="../Js/settings-shared.js?v=20260809j"></script>
     <script src="../Js/sidebar-shared.js?v=20260813d"></script>
     <script src="../Js/keepalive-status.js?v=20260814a"></script>
+    <script src="../Js/settings-pin.js?v=20260816a"></script>
     <script>
         lucide.createIcons();
 

@@ -48,7 +48,9 @@ const PROVIDERS = {
     checkSupabaseConnection: 'settings-shared.js',
     testSupabaseConnection: 'settings-shared.js',
     saveSupabaseSettings: 'settings-shared.js',
-    goToSettingsPage: 'settings-shared.js'
+    goToSettingsPage: 'settings-shared.js',
+    // ล็อกส่วน Supabase Config (โหลดเฉพาะ settings.html)
+    runUnlockSettings: 'settings-pin.js'
 };
 
 /**

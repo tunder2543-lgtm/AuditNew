@@ -1,0 +1,117 @@
+/* แจ้งเตือนผลนับข้ามหน้า — ใช้ design token กลางเท่านั้น (กติกาธีม: ห้าม hex ดิบ)
+   ตำแหน่ง top ถูกคำนวณสดจาก JS (syncStackOffset) เพื่อวางต่อใต้กองของแชท */
+
+.count-notify-stack {
+    position: fixed;
+    top: 16px;
+    right: 1rem;
+    z-index: 10040; /* ต่ำกว่ากองแชท (10050) — แชทเป็นข้อความถึงตัวคน สำคัญกว่า */
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(360px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.count-notify-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 12px;
+    border: 1px solid var(--border-strong);
+    border-left-width: 4px;
+    background: linear-gradient(165deg, var(--surface-2), var(--surface-1));
+    box-shadow: var(--shadow-lg);
+    animation: countNotifyIn 0.26s ease-out;
+}
+
+.count-notify-toast.count-notify-insert { border-left-color: var(--ok-text); }
+.count-notify-toast.count-notify-update { border-left-color: var(--warn-text); }
+.count-notify-toast.count-notify-delete { border-left-color: var(--bad-text); }
+
+.count-notify-body {
+    flex: 1;
+    min-width: 0;
+}
+
+.count-notify-body strong {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text);
+    margin-bottom: 0.15rem;
+}
+
+.count-notify-body p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--text-2);
+    word-break: break-word;
+}
+
+.count-notify-body p.count-notify-sub {
+    font-size: 0.76rem;
+    color: var(--text-3);
+}
+
+.count-notify-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-3);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.15rem;
+}
+
+.count-notify-close:hover { color: var(--text); }
+
+.count-notify-toast.count-notify-out {
+    animation: countNotifyOut 0.24s ease-in forwards;
+}
+
+@keyframes countNotifyIn {
+    from { opacity: 0; transform: translateX(18px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes countNotifyOut {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(18px); }
+}
+
+/* ปุ่มสวิตช์ท้ายเมนูซ้าย — ทรงเดียวกับปุ่มสลับธีม */
+.sidebar-notify-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    padding: 0.6rem 0.75rem;
+    margin-top: 0.35rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text-2);
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    text-align: left;
+}
+
+.sidebar-notify-toggle:hover {
+    border-color: var(--primary-border);
+    color: var(--text);
+}
+
+.sidebar-notify-toggle i {
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+}
+
+.sidebar-notify-toggle.is-off {
+    color: var(--text-3);
+    background: transparent;
+}

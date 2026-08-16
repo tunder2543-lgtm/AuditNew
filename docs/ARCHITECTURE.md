@@ -65,6 +65,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | `audit-loc-compare.js` | audit_check | เทียบตำแหน่งกับไฟล์ Excel (`buildLocComparePlan`) |
 | `audit-log.js` | `window.AuditLog` | สร้าง/เขียน `inventory_audit_logs` ให้ทุก mutation ในหน้า audit_check (invariant ข้อ 1) |
 | `chat-notify-shared.js` | — | แจ้งเตือนแชทข้ามหน้า (realtime + polling) — ถูก inject โดย sidebar ทุกหน้า |
+| `count-notify-shared.js` | `window.countNotifyShared` | แจ้งเตือนผลนับข้ามหน้า (realtime อย่างเดียว ไม่มี polling) — inject โดย sidebar ทุกหน้า · ข้ามหน้า `live_count_wall` ที่มี popup ของตัวเอง · สวิตช์เปิด/ปิดท้ายเมนูซ้าย (`count_notify_enabled_v1`) |
 | `script.js` | (IIFE) | logic ทั้งหมดของ index.html |
 | `live-count-wall.js` | (IIFE) | logic ของ live_count_wall — ⚠️ capture `RS` ตอน parse ลำดับ script สำคัญ |
 
@@ -87,7 +88,7 @@ import_counts.html ────────┴─ แนบ cycle_id ─► INSE
 | cycle_config | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | |
 | chat | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | |
 
-`chat-notify-shared.js` + `Css/chat-notify.css` ไม่มี tag ในหน้าไหนเลย — `sidebar-shared.js` inject ให้ทุกหน้าตอน runtime (จึงต้อง bump `ASSET_VER`)
+`chat-notify-shared.js` + `Css/chat-notify.css` (และ `count-notify-shared.js` + `Css/count-notify.css`) ไม่มี tag ในหน้าไหนเลย — `sidebar-shared.js` inject ให้ทุกหน้าตอน runtime (จึงต้อง bump `ASSET_VER`)
 
 **`db-errors.js` โหลดแค่ 4 หน้า และ `settings-shared.js` 9 หน้า** — 6 จุดที่เหลือถูกถอดออกเมื่อ 2026-08-10 เพราะไม่มีการเรียกใช้จริง (`dashboard.html` มี connection pill ของตัวเองแยก ไม่ใช้ badge กลาง)
 

@@ -38,6 +38,7 @@ const PROVIDERS = {
     dashboardShared: 'dashboard-shared.js',
     sidebarShared: 'sidebar-shared.js',
     chatNotifyShared: 'chat-notify-shared.js',
+    countNotifyShared: 'count-notify-shared.js',
     // audit_check แตกโมดูลย่อยออกมา 4 ตัว
     AuditDedupe: 'audit-dedupe.js',
     AuditLog: 'audit-log.js',
@@ -57,7 +58,10 @@ const PROVIDERS = {
  * `chat-notify-shared.js` ไม่มี <script> ในหน้าไหน — `sidebar-shared.js` inject ให้ตอน runtime
  * จึงถือว่า "โหลดแล้ว" ทุกหน้าที่โหลด sidebar-shared
  */
-const INJECTED_BY = { 'chat-notify-shared.js': 'sidebar-shared.js' };
+const INJECTED_BY = {
+    'chat-notify-shared.js': 'sidebar-shared.js',
+    'count-notify-shared.js': 'sidebar-shared.js'
+};
 
 /** ไฟล์ JS ที่เป็น "โค้ดของหน้านั้น" ไม่ใช่ shared layer */
 const PAGE_JS = {

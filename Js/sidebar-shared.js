@@ -9,7 +9,7 @@
      * เวอร์ชันไฟล์สำหรับ cache-buster ของ asset ที่ inject แบบ dynamic
      * ⚠️ ต้อง bump ให้ตรงกับ ?v= ใน <script> ของทุกหน้า HTML ทุกครั้งที่แก้ shared JS/CSS
      */
-    const ASSET_VER = '20260813d';
+    const ASSET_VER = '20260816a';
 
     /** จอที่แคบกว่านี้ เมนูซ้ายทำงานเป็นลิ้นชักสไลด์ — ต้องตรงกับ @media ใน Css/style.css */
     const MOBILE_QUERY = '(max-width: 900px)';
@@ -40,6 +40,21 @@
         const label = btn.querySelector('.sidebar-theme-label');
         if (label) label.textContent = light ? 'โหมดมืด' : 'โหมดสว่าง';
         btn.setAttribute('aria-pressed', light ? 'true' : 'false');
+    }
+
+    /**
+     * ป้ายสวิตช์แจ้งเตือนผลนับ — อ่านสถานะจาก count-notify-shared.js (โหลดทีหลังแบบ inject)
+     * ถ้ายังโหลดไม่เสร็จให้ถือว่า "เปิด" ตรงกับค่าเริ่มต้นของโมดูลนั้น
+     */
+    function updateNotifyToggleUi() {
+        const btn = document.getElementById('sidebarCountNotifyToggle');
+        if (!btn) return;
+        const CN = window.countNotifyShared;
+        const on = CN ? CN.isEnabled() : true;
+        const label = btn.querySelector('.sidebar-notify-label');
+        if (label) label.textContent = on ? 'แจ้งเตือนผลนับ: เปิด' : 'แจ้งเตือนผลนับ: ปิด';
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+        btn.classList.toggle('is-off', !on);
     }
 
     /** หน้าเหล่านี้: เปิดทุกกลุ่มเป็นค่าเริ่มต้น (ยังพับได้) — ไม่ซ่อนรายการย่อยแบบพับปิดตลอด */
@@ -205,6 +220,11 @@
             + '<i data-lucide="moon" class="icon-moon"></i>'
             + '<span class="sidebar-theme-label"></span></button>';
 
+        // สวิตช์แจ้งเตือนผลนับข้ามหน้า — ข้อความ/สถานะ set ทีหลังผ่าน updateNotifyToggleUi()
+        html += '<button type="button" class="sidebar-notify-toggle" id="sidebarCountNotifyToggle">'
+            + '<i data-lucide="bell"></i>'
+            + '<span class="sidebar-notify-label"></span></button>';
+
         aside.innerHTML = html;
 
         const themeBtn = aside.querySelector('.sidebar-theme-toggle');
@@ -214,6 +234,17 @@
             });
         }
         updateThemeToggleUi();
+
+        const notifyBtn = aside.querySelector('.sidebar-notify-toggle');
+        if (notifyBtn) {
+            notifyBtn.addEventListener('click', function () {
+                const CN = window.countNotifyShared;
+                if (!CN) return;
+                CN.setEnabled(!CN.isEnabled());
+                updateNotifyToggleUi();
+            });
+        }
+        updateNotifyToggleUi();
 
         aside.querySelectorAll('.sidebar-group-head').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -342,10 +373,19 @@
             document.head.appendChild(link);
         }
 
+        if (!document.querySelector('link[data-count-notify-css]')) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = base + 'Css/count-notify.css?v=' + ASSET_VER;
+            link.dataset.countNotifyCss = '1';
+            document.head.appendChild(link);
+        }
+
         function scriptReady(src, el) {
             if (el && el.dataset.loaded === '1') return true;
             if (/api\.js/i.test(src) && window.apiService) return true;
             if (/chat-notify-shared\.js/i.test(src) && window.chatNotifyShared) return true;
+            if (/count-notify-shared\.js/i.test(src) && window.countNotifyShared) return true;
             if (/supabase-js/i.test(src) && (window.supabase || window.supabaseJs)) return true;
             return false;
         }
@@ -384,6 +424,10 @@
         function bootNotify() {
             loadScript(base + 'Js/chat-notify-shared.js', function () {
                 window.chatNotifyShared?.init?.();
+            });
+            loadScript(base + 'Js/count-notify-shared.js', function () {
+                window.countNotifyShared?.init?.();
+                updateNotifyToggleUi(); // ป้ายสวิตช์ตอน render ยังไม่รู้สถานะจริง ต้องอัปเดตซ้ำ
             });
         }
 
